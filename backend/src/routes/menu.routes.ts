@@ -1,7 +1,7 @@
 import express from 'express'
 import { z } from 'zod'
 import { query } from '../db/connection.js'
-import { authenticate, tenantGuard } from '../middleware/auth.js'
+import { authenticate, tenantGuard, AuthRequest } from '../middleware/auth.js'
 
 const router = express.Router()
 
