@@ -6,7 +6,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      DATABASE_URL: postgresql://plataformacaiteria:plataformacaiteria@postgres_postgres:5432/acaiteria
+      DATABASE_URL: ${DATABASE_URL}
       JWT_SECRET: ${JWT_SECRET:-your-secret-key-change-in-production}
       FRONTEND_URL: ${FRONTEND_URL:-https://gestaoloja.reffix.com.br}
     deploy:
