@@ -42,23 +42,23 @@ docker push registry.example.com/acaiteria-frontend:latest
 
 Configure as seguintes variáveis de ambiente (via arquivo `.env` ou export):
 
-- `DOMAIN` - Domínio da aplicação (ex: acaiteria.example.com)
+- `DOMAIN` - Domínio da aplicação (padrão: gestaoloja.reffix.com.br)
 - `DATABASE_URL` - URL completa de conexão do PostgreSQL
   - Formato: `postgresql://plataformacaiteria:senha@postgres_postgres:5432/acaiteria`
   - O host `postgres_postgres` é o nome do serviço PostgreSQL no Docker Swarm
 - `JWT_SECRET` - Chave secreta para JWT (use uma chave forte em produção)
-- `FRONTEND_URL` - URL do frontend (ex: https://acaiteria.example.com)
-- `VITE_API_URL` - URL da API backend (ex: https://api.acaiteria.example.com)
+- `FRONTEND_URL` - URL do frontend (padrão: https://gestaoloja.reffix.com.br)
+- `VITE_API_URL` - URL da API backend (padrão: https://api.gestaoloja.reffix.com.br)
 
 ### 4. Deploy no Swarm
 
 ```bash
 # Carregar variáveis de ambiente
-export DOMAIN=acaiteria.example.com
+export DOMAIN=gestaoloja.reffix.com.br
 export DATABASE_URL="postgresql://plataformacaiteria:senha@postgres_postgres:5432/acaiteria"
 export JWT_SECRET="sua-chave-secreta-forte-aqui"
-export FRONTEND_URL="https://acaiteria.example.com"
-export VITE_API_URL="https://api.acaiteria.example.com"
+export FRONTEND_URL="https://gestaoloja.reffix.com.br"
+export VITE_API_URL="https://api.gestaoloja.reffix.com.br"
 
 # Deploy do stack
 docker stack deploy -c docker-compose.yml acaiteria
@@ -81,7 +81,7 @@ docker service ps acaiteria_acaiteria-backend
 docker service ps acaiteria_acaiteria-frontend
 
 # Testar API
-curl https://api.acaiteria.example.com/health
+curl https://api.gestaoloja.reffix.com.br/health
 ```
 
 ## 🔄 Atualizações
@@ -112,10 +112,10 @@ Ambas as aplicações expõem endpoints de healthcheck:
 
 ```bash
 # Frontend
-curl https://acaiteria.example.com/health
+curl https://gestaoloja.reffix.com.br/health
 
 # Backend
-curl https://api.acaiteria.example.com/health
+curl https://api.gestaoloja.reffix.com.br/health
 ```
 
 ### Logs

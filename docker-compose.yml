@@ -8,7 +8,7 @@ services:
       PORT: 3000
       DATABASE_URL: postgresql://plataformacaiteria:plataformacaiteria@postgres_postgres:5432/acaiteria
       JWT_SECRET: ${JWT_SECRET:-your-secret-key-change-in-production}
-      FRONTEND_URL: ${FRONTEND_URL:-https://acaiteria.example.com}
+      FRONTEND_URL: ${FRONTEND_URL:-https://gestaoloja.reffix.com.br}
     deploy:
       replicas: 2
       restart_policy:
@@ -22,7 +22,7 @@ services:
       labels:
         # Traefik - HTTPS
         - "traefik.enable=true"
-        - "traefik.http.routers.acaiteria-api.rule=Host(`api.${DOMAIN:-acaiteria.example.com}`)"
+        - "traefik.http.routers.acaiteria-api.rule=Host(`api.${DOMAIN:-gestaoloja.reffix.com.br}`)"
         - "traefik.http.routers.acaiteria-api.entrypoints=websecure"
         - "traefik.http.routers.acaiteria-api.tls=true"
         - "traefik.http.routers.acaiteria-api.tls.certresolver=letsencryptresolver"
@@ -41,7 +41,7 @@ services:
     image: acaiteria-frontend:latest
     environment:
       NODE_ENV: production
-      VITE_API_URL: ${VITE_API_URL:-https://api.acaiteria.example.com}
+      VITE_API_URL: ${VITE_API_URL:-https://api.gestaoloja.reffix.com.br}
     deploy:
       replicas: 2
       restart_policy:
@@ -55,7 +55,7 @@ services:
       labels:
         # Traefik - HTTPS
         - "traefik.enable=true"
-        - "traefik.http.routers.acaiteria.rule=Host(`${DOMAIN:-acaiteria.example.com}`)"
+        - "traefik.http.routers.acaiteria.rule=Host(`${DOMAIN:-gestaoloja.reffix.com.br}`)"
         - "traefik.http.routers.acaiteria.entrypoints=websecure"
         - "traefik.http.routers.acaiteria.tls=true"
         - "traefik.http.routers.acaiteria.tls.certresolver=letsencryptresolver"

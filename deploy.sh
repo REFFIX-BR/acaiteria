@@ -90,8 +90,8 @@ echo ""
 # Verificar variáveis de ambiente
 echo -e "${YELLOW}🔍 Verificando variáveis de ambiente...${NC}"
 if [ -z "$DOMAIN" ]; then
-    echo -e "${YELLOW}⚠️  DOMAIN não definido, usando padrão: acaiteria.example.com${NC}"
-    export DOMAIN="acaiteria.example.com"
+    echo -e "${YELLOW}⚠️  DOMAIN não definido, usando padrão: gestaoloja.reffix.com.br${NC}"
+    export DOMAIN="gestaoloja.reffix.com.br"
 fi
 
 if [ -z "$DATABASE_URL" ]; then
@@ -108,11 +108,15 @@ fi
 if [ -z "$FRONTEND_URL" ]; then
     export FRONTEND_URL="https://${DOMAIN}"
     echo -e "${YELLOW}⚠️  FRONTEND_URL não definido, usando: ${FRONTEND_URL}${NC}"
+else
+    echo -e "${GREEN}✅ FRONTEND_URL: ${FRONTEND_URL}${NC}"
 fi
 
 if [ -z "$VITE_API_URL" ]; then
     export VITE_API_URL="https://api.${DOMAIN}"
     echo -e "${YELLOW}⚠️  VITE_API_URL não definido, usando: ${VITE_API_URL}${NC}"
+else
+    echo -e "${GREEN}✅ VITE_API_URL: ${VITE_API_URL}${NC}"
 fi
 
 echo -e "${GREEN}✅ Variáveis de ambiente verificadas${NC}"
