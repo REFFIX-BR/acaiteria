@@ -333,7 +333,7 @@ export function ProductCustomizationModal({
                   <div className="space-y-3">
                     {item.additions.map((addition) => {
                       const isSelected = selectedAdditions.some((a) => a.id === addition.id)
-                      const isDisabled = !isSelected && item.maxAdditions && selectedAdditions.length >= item.maxAdditions
+                      const isDisabled = !!(!isSelected && item.maxAdditions && selectedAdditions.length >= item.maxAdditions)
                       return (
                         <label
                           key={addition.id}
@@ -408,7 +408,7 @@ export function ProductCustomizationModal({
                   <div className="space-y-3">
                     {item.complements.map((complement) => {
                       const isSelected = selectedComplements.some((c) => c.id === complement.id)
-                      const isDisabled = !isSelected && item.maxComplements && selectedComplements.length >= item.maxComplements
+                      const isDisabled = !!(!isSelected && item.maxComplements && selectedComplements.length >= item.maxComplements)
                       return (
                         <label
                           key={complement.id}
@@ -483,7 +483,7 @@ export function ProductCustomizationModal({
                   <div className="space-y-3">
                     {item.fruits.map((fruit) => {
                       const isSelected = selectedFruits.some((f) => f.id === fruit.id)
-                      const isDisabled = !isSelected && item.maxFruits && selectedFruits.length >= item.maxFruits
+                      const isDisabled = !!(!isSelected && item.maxFruits && selectedFruits.length >= item.maxFruits)
                       return (
                         <label
                           key={fruit.id}

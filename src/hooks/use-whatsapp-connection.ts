@@ -15,7 +15,7 @@ export function useWhatsAppConnection() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   
-  const monitoringIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const monitoringIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const cancelledFlagRef = useRef(false)
 
   // Carrega instância do storage

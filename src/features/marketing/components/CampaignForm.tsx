@@ -120,7 +120,6 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
             discount: data.discount,
             startDate: new Date(data.startDate),
             endDate: data.endDate ? new Date(data.endDate) : undefined,
-            updatedAt: new Date(),
           }
         }
       } else {

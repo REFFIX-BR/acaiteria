@@ -122,6 +122,7 @@ export function CounterOrderForm({ onSuccess }: CounterOrderFormProps) {
         menuItemName: si.menuItem.name,
         additions: [],
         complements: [],
+        fruits: [],
         quantity: si.quantity,
         unitPrice: si.menuItem.basePrice,
         totalPrice: si.menuItem.basePrice * si.quantity,

@@ -76,7 +76,7 @@ export const CompanyDataForm = forwardRef<CompanyDataFormRef, CompanyDataFormPro
 
     setIsSaving(true)
     try {
-      const settings = getTenantData<{ company: CompanySettings }>(currentTenant.id, 'settings') || {}
+      const settings: any = getTenantData(currentTenant.id, 'settings') || {}
       settings.company = data
       setTenantData(currentTenant.id, 'settings', settings)
       

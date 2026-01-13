@@ -157,7 +157,7 @@ export const OperatingHoursForm = forwardRef<OperatingHoursFormRef, OperatingHou
 
       setIsSaving(true)
       try {
-        const settings = getTenantData<{ operatingHours: OperatingHours[] }>(currentTenant.id, 'settings') || {}
+        const settings: any = getTenantData(currentTenant.id, 'settings') || {}
         settings.operatingHours = hours
         settings.timezone = 'America/Sao_Paulo' // Fuso horário de Brasília
         setTenantData(currentTenant.id, 'settings', settings)
