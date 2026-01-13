@@ -122,7 +122,7 @@ export function CheckoutModal({
     setIsProcessing(true)
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+      const apiUrl = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3000'
       
       // Obter token JWT do localStorage (se existir)
       // TODO: Implementar autenticação JWT no frontend quando login migrar para backend

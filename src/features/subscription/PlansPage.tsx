@@ -284,7 +284,7 @@ export default function PlansPage() {
           }}
           planName={selectedPlan.name}
           planPrice={selectedPlan.price}
-          planType={selectedPlan.id}
+          planType={selectedPlan.id as 'basic' | 'premium' | 'enterprise'}
           onPaymentSuccess={handlePaymentSuccess}
         />
       )}
