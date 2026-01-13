@@ -130,7 +130,7 @@ export default function MenuPublicPage() {
     return total
   }
 
-  const handleAddToCart = (item: MenuItem, size?: SizeOption, additions: Addition[] = [], complements: Complement[] = [], fruits: Fruit[] = [], quantity: number = 1) => {
+  const handleAddToCart = (item: MenuItem, size?: SizeOption, additions: Addition[] = [], complements: Complement[] = [], quantity: number = 1, fruits: Fruit[] = []) => {
     // Permite adicionar ao carrinho sem identificação
     // A identificação será solicitada apenas ao finalizar o pedido
     const key = `${item.id}-${size?.id || 'default'}-${Date.now()}`
@@ -514,7 +514,7 @@ interface ProductCardProps {
   primaryColor: string
   menuSettings: any
   onCustomize: (item: MenuItem) => void
-  onAddToCart: (item: MenuItem, size?: SizeOption, additions?: Addition[], complements?: Complement[], quantity?: number) => void
+  onAddToCart: (item: MenuItem, size?: SizeOption, additions?: Addition[], complements?: Complement[], quantity?: number, fruits?: Fruit[]) => void
 }
 
 function ProductCard({ item, primaryColor, menuSettings, onCustomize, onAddToCart }: ProductCardProps) {
