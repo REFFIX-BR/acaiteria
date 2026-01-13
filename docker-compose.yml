@@ -59,12 +59,12 @@ services:
         - "traefik.http.routers.acaiteria.entrypoints=websecure"
         - "traefik.http.routers.acaiteria.tls=true"
         - "traefik.http.routers.acaiteria.tls.certresolver=letsencryptresolver"
-        - "traefik.http.services.acaiteria.loadbalancer.server.port=80"
+        - "traefik.http.services.acaiteria.loadbalancer.server.port=3000"
         - "traefik.docker.network=reffix"
     networks:
       - reffix
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
       interval: 30s
       timeout: 10s
       retries: 3

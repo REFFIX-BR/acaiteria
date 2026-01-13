@@ -16,21 +16,29 @@ COPY . .
 RUN npm run build
 
 # Stage 2: Production
-FROM nginx:alpine
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Instalar serve para servir arquivos estáticos
+RUN npm install -g serve
 
 # Copiar arquivos buildados
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=builder /app/dist ./dist
 
-# Copiar configuração do nginx
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Criar usuário não-root
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
+
+USER nodejs
 
 # Expor porta
-EXPOSE 80
+EXPOSE 3000
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
+  CMD node -e "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
-# Iniciar nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Iniciar servidor
+CMD ["serve", "-s", "dist", "-l", "3000"]
 
