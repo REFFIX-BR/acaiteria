@@ -87,6 +87,16 @@ else
 fi
 echo ""
 
+# Carregar variáveis de ambiente do arquivo .env (se existir)
+if [ -f .env ]; then
+    echo -e "${YELLOW}📄 Carregando variáveis de ambiente do arquivo .env...${NC}"
+    set -a
+    source .env
+    set +a
+    echo -e "${GREEN}✅ Variáveis carregadas do .env${NC}"
+    echo ""
+fi
+
 # Verificar variáveis de ambiente
 echo -e "${YELLOW}🔍 Verificando variáveis de ambiente...${NC}"
 if [ -z "$DOMAIN" ]; then

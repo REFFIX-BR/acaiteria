@@ -40,28 +40,61 @@ docker push registry.example.com/acaiteria-frontend:latest
 
 ### 3. Configurar variáveis de ambiente
 
-Configure as seguintes variáveis de ambiente (via arquivo `.env` ou export):
+**Opção 1: Usar arquivo `.env` (Recomendado)**
 
-- `DOMAIN` - Domínio da aplicação (padrão: gestaoloja.reffix.com.br)
-- `DATABASE_URL` - URL completa de conexão do PostgreSQL
-  - Formato: `postgresql://plataformacaiteria:senha@postgres_postgres:5432/acaiteria`
-  - O host `postgres_postgres` é o nome do serviço PostgreSQL no Docker Swarm
-- `JWT_SECRET` - Chave secreta para JWT (use uma chave forte em produção)
-- `FRONTEND_URL` - URL do frontend (padrão: https://gestaoloja.reffix.com.br)
-- `VITE_API_URL` - URL da API backend (padrão: https://api.gestaoloja.reffix.com.br)
-
-### 4. Deploy no Swarm
+Crie um arquivo `.env` na raiz do projeto com o seguinte conteúdo:
 
 ```bash
-# Carregar variáveis de ambiente
+# Criar arquivo .env
+cat > .env << 'EOF'
+DOMAIN=gestaoloja.reffix.com.br
+DATABASE_URL=postgresql://plataformacaiteria:senha@postgres_postgres:5432/acaiteria
+JWT_SECRET=sua-chave-secreta-forte-aqui
+FRONTEND_URL=https://gestaoloja.reffix.com.br
+VITE_API_URL=https://api.gestaoloja.reffix.com.br
+EOF
+
+# Editar com suas configurações
+nano .env
+```
+
+**Opção 2: Exportar variáveis diretamente**
+
+```bash
 export DOMAIN=gestaoloja.reffix.com.br
 export DATABASE_URL="postgresql://plataformacaiteria:senha@postgres_postgres:5432/acaiteria"
 export JWT_SECRET="sua-chave-secreta-forte-aqui"
 export FRONTEND_URL="https://gestaoloja.reffix.com.br"
 export VITE_API_URL="https://api.gestaoloja.reffix.com.br"
+```
 
-# Deploy do stack
-docker stack deploy -c docker-compose.yml acaiteria
+**Variáveis obrigatórias:**
+- `DATABASE_URL` - URL completa de conexão do PostgreSQL
+  - Formato: `postgresql://plataformacaiteria:senha@postgres_postgres:5432/acaiteria`
+  - O host `postgres_postgres` é o nome do serviço PostgreSQL no Docker Swarm
+
+**Variáveis opcionais (com valores padrão):**
+- `DOMAIN` - Domínio da aplicação (padrão: gestaoloja.reffix.com.br)
+- `JWT_SECRET` - Chave secreta para JWT (padrão: your-secret-key-change-in-production)
+- `FRONTEND_URL` - URL do frontend (padrão: https://${DOMAIN})
+- `VITE_API_URL` - URL da API backend (padrão: https://api.${DOMAIN})
+
+### 4. Deploy no Swarm
+
+O script `deploy.sh` carrega automaticamente as variáveis do arquivo `.env` (se existir) ou você pode exportá-las manualmente antes de executar:
+
+```bash
+# Se usar arquivo .env, apenas execute:
+./deploy.sh
+
+# OU exporte as variáveis manualmente:
+export DATABASE_URL="postgresql://plataformacaiteria:senha@postgres_postgres:5432/acaiteria"
+export JWT_SECRET="sua-chave-secreta-forte-aqui"
+# ... outras variáveis opcionais
+
+# Depois execute:
+./deploy.sh
+```
 ```
 
 ### 5. Verificar o deploy
