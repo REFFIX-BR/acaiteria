@@ -16,7 +16,7 @@ const plans = [
   {
     id: 'basic' as PlanType,
     name: 'Plano Completo',
-    price: 79.90,
+    price: 1.00,
     period: 'mês',
     description: 'Acesso completo a todas as funcionalidades',
     popular: true,
