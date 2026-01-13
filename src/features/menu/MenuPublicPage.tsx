@@ -160,6 +160,10 @@ export default function MenuPublicPage() {
     setCustomizingItem(null)
   }
 
+  const handleAddToCartForProductCard = (item: MenuItem, size?: SizeOption, additions?: Addition[], complements?: Complement[], quantity?: number, fruits?: Fruit[]) => {
+    handleAddToCart(item, size, additions || [], complements || [], quantity || 1, fruits)
+  }
+
 
   const totalCart = useMemo(() => {
     let total = 0
@@ -454,7 +458,7 @@ export default function MenuPublicPage() {
                 primaryColor={primaryColor}
                 menuSettings={menuSettings || {}}
                 onCustomize={handleCustomize}
-                onAddToCart={handleAddToCartFromModal}
+                onAddToCart={handleAddToCartForProductCard}
               />
             ))}
           </div>
