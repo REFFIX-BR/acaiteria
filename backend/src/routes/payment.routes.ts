@@ -1,6 +1,5 @@
 import { Router, Request, Response } from 'express'
-import { authenticate, AuthRequest } from '../middleware/auth'
-import { tenantGuard } from '../middleware/auth'
+import { authenticate, AuthRequest, tenantGuard } from '../middleware/auth.js'
 import { z } from 'zod'
 import rateLimit from 'express-rate-limit'
 import { planOrdersService } from '../services/planOrdersService.js'
