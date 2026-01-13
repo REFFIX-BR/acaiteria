@@ -61,7 +61,7 @@ router.get('/', async (req: AuthRequest, res, next) => {
       WHERE o.tenant_id = $1 AND o.deleted_at IS NULL
     `
 
-    const params: any[] = [req.user.tenantId]
+    const params: any[] = [req.user!.tenantId]
     let paramCount = 2
 
     if (status) {
@@ -94,7 +94,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
        VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8, $9, $10, $11, NOW(), NOW())
        RETURNING id`,
       [
-        req.user.tenantId,
+        req.user!.tenantId,
         data.customerName,
         data.customerPhone,
         data.customerEmail || null,
@@ -136,7 +136,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
        VALUES ($1, $2, $3, $4, NOW(), NOW())
        ON CONFLICT (tenant_id, phone) DO UPDATE
        SET name = EXCLUDED.name, email = COALESCE(EXCLUDED.email, customers.email), updated_at = NOW()`,
-      [req.user.tenantId, data.customerName, data.customerPhone, data.customerEmail || null]
+      [req.user!.tenantId, data.customerName, data.customerPhone, data.customerEmail || null]
     )
 
     res.status(201).json({ id: orderId, message: 'Order created successfully' })
@@ -168,7 +168,7 @@ router.patch('/:id/status', async (req: AuthRequest, res, next) => {
       // Criar transação de entrada no fluxo de caixa
       const orderResult = await query(
         'SELECT total FROM orders WHERE id = $1 AND tenant_id = $2',
-        [req.params.id, req.user.tenantId]
+        [req.params.id, req.user!.tenantId]
       )
 
       if (orderResult.rows.length > 0) {
@@ -177,7 +177,7 @@ router.patch('/:id/status', async (req: AuthRequest, res, next) => {
            VALUES ($1, 'income', 'Vendas', $2, $3, CURRENT_DATE, NOW(), NOW())
            ON CONFLICT DO NOTHING`,
           [
-            req.user.tenantId,
+            req.user!.tenantId,
             orderResult.rows[0].total,
             `Pedido #${req.params.id} - ${req.body.customerName || 'Cliente'} (${req.body.deliveryType || 'Retirada'})`,
           ]
@@ -185,7 +185,7 @@ router.patch('/:id/status', async (req: AuthRequest, res, next) => {
       }
     }
 
-    params.push(req.params.id, req.user.tenantId)
+    params.push(req.params.id, req.user!.tenantId)
 
     const result = await query(
       `UPDATE orders SET ${updates.join(', ')} WHERE id = $${params.length - 1} AND tenant_id = $${params.length} AND deleted_at IS NULL RETURNING id`,

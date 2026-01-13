@@ -21,7 +21,7 @@ router.get('/financial-summary', async (req: AuthRequest, res, next) => {
       WHERE tenant_id = $1 AND deleted_at IS NULL
     `
 
-    const params: any[] = [req.user.tenantId]
+    const params: any[] = [req.user!.tenantId]
 
     if (startDate) {
       sql += ` AND date >= $${params.length + 1}`
@@ -55,7 +55,7 @@ router.get('/top-products', async (req: any, res, next) => {
        GROUP BY oi.menu_item_id, oi.menu_item_name
        ORDER BY total_quantity DESC
        LIMIT 5`,
-      [req.user.tenantId]
+      [req.user!.tenantId]
     )
 
     res.json({ products: result.rows })
@@ -78,7 +78,7 @@ router.get('/sales-chart', async (req: any, res, next) => {
       WHERE tenant_id = $1 AND status = 'delivered' AND deleted_at IS NULL
     `
 
-    const params: any[] = [req.user.tenantId]
+    const params: any[] = [req.user!.tenantId]
 
     if (startDate) {
       sql += ` AND created_at >= $${params.length + 1}`

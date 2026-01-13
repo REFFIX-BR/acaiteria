@@ -27,7 +27,7 @@ router.get('/company', async (req: AuthRequest, res, next) => {
   try {
     const result = await query(
       'SELECT * FROM company_settings WHERE tenant_id = $1',
-      [req.user.tenantId]
+      [req.user!.tenantId]
     )
 
     if (result.rows.length === 0) {
@@ -55,7 +55,7 @@ router.post('/company', async (req: AuthRequest, res, next) => {
            admin_email = EXCLUDED.admin_email,
            updated_at = NOW()`,
       [
-        req.user.tenantId,
+        req.user!.tenantId,
         data.tradeName,
         data.contactPhone || null,
         data.cnpj || null,
@@ -74,7 +74,7 @@ router.get('/operating-hours', async (req: AuthRequest, res, next) => {
   try {
     const result = await query(
       'SELECT * FROM operating_hours WHERE tenant_id = $1 ORDER BY day',
-      [req.user.tenantId]
+      [req.user!.tenantId]
     )
 
     res.json({ hours: result.rows })
@@ -91,7 +91,7 @@ router.post('/operating-hours', async (req: AuthRequest, res, next) => {
     // Deletar horários existentes
     await query(
       'DELETE FROM operating_hours WHERE tenant_id = $1',
-      [req.user.tenantId]
+      [req.user!.tenantId]
     )
 
     // Inserir novos horários
@@ -105,7 +105,7 @@ router.post('/operating-hours', async (req: AuthRequest, res, next) => {
              end_time = EXCLUDED.end_time,
              updated_at = NOW()`,
         [
-          req.user.tenantId,
+          req.user!.tenantId,
           hour.day,
           hour.enabled,
           hour.startTime,

@@ -50,7 +50,7 @@ router.put('/', authenticate, async (req: AuthRequest, res, next) => {
     }
 
     updates.push('updated_at = NOW()')
-    values.push(req.user.tenantId)
+    values.push(req.user!.tenantId)
 
     await query(
       `UPDATE tenants SET ${updates.join(', ')} WHERE id = $${paramCount++}`,

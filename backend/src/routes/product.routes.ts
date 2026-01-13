@@ -22,7 +22,7 @@ router.get('/', async (req: AuthRequest, res, next) => {
   try {
     const result = await query(
       'SELECT * FROM products WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY name',
-      [req.user.tenantId]
+      [req.user!.tenantId]
     )
 
     res.json({ products: result.rows })
@@ -41,7 +41,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
        RETURNING id`,
       [
-        req.user.tenantId,
+        req.user!.tenantId,
         data.name,
         data.category,
         data.currentStock,
@@ -92,7 +92,7 @@ router.put('/:id', async (req: AuthRequest, res, next) => {
     }
 
     updates.push('updated_at = NOW()')
-    values.push(req.params.id, req.user.tenantId)
+    values.push(req.params.id, req.user!.tenantId)
 
     const result = await query(
       `UPDATE products SET ${updates.join(', ')} WHERE id = $${paramCount++} AND tenant_id = $${paramCount++} AND deleted_at IS NULL RETURNING id`,
@@ -114,7 +114,7 @@ router.delete('/:id', async (req: AuthRequest, res, next) => {
   try {
     const result = await query(
       'UPDATE products SET deleted_at = NOW() WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL RETURNING id',
-      [req.params.id, req.user.tenantId]
+      [req.params.id, req.user!.tenantId]
     )
 
     if (result.rows.length === 0) {

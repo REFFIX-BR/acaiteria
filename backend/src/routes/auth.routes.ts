@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { z } from 'zod'
 import { query } from '../db/connection.js'
-import { authenticate } from '../middleware/auth.js'
+import { authenticate, AuthRequest } from '../middleware/auth.js'
 
 const router = express.Router()
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production'
@@ -153,14 +153,18 @@ router.post('/register', async (req, res, next) => {
 })
 
 // Get current user
-router.get('/me', authenticate, async (req, res, next) => {
+router.get('/me', authenticate, async (req: AuthRequest, res, next) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' })
+    }
+
     const result = await query(
       `SELECT u.id, u.email, u.name, u.role, u.tenant_id, t.name as tenant_name, t.slug as tenant_slug, t.logo, t.primary_color, t.secondary_color
        FROM users u
        JOIN tenants t ON u.tenant_id = t.id
        WHERE u.id = $1 AND u.deleted_at IS NULL AND t.deleted_at IS NULL`,
-      [req.user!.id]
+      [req.user.id]
     )
 
     if (result.rows.length === 0) {

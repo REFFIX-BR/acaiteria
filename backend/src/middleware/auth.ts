@@ -71,4 +71,7 @@ export function requireRole(...roles: string[]) {
   }
 }
 
+// Re-export tenantGuard para facilitar imports
+export { tenantGuard } from './tenantGuard.js'
+
 

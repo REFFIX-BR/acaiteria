@@ -26,7 +26,7 @@ router.get('/', async (req: AuthRequest, res, next) => {
       WHERE tenant_id = $1 AND deleted_at IS NULL
     `
 
-    const params: any[] = [req.user.tenantId]
+    const params: any[] = [req.user!.tenantId]
     let paramCount = 2
 
     if (type) {
@@ -68,7 +68,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
        VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
        RETURNING id`,
       [
-        req.user.tenantId,
+        req.user!.tenantId,
         data.type,
         data.category,
         data.amount,
@@ -88,7 +88,7 @@ router.delete('/:id', async (req: AuthRequest, res, next) => {
   try {
     const result = await query(
       'UPDATE transactions SET deleted_at = NOW() WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL RETURNING id',
-      [req.params.id, req.user.tenantId]
+      [req.params.id, req.user!.tenantId]
     )
 
     if (result.rows.length === 0) {
