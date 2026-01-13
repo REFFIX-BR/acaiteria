@@ -34,7 +34,7 @@ export function PaymentInstructions({
   const [paymentStatus, setPaymentStatus] = useState<'pending' | 'paid' | 'cancelled'>('pending')
   const [isPolling, setIsPolling] = useState(true)
 
-  const apiUrl = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3000'
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
   // Polling para verificar status do pagamento
   useEffect(() => {

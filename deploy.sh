@@ -78,7 +78,15 @@ echo ""
 
 # Build do frontend
 echo -e "${YELLOW}📦 Building frontend...${NC}"
-docker build -t acaiteria-frontend:latest .
+# Carregar variáveis de ambiente do arquivo .env (se existir) para o build
+if [ -f .env ]; then
+    set -a
+    source .env
+    set +a
+fi
+# Usar VITE_API_URL do ambiente ou valor padrão
+VITE_API_URL=${VITE_API_URL:-https://api.gestaoloja.reffix.com.br}
+docker build --build-arg VITE_API_URL="${VITE_API_URL}" -t acaiteria-frontend:latest .
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✅ Frontend build concluído${NC}"
 else
