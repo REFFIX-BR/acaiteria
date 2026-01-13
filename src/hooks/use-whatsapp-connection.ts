@@ -46,11 +46,13 @@ export function useWhatsAppConnection() {
         id: `instance-${Date.now()}`,
         restaurantId: currentTenant.id,
         instanceName: '',
+        status: 'created',
         integration: 'WHATSAPP-BAILEYS',
         createdAt: now,
       }),
       ...instanceData,
       instanceName: instanceData.instanceName || existingInstance?.instanceName || '',
+      status: instanceData.status || existingInstance?.status || 'created',
       updatedAt: now,
     }
 

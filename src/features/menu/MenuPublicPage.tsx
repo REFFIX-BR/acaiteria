@@ -130,7 +130,7 @@ export default function MenuPublicPage() {
     return total
   }
 
-  const handleAddToCart = (item: MenuItem, size?: SizeOption, additions: Addition[] = [], complements: Complement[] = [], quantity: number = 1, fruits: Fruit[] = []) => {
+  const handleAddToCart = (item: MenuItem, size?: SizeOption, additions: Addition[] = [], complements: Complement[] = [], quantity: number = 1, fruits?: Fruit[]) => {
     // Permite adicionar ao carrinho sem identificação
     // A identificação será solicitada apenas ao finalizar o pedido
     const key = `${item.id}-${size?.id || 'default'}-${Date.now()}`
@@ -152,6 +152,12 @@ export default function MenuPublicPage() {
 
   const handleCustomize = (item: MenuItem) => {
     setCustomizingItem(item)
+  }
+
+  const handleAddToCartFromModal = (size?: SizeOption, additions?: Addition[], complements?: Complement[], fruits?: Fruit[], quantity?: number) => {
+    if (!customizingItem) return
+    handleAddToCart(customizingItem, size, additions || [], complements || [], quantity || 1, fruits)
+    setCustomizingItem(null)
   }
 
 
@@ -448,7 +454,7 @@ export default function MenuPublicPage() {
                 primaryColor={primaryColor}
                 menuSettings={menuSettings || {}}
                 onCustomize={handleCustomize}
-                onAddToCart={handleAddToCart}
+                onAddToCart={handleAddToCartFromModal}
               />
             ))}
           </div>
@@ -464,7 +470,9 @@ export default function MenuPublicPage() {
           open={!!customizingItem}
           onClose={() => setCustomizingItem(null)}
           onAddToCart={(size, additions, complements, fruits, quantity) => {
-            handleAddToCart(customizingItem, size, additions, complements, fruits, quantity)
+            if (customizingItem) {
+              handleAddToCart(customizingItem, size, additions || [], complements || [], quantity || 1, fruits)
+            }
             setCustomizingItem(null)
           }}
         />
