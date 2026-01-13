@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  acaiteria-backend:
+    image: acaiteria-backend:latest
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://plataformacaiteria:plataformacaiteria@postgres_postgres:5432/acaiteria
+      JWT_SECRET: ${JWT_SECRET:-your-secret-key-change-in-production}
+      FRONTEND_URL: ${FRONTEND_URL:-https://acaiteria.example.com}
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      labels:
+        # Traefik - HTTPS
+        - "traefik.enable=true"
+        - "traefik.http.routers.acaiteria-api.rule=Host(`api.${DOMAIN:-acaiteria.example.com}`)"
+        - "traefik.http.routers.acaiteria-api.entrypoints=websecure"
+        - "traefik.http.routers.acaiteria-api.tls=true"
+        - "traefik.http.routers.acaiteria-api.tls.certresolver=letsencryptresolver"
+        - "traefik.http.services.acaiteria-api.loadbalancer.server.port=3000"
+        - "traefik.docker.network=reffix"
+    networks:
+      - reffix
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  acaiteria-frontend:
+    image: acaiteria-frontend:latest
+    environment:
+      NODE_ENV: production
+      VITE_API_URL: ${VITE_API_URL:-https://api.acaiteria.example.com}
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      labels:
+        # Traefik - HTTPS
+        - "traefik.enable=true"
+        - "traefik.http.routers.acaiteria.rule=Host(`${DOMAIN:-acaiteria.example.com}`)"
+        - "traefik.http.routers.acaiteria.entrypoints=websecure"
+        - "traefik.http.routers.acaiteria.tls=true"
+        - "traefik.http.routers.acaiteria.tls.certresolver=letsencryptresolver"
+        - "traefik.http.services.acaiteria.loadbalancer.server.port=80"
+        - "traefik.docker.network=reffix"
+    networks:
+      - reffix
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  reffix:
+    external: true
+    name: reffix
+

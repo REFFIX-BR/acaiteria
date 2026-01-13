@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Digital Menu | Luxe Dining</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Configuration -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#ee8c2b",
+                        "background-light": "#f8f7f6",
+                        "background-dark": "#221910",
+                    },
+                    fontFamily: {
+                        "display": ["Plus Jakarta Sans", "sans-serif"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .active-category {
+            border-left: 3px solid #ee8c2b;
+            background-color: rgba(238, 140, 43, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-[#1b140d] dark:text-[#fcfaf8] transition-colors duration-300">
+<div class="flex h-screen overflow-hidden">
+<!-- Sidebar Navigation -->
+<aside class="w-72 border-r border-[#f3ede7] dark:border-[#3a2e22] bg-background-light dark:bg-background-dark flex flex-col">
+<div class="p-8">
+<div class="flex items-center gap-3 text-primary mb-12">
+<span class="material-symbols-outlined text-3xl">restaurant</span>
+<h2 class="text-xl font-bold tracking-tight">Luxe Dining</h2>
+</div>
+<nav class="space-y-6">
+<div>
+<p class="text-xs font-semibold uppercase tracking-widest text-[#9a734c] mb-4">The Menu</p>
+<ul class="space-y-1">
+<li>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium hover:bg-primary/10 transition-colors" href="#">
+<span class="material-symbols-outlined">tapas</span>
+                                    Starters
+                                </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold active-category text-primary transition-colors" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1">skillet</span>
+                                    Main Course
+                                </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium hover:bg-primary/10 transition-colors" href="#">
+<span class="material-symbols-outlined">icecream</span>
+                                    Desserts
+                                </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium hover:bg-primary/10 transition-colors" href="#">
+<span class="material-symbols-outlined">wine_bar</span>
+                                    Drinks
+                                </a>
+</li>
+</ul>
+</div>
+<div>
+<p class="text-xs font-semibold uppercase tracking-widest text-[#9a734c] mb-4">Dietary</p>
+<div class="space-y-1 px-4">
+<label class="flex items-center gap-3 cursor-pointer py-2">
+<input class="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4" type="checkbox"/>
+<span class="text-sm">Vegetarian</span>
+</label>
+<label class="flex items-center gap-3 cursor-pointer py-2">
+<input class="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4" type="checkbox"/>
+<span class="text-sm">Gluten-Free</span>
+</label>
+</div>
+</div>
+</nav>
+</div>
+<div class="mt-auto p-8 border-t border-[#f3ede7] dark:border-[#3a2e22]">
+<button class="flex items-center gap-3 w-full px-4 py-3 bg-primary text-white rounded-lg font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-all">
+<span class="material-symbols-outlined">shopping_basket</span>
+                    View Order (3)
+                </button>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col overflow-y-auto">
+<!-- Header/Search -->
+<header class="sticky top-0 z-10 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md px-10 py-6 flex items-center justify-between border-b border-[#f3ede7] dark:border-[#3a2e22]">
+<div class="relative w-96">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#9a734c]">search</span>
+<input class="w-full bg-[#f3ede7] dark:bg-[#3a2e22] border-none rounded-lg py-2.5 pl-10 pr-4 text-sm focus:ring-1 focus:ring-primary placeholder:text-[#9a734c]" placeholder="Search for ingredients or dishes..." type="text"/>
+</div>
+<div class="flex items-center gap-6">
+<button class="text-sm font-medium hover:text-primary transition-colors">Reservations</button>
+<button class="text-sm font-medium hover:text-primary transition-colors">Account</button>
+<div class="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-xl">person</span>
+</div>
+</div>
+</header>
+<!-- Menu Content -->
+<div class="p-10 max-w-7xl mx-auto w-full">
+<!-- Page Heading -->
+<div class="mb-10">
+<h1 class="text-4xl font-black tracking-tight mb-3">Main Course</h1>
+<p class="text-[#9a734c] text-lg max-w-2xl">Experience the finest seasonal ingredients curated by our executive chef. Every dish is crafted to tell a story of provenance and passion.</p>
+</div>
+<!-- Filters/Chips -->
+<div class="flex gap-3 mb-8">
+<button class="flex items-center gap-2 px-4 py-2 rounded-full bg-[#f3ede7] dark:bg-[#3a2e22] text-sm font-medium hover:bg-primary/20 transition-colors">
+                        Chef's Special
+                        <span class="material-symbols-outlined text-sm">auto_awesome</span>
+</button>
+<button class="flex items-center gap-2 px-4 py-2 rounded-full bg-[#f3ede7] dark:bg-[#3a2e22] text-sm font-medium hover:bg-primary/20 transition-colors">
+                        Seafood
+                    </button>
+<button class="flex items-center gap-2 px-4 py-2 rounded-full bg-[#f3ede7] dark:bg-[#3a2e22] text-sm font-medium hover:bg-primary/20 transition-colors">
+                        Premium Cuts
+                    </button>
+</div>
+<!-- Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+<!-- Item 1 -->
+<div class="group bg-white dark:bg-[#2a2016] rounded-xl overflow-hidden border border-[#f3ede7] dark:border-[#3a2e22] hover:shadow-2xl hover:shadow-primary/5 transition-all duration-300">
+<div class="relative h-64 w-full overflow-hidden">
+<div class="absolute inset-0 bg-center bg-cover transform group-hover:scale-105 transition-transform duration-500" data-alt="Glistening pan-seared organic Atlantic salmon with vibrant greens" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuC5BcgfI2vwfiMIBjVoLbRuwtcpYQ0yQClI7FK6R-1VL_QANm1UWIbzIorq0f2bTDWoI7HgoAvuGjygHSOmZ5TjPs5-RsEHlurchaT4tWtiX6uaFQrTu7P5USTcDAWEdqqq0BdKQGefpaIaXFqwYGn1mD_0Gkv1sCQ5FR-dazqTJlZWIQVs1Xiii7BxJ91-tsdKvE0plBF8WPkbdWNWDWVbEeuSwfJSVuCXs0enNs1x3t06qttaGjdCv25f50mXDStnV7mGm4JoKcOa');">
+</div>
+<div class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full">
+<p class="text-primary font-bold text-sm">$38</p>
+</div>
+</div>
+<div class="p-6">
+<div class="flex justify-between items-start mb-2">
+<h3 class="text-lg font-bold">Organic Atlantic Salmon</h3>
+</div>
+<p class="text-[#9a734c] text-sm leading-relaxed mb-6">Lightly pan-seared, served with grilled asparagus, lemon butter reduction, and delicate microgreens.</p>
+<button class="w-full flex items-center justify-center gap-2 py-3 border border-primary/30 text-primary font-bold rounded-lg hover:bg-primary hover:text-white transition-all group/btn">
+<span class="material-symbols-outlined text-xl transition-transform group-hover/btn:rotate-90">add</span>
+                                Add to Order
+                            </button>
+</div>
+</div>
+<!-- Item 2 -->
+<div class="group bg-white dark:bg-[#2a2016] rounded-xl overflow-hidden border border-[#f3ede7] dark:border-[#3a2e22] hover:shadow-2xl hover:shadow-primary/5 transition-all duration-300">
+<div class="relative h-64 w-full overflow-hidden">
+<div class="absolute inset-0 bg-center bg-cover transform group-hover:scale-105 transition-transform duration-500" data-alt="Juicy wagyu ribeye steak with roasted garlic and bone marrow" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuC0Y09Zk_syk_um1-hnqKC8ba5AM9NLfP8uXJN81ysZbvjzJMromzC0gGwSIVy3A4z4TGyg_1upCjLCTizWgJVfNKSqMV8yIT8ZuMr8T_yX53xXmJBB69GtFSThPeZwmAWhJgOq3Pm9C0U5hW_GsGu3s0QoUNemimfRaeDbnb8NiMreHgV7N1BUG8gXQ6140Y6gdVFXRnses2f6cg6Uroqcimo2zx-YV0lvYGi6EnmcVeX4cuegFNKRL4qVvV3rU4HdV70AU4ey8jfB');">
+</div>
+<div class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full">
+<p class="text-primary font-bold text-sm">$65</p>
+</div>
+</div>
+<div class="p-6">
+<h3 class="text-lg font-bold mb-2">Wagyu Ribeye Steak</h3>
+<p class="text-[#9a734c] text-sm leading-relaxed mb-6">Marble score 9+ premium wagyu, served with roasted garlic cloves, bone marrow, and red wine jus.</p>
+<button class="w-full flex items-center justify-center gap-2 py-3 border border-primary/30 text-primary font-bold rounded-lg hover:bg-primary hover:text-white transition-all group/btn">
+<span class="material-symbols-outlined text-xl">add</span>
+                                Add to Order
+                            </button>
+</div>
+</div>
+<!-- Item 3 -->
+<div class="group bg-white dark:bg-[#2a2016] rounded-xl overflow-hidden border border-[#f3ede7] dark:border-[#3a2e22] hover:shadow-2xl hover:shadow-primary/5 transition-all duration-300">
+<div class="relative h-64 w-full overflow-hidden">
+<div class="absolute inset-0 bg-center bg-cover transform group-hover:scale-105 transition-transform duration-500" data-alt="Creamy truffle risotto topped with fresh truffle shavings" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDrGTeG8rWUNiXUH5x7wihdJheRPYBGjcsh9rv2POJMPANtgXVHKJISsjLN7nq1MmoqpgJZ5f5iofNQBe2PGkStZSGgUdhvP2xHO1pDDKCy7QwaGLkC74DvWAX2NsCJ1PJ-Ir9qRO8980nZ9R_vf1ISGaBzY5aP9YO4uWzRycaoH6WuzdbhJYAHpIacyay_TzBXJGmQd0LTgRrePdqVebDNx_7IxicJXLUGpkAIc0Yz52G5rZi8OLXDWjfiZVkqF6upgdY5T9HxHfVg');">
+</div>
+<div class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full">
+<p class="text-primary font-bold text-sm">$32</p>
+</div>
+</div>
+<div class="p-6">
+<h3 class="text-lg font-bold mb-2">Truffle Risotto</h3>
+<p class="text-[#9a734c] text-sm leading-relaxed mb-6">Italian carnaroli rice, slow-cooked with seasonal black truffles, aged parmesan, and forest mushrooms.</p>
+<button class="w-full flex items-center justify-center gap-2 py-3 border border-primary/30 text-primary font-bold rounded-lg hover:bg-primary hover:text-white transition-all group/btn">
+<span class="material-symbols-outlined text-xl">add</span>
+                                Add to Order
+                            </button>
+</div>
+</div>
+<!-- Item 4 -->
+<div class="group bg-white dark:bg-[#2a2016] rounded-xl overflow-hidden border border-[#f3ede7] dark:border-[#3a2e22] hover:shadow-2xl hover:shadow-primary/5 transition-all duration-300">
+<div class="relative h-64 w-full overflow-hidden">
+<div class="absolute inset-0 bg-center bg-cover transform group-hover:scale-105 transition-transform duration-500" data-alt="Perfectly pan-seared sea scallops with cauliflower puree" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCsbTqP4ubZKgxvQngtiH_D7c7et8GQ-B6BJODX4iVcr1R3hM9qZ9tSn7mhqc7wLB_Il1INgV-nMjWkmjRG9F4Ps06WSS7C2gItNqnnmnSgQvbaGuSpktm8dhr1wGJYiGhyXiIuKxXIWkqGnLKqCRaiohG79UyV0pYQdYcJUizGmTjHD2Ja5gg8gZmsSwOX-Ea_ggrq-_fQCDmwQJ2_sS6DzihnR3zvGihizoPoJSqgRIz71I4KDLRtoW7W1FU8gvlzsvzBkIZPaOUw');">
+</div>
+<div class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full">
+<p class="text-primary font-bold text-sm">$42</p>
+</div>
+</div>
+<div class="p-6">
+<h3 class="text-lg font-bold mb-2">Pan-Seared Scallops</h3>
+<p class="text-[#9a734c] text-sm leading-relaxed mb-6">Hand-dived scallops, cauliflower silk, pancetta crisp, and a drizzle of vibrant herb-infused oil.</p>
+<button class="w-full flex items-center justify-center gap-2 py-3 border border-primary/30 text-primary font-bold rounded-lg hover:bg-primary hover:text-white transition-all group/btn">
+<span class="material-symbols-outlined text-xl">add</span>
+                                Add to Order
+                            </button>
+</div>
+</div>
+<!-- Item 5 -->
+<div class="group bg-white dark:bg-[#2a2016] rounded-xl overflow-hidden border border-[#f3ede7] dark:border-[#3a2e22] hover:shadow-2xl hover:shadow-primary/5 transition-all duration-300">
+<div class="relative h-64 w-full overflow-hidden">
+<div class="absolute inset-0 bg-center bg-cover transform group-hover:scale-105 transition-transform duration-500" data-alt="Elegant roasted duck breast with cherry reduction" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDnJHAv5G0ihy84Vp6phNm-X53R83o8n6CISFIhpLxrjmqBvkWDoR5xp15ryV0cMkjJ54FpxzSbpg09H3ffqDwncQMaig2i8HGNxg1s0w94YUgfUuWpl11GfN9gWWPZFwgPSaC0PgfDCCInnI51kALKRAUDW9AlHTrQ7uOFG7lwkswCS02nd1Xe3TiOkH58vtqDvFcQ-bkv4xjyPYLtHG8H2fSItoVVsjyrtXW-OblnscpbHeJxU5_2n4VhsXGm5eu6pAQfggTqKfui');">
+</div>
+<div class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full">
+<p class="text-primary font-bold text-sm">$45</p>
+</div>
+</div>
+<div class="p-6">
+<h3 class="text-lg font-bold mb-2">Roasted Duck Breast</h3>
+<p class="text-[#9a734c] text-sm leading-relaxed mb-6">Succulent duck with a dark cherry glaze, parsnip puree, and honey-glazed heritage carrots.</p>
+<button class="w-full flex items-center justify-center gap-2 py-3 border border-primary/30 text-primary font-bold rounded-lg hover:bg-primary hover:text-white transition-all group/btn">
+<span class="material-symbols-outlined text-xl">add</span>
+                                Add to Order
+                            </button>
+</div>
+</div>
+<!-- Item 6 -->
+<div class="group bg-white dark:bg-[#2a2016] rounded-xl overflow-hidden border border-[#f3ede7] dark:border-[#3a2e22] hover:shadow-2xl hover:shadow-primary/5 transition-all duration-300">
+<div class="relative h-64 w-full overflow-hidden">
+<div class="absolute inset-0 bg-center bg-cover transform group-hover:scale-105 transition-transform duration-500" data-alt="Handmade wild mushroom fettuccine with garlic and herbs" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDmlHGzY_Moc07bvK-WwDq50wrqjcZjjI7mm56YqYkFDVyZq8EAppc_Q-4p83MOs47iVWuqFIslkAPl8cfc7Zet1mn7EdLFF0DP0V8vi1LzcZDofg8cy6hfN8V6PJ-10LWbbe_5Yr5kleiGEqLaC4VBUXgXapzg7qZa7aQr-WHIOBUZx_WA9CrVBsvR-DaezljiM1RQmA_t9j1KoYlQYeHhYEwl7cYKoNz744nefQ_nVz59dBVBlCQ7Ocy1oij2F6AbMUPLK4sAvDcK');">
+</div>
+<div class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full">
+<p class="text-primary font-bold text-sm">$28</p>
+</div>
+</div>
+<div class="p-6">
+<h3 class="text-lg font-bold mb-2">Wild Mushroom Pasta</h3>
+<p class="text-[#9a734c] text-sm leading-relaxed mb-6">Handmade fettuccine, sautéed forest mushrooms, garlic, fresh thyme, and shaved pecorino cheese.</p>
+<button class="w-full flex items-center justify-center gap-2 py-3 border border-primary/30 text-primary font-bold rounded-lg hover:bg-primary hover:text-white transition-all group/btn">
+<span class="material-symbols-outlined text-xl">add</span>
+                                Add to Order
+                            </button>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer -->
+<footer class="mt-20 border-t border-[#f3ede7] dark:border-[#3a2e22] p-10 bg-white/50 dark:bg-[#1b140d]/50">
+<div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
+<div class="flex items-center gap-3 opacity-50">
+<span class="material-symbols-outlined">restaurant</span>
+<p class="text-sm font-medium">© 2024 Luxe Dining Experience</p>
+</div>
+<div class="flex gap-8 text-sm font-medium text-[#9a734c]">
+<a class="hover:text-primary" href="#">Dietary Info</a>
+<a class="hover:text-primary" href="#">Sustainability</a>
+<a class="hover:text-primary" href="#">Careers</a>
+<a class="hover:text-primary" href="#">Privacy</a>
+</div>
+</div>
+</footer>
+</main>
+</div>
+</body></html>

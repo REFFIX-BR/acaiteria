@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Your Order | Luxe Dining</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#ee8c2b",
+                        "gold": "#9a734c",
+                        "background-light": "#f8f7f6",
+                        "background-dark": "#1b140d",
+                        "charcoal": "#2a2016"
+                    },
+                    fontFamily: {
+                        "display": ["Plus Jakarta Sans", "sans-serif"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #9a734c;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-[#1b140d] dark:text-[#fcfaf8] transition-colors duration-300">
+<div class="flex h-screen overflow-hidden">
+<aside class="w-72 border-r border-[#f3ede7] dark:border-[#3a2e22] bg-background-light dark:bg-background-dark flex flex-col shrink-0">
+<div class="p-8 text-center sm:text-left">
+<div class="flex items-center gap-3 text-primary mb-12">
+<span class="material-symbols-outlined text-3xl">restaurant</span>
+<h2 class="text-xl font-bold tracking-tight">Luxe Dining</h2>
+</div>
+<nav class="space-y-6">
+<div>
+<p class="text-xs font-semibold uppercase tracking-widest text-gold mb-4">The Menu</p>
+<ul class="space-y-1">
+<li>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium hover:bg-primary/10 transition-colors" href="#">
+<span class="material-symbols-outlined">tapas</span>
+                                Starters
+                            </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium hover:bg-primary/10 transition-colors" href="#">
+<span class="material-symbols-outlined">skillet</span>
+                                Main Course
+                            </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium hover:bg-primary/10 transition-colors" href="#">
+<span class="material-symbols-outlined">icecream</span>
+                                Desserts
+                            </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium hover:bg-primary/10 transition-colors" href="#">
+<span class="material-symbols-outlined">wine_bar</span>
+                                Drinks
+                            </a>
+</li>
+</ul>
+</div>
+</nav>
+</div>
+<div class="mt-auto p-8 border-t border-[#f3ede7] dark:border-[#3a2e22]">
+<div class="flex items-center justify-between text-xs font-bold uppercase tracking-widest text-gold mb-2">
+<span>Current Order</span>
+<span>3 Items</span>
+</div>
+</div>
+</aside>
+<main class="flex-1 flex flex-col overflow-hidden">
+<header class="sticky top-0 z-20 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md px-10 py-6 flex items-center justify-between border-b border-[#f3ede7] dark:border-[#3a2e22]">
+<a class="flex items-center gap-2 text-gold hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined">arrow_back</span>
+<span class="text-sm font-semibold tracking-wide uppercase">Continue Ordering</span>
+</a>
+<div class="flex items-center gap-6">
+<div class="hidden sm:flex items-center gap-6">
+<button class="text-sm font-medium hover:text-primary transition-colors">Reservations</button>
+<button class="text-sm font-medium hover:text-primary transition-colors">Account</button>
+</div>
+<div class="h-10 w-10 rounded-full bg-charcoal/5 dark:bg-charcoal/50 flex items-center justify-center border border-[#f3ede7] dark:border-[#3a2e22]">
+<span class="material-symbols-outlined text-primary text-xl">person</span>
+</div>
+</div>
+</header>
+<div class="flex-1 overflow-y-auto custom-scrollbar">
+<div class="max-w-7xl mx-auto px-8 py-12">
+<div class="mb-10">
+<h1 class="text-4xl font-black tracking-tighter mb-2">Order Summary</h1>
+<p class="text-gold">Review your selections before proceeding to the chef.</p>
+</div>
+<div class="flex flex-col xl:flex-row gap-12">
+<div class="flex-1 space-y-8">
+<div class="flex flex-col sm:flex-row gap-6 p-6 bg-white dark:bg-charcoal/30 rounded-2xl border border-[#f3ede7] dark:border-[#3a2e22] shadow-sm">
+<div class="w-full sm:w-32 h-32 rounded-xl overflow-hidden shrink-0">
+<img alt="Wagyu Ribeye" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC0Y09Zk_syk_um1-hnqKC8ba5AM9NLfP8uXJN81ysZbvjzJMromzC0gGwSIVy3A4z4TGyg_1upCjLCTizWgJVfNKSqMV8yIT8ZuMr8T_yX53xXmJBB69GtFSThPeZwmAWhJgOq3Pm9C0U5hW_GsGu3s0QoUNemimfRaeDbnb8NiMreHgV7N1BUG8gXQ6140Y6gdVFXRnses2f6cg6Uroqcimo2zx-YV0lvYGi6EnmcVeX4cuegFNKRL4qVvV3rU4HdV70AU4ey8jfB"/>
+</div>
+<div class="flex-1 flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start mb-2">
+<h3 class="text-xl font-bold tracking-tight">Wagyu Ribeye Steak</h3>
+<span class="text-xl font-bold text-primary">$65.00</span>
+</div>
+<div class="space-y-1 mb-4">
+<p class="text-xs font-semibold text-gold uppercase tracking-wider flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">restaurant_menu</span> Medium Rare
+                                        </p>
+<p class="text-xs font-semibold text-gold uppercase tracking-wider flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">lunch_dining</span> Truffle Mashed Potatoes
+                                        </p>
+</div>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex items-center bg-background-light dark:bg-background-dark border border-[#f3ede7] dark:border-[#3a2e22] rounded-lg p-0.5">
+<button class="w-8 h-8 flex items-center justify-center hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg">remove</span>
+</button>
+<span class="w-8 text-center text-sm font-bold">1</span>
+<button class="w-8 h-8 flex items-center justify-center hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg">add</span>
+</button>
+</div>
+<button class="text-xs font-bold uppercase text-red-500 hover:text-red-600 transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">delete</span> Remove
+                                    </button>
+</div>
+</div>
+</div>
+<div class="flex flex-col sm:flex-row gap-6 p-6 bg-white dark:bg-charcoal/30 rounded-2xl border border-[#f3ede7] dark:border-[#3a2e22] shadow-sm">
+<div class="w-full sm:w-32 h-32 rounded-xl overflow-hidden shrink-0">
+<img alt="Truffle Pasta" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuADMwqoNRpIkXHr4L7ed0tuL2w5YMBMRgmV86fgYhjf2bT2CCau_XbVMrbtWU4FFzm2vzDwpH-nqB4Zo5qF22Y3350dwunSfjf-w60u1PjhJWqz7tq-AXWLsBMCXpYd1nvjJpCwWd1AglQck9hwEiHDzMnBwMCEfEy-LpE9ODLIAcKKSB5p5kVEYs1q4GmQdUYMU3VnvPPy1km0hXGhpECmDOPGYIWVXM-C3lMfex1nJ2JULZwpq7rQ74zd8AlV6G7-takDb6YlGlrf"/>
+</div>
+<div class="flex-1 flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start mb-2">
+<h3 class="text-xl font-bold tracking-tight">Black Truffle Tagliatelle</h3>
+<span class="text-xl font-bold text-primary">$42.00</span>
+</div>
+<div class="space-y-1 mb-4">
+<p class="text-xs font-semibold text-gold uppercase tracking-wider flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">info</span> No Parsley
+                                        </p>
+</div>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex items-center bg-background-light dark:bg-background-dark border border-[#f3ede7] dark:border-[#3a2e22] rounded-lg p-0.5">
+<button class="w-8 h-8 flex items-center justify-center hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg">remove</span>
+</button>
+<span class="w-8 text-center text-sm font-bold">1</span>
+<button class="w-8 h-8 flex items-center justify-center hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg">add</span>
+</button>
+</div>
+<button class="text-xs font-bold uppercase text-red-500 hover:text-red-600 transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">delete</span> Remove
+                                    </button>
+</div>
+</div>
+</div>
+<div class="flex flex-col sm:flex-row gap-6 p-6 bg-white dark:bg-charcoal/30 rounded-2xl border border-[#f3ede7] dark:border-[#3a2e22] shadow-sm">
+<div class="w-full sm:w-32 h-32 rounded-xl overflow-hidden shrink-0">
+<img alt="Cocktail" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD9bpnFvOGtCA7VSGTAQoj2fWGkS6Mlt_OoyHBw-wIhDHQF2UwzHk1xLeiFZ_Tw_fx5WgeqEPWJrriOYaQdxkkN3qmdTnsiFSTynA4dsmte3NdzaJxklWsUc4jt-53Jg9HEZo0rviFjriYJR5E9PwVZogWlk5xCT1kasdz7AMkbJ1lflW0LOOaQGJDLRoLVAIo4WDMgMSPb8hoO1NHxWWjD3vrs7OEXPbpGUCpJEPQFtSfrNm1AwtcuXrRFWks_ln_AaM_FXU2_nBF_"/>
+</div>
+<div class="flex-1 flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start mb-2">
+<h3 class="text-xl font-bold tracking-tight">Old Fashioned</h3>
+<span class="text-xl font-bold text-primary">$18.00</span>
+</div>
+<div class="space-y-1 mb-4">
+<p class="text-xs font-semibold text-gold uppercase tracking-wider flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">wine_bar</span> Premium Bourbon
+                                        </p>
+</div>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex items-center bg-background-light dark:bg-background-dark border border-[#f3ede7] dark:border-[#3a2e22] rounded-lg p-0.5">
+<button class="w-8 h-8 flex items-center justify-center hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg">remove</span>
+</button>
+<span class="w-8 text-center text-sm font-bold">1</span>
+<button class="w-8 h-8 flex items-center justify-center hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg">add</span>
+</button>
+</div>
+<button class="text-xs font-bold uppercase text-red-500 hover:text-red-600 transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">delete</span> Remove
+                                    </button>
+</div>
+</div>
+</div>
+</div>
+<aside class="w-full xl:w-[400px] shrink-0">
+<div class="bg-charcoal text-white rounded-3xl p-8 sticky top-32 shadow-2xl shadow-charcoal/20">
+<h2 class="text-xl font-bold tracking-tight mb-8 border-b border-white/10 pb-4">Checkout Details</h2>
+<div class="space-y-4 mb-8">
+<div class="flex justify-between text-white/60">
+<span class="text-sm font-medium">Subtotal</span>
+<span class="text-sm font-bold">$125.00</span>
+</div>
+<div class="flex justify-between text-white/60">
+<span class="text-sm font-medium">Service Charge (10%)</span>
+<span class="text-sm font-bold">$12.50</span>
+</div>
+<div class="flex justify-between text-white/60">
+<span class="text-sm font-medium">Tax</span>
+<span class="text-sm font-bold">$9.75</span>
+</div>
+<div class="pt-4 border-t border-white/10 flex justify-between items-baseline">
+<span class="text-lg font-bold">Grand Total</span>
+<span class="text-3xl font-black text-primary">$147.25</span>
+</div>
+</div>
+<div class="space-y-4">
+<button class="w-full bg-primary hover:bg-primary/90 text-white py-4 rounded-xl font-black uppercase tracking-widest transition-all flex items-center justify-center gap-3">
+<span class="material-symbols-outlined">payments</span>
+                                    Proceed to Checkout
+                                </button>
+<p class="text-[10px] text-center text-white/40 uppercase tracking-widest font-bold">Secure Encrypted Payment</p>
+</div>
+<div class="mt-8 pt-8 border-t border-white/10">
+<h4 class="text-xs font-bold uppercase tracking-widest text-gold mb-4">Dining Preferences</h4>
+<div class="space-y-3">
+<label class="flex items-center gap-3 cursor-pointer">
+<input checked="" class="w-4 h-4 border-white/20 bg-transparent text-primary focus:ring-primary" name="dining_type" type="radio"/>
+<span class="text-sm font-medium text-white/80">Dine-In Table 14</span>
+</label>
+<label class="flex items-center gap-3 cursor-pointer opacity-50">
+<input class="w-4 h-4 border-white/20 bg-transparent text-primary focus:ring-primary" name="dining_type" type="radio"/>
+<span class="text-sm font-medium text-white/80">Takeaway</span>
+</label>
+</div>
+</div>
+</div>
+</aside>
+</div>
+</div>
+</div>
+<footer class="border-t border-[#f3ede7] dark:border-[#3a2e22] p-8 bg-white/50 dark:bg-[#1b140d]/50">
+<div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+<div class="flex items-center gap-3 opacity-50">
+<span class="material-symbols-outlined">restaurant</span>
+<p class="text-sm font-medium">© 2024 Luxe Dining Experience</p>
+</div>
+<div class="flex gap-8 text-sm font-medium text-gold">
+<a class="hover:text-primary transition-colors" href="#">Support</a>
+<a class="hover:text-primary transition-colors" href="#">Terms of Service</a>
+<a class="hover:text-primary transition-colors" href="#">Refund Policy</a>
+</div>
+</div>
+</footer>
+</main>
+</div>
+
+</body></html>

@@ -1,0 +1,77 @@
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Trophy } from 'lucide-react'
+import { useTenantStore } from '@/stores/tenantStore'
+import { getTopProducts } from '@/lib/api/dashboard'
+import { useMemo } from 'react'
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(value)
+}
+
+export function TopProducts() {
+  const currentTenant = useTenantStore((state) => state.currentTenant)
+
+  const topProducts = useMemo(() => {
+    if (!currentTenant) return []
+    return getTopProducts(currentTenant.id, 5)
+  }, [currentTenant])
+
+  if (!currentTenant) {
+    return null
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Trophy className="h-5 w-5" />
+          Produtos Mais Vendidos
+        </CardTitle>
+        <CardDescription>
+          Top 5 produtos por faturamento
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {topProducts.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            Nenhum produto vendido ainda
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {topProducts.map((product, index) => (
+              <div
+                key={product.name}
+                className="flex items-center justify-between p-3 rounded-lg border"
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold"
+                    style={{
+                      backgroundColor: `hsl(var(--primary))`,
+                      color: `hsl(var(--primary-foreground))`,
+                    }}
+                  >
+                    {index + 1}
+                  </div>
+                  <div>
+                    <div className="font-medium">{product.name}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {product.sales} venda{product.sales !== 1 ? 's' : ''}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="font-semibold">{formatCurrency(product.revenue)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
