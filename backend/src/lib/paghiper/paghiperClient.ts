@@ -159,7 +159,7 @@ async function createPixCharge(
     body: JSON.stringify(body),
   })
 
-  const data: PagHiperPixResponse = await response.json()
+  const data = (await response.json()) as PagHiperPixResponse
 
   if (response.status !== 201 || data.create_request.result !== 'success') {
     console.error('[PagHiper] Erro ao criar cobrança PIX:', {
@@ -245,7 +245,7 @@ async function createBoletoCharge(
     body: JSON.stringify(body),
   })
 
-  const data: PagHiperBoletoResponse = await response.json()
+  const data = (await response.json()) as PagHiperBoletoResponse
 
   if (response.status !== 201 || data.create_request.result !== 'success') {
     console.error('[PagHiper] Erro ao criar cobrança Boleto:', {
@@ -353,7 +353,7 @@ export async function getPagHiperTransactionStatus(
     return null
   }
 
-  const data: PagHiperStatusResponse = await response.json()
+  const data = (await response.json()) as PagHiperStatusResponse
 
   console.log(
     `[PagHiper] Resposta completa da API de status (${paymentMethod}):`,
