@@ -11,6 +11,27 @@ export interface Subscription {
   isTrial: boolean
 }
 
+// Pagamento
+export type PaymentMethod = 'credit_card' | 'debit_card' | 'pix' | 'boleto'
+
+export interface PaymentData {
+  method: PaymentMethod
+  cardNumber?: string
+  cardHolder?: string
+  cardExpiry?: string
+  cardCvv?: string
+  installments?: number
+  cpf?: string
+}
+
+export interface PaymentResult {
+  success: boolean
+  transactionId?: string
+  paymentId?: string
+  error?: string
+  message?: string
+}
+
 // Tenant
 export interface Tenant {
   id: string

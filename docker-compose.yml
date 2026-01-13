@@ -9,6 +9,10 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       JWT_SECRET: ${JWT_SECRET:-your-secret-key-change-in-production}
       FRONTEND_URL: ${FRONTEND_URL:-https://gestaoloja.reffix.com.br}
+      # PagHiper
+      PAGHIPER_API_KEY: ${PAGHIPER_API_KEY}
+      PAGHIPER_TOKEN: ${PAGHIPER_TOKEN}
+      PAGHIPER_NOTIFICATION_URL: ${PAGHIPER_NOTIFICATION_URL:-https://gestaoloja.reffix.com.br/api/paghiper/webhook}
     deploy:
       replicas: 2
       restart_policy:

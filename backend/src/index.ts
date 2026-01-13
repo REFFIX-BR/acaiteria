@@ -14,6 +14,7 @@ import { campaignRoutes } from './routes/campaign.routes.js'
 import { customerRoutes } from './routes/customer.routes.js'
 import { dashboardRoutes } from './routes/dashboard.routes.js'
 import { settingsRoutes } from './routes/settings.routes.js'
+import paymentRoutes from './routes/payment.routes.js'
 
 dotenv.config()
 
@@ -54,6 +55,8 @@ app.use('/api/campaigns', campaignRoutes)
 app.use('/api/customers', customerRoutes)
 app.use('/api/dashboard', dashboardRoutes)
 app.use('/api/settings', settingsRoutes)
+app.use('/api/payment', paymentRoutes)
+app.use('/api', paymentRoutes) // Webhook PagHiper em /api/paghiper/webhook
 
 // Error handler
 app.use(errorHandler)

@@ -52,6 +52,10 @@ DATABASE_URL=postgresql://plataformacaiteria:senha@postgres_postgres:5432/acaite
 JWT_SECRET=sua-chave-secreta-forte-aqui
 FRONTEND_URL=https://gestaoloja.reffix.com.br
 VITE_API_URL=https://api.gestaoloja.reffix.com.br
+# PagHiper
+PAGHIPER_API_KEY=apk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+PAGHIPER_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+PAGHIPER_NOTIFICATION_URL=https://gestaoloja.reffix.com.br/api/paghiper/webhook
 EOF
 
 # Editar com suas configurações
@@ -72,12 +76,15 @@ export VITE_API_URL="https://api.gestaoloja.reffix.com.br"
 - `DATABASE_URL` - URL completa de conexão do PostgreSQL
   - Formato: `postgresql://plataformacaiteria:senha@postgres_postgres:5432/acaiteria`
   - O host `postgres_postgres` é o nome do serviço PostgreSQL no Docker Swarm
+- `PAGHIPER_API_KEY` - API Key da PagHiper (obtenha em https://www.paghiper.com/area/credenciais/)
+- `PAGHIPER_TOKEN` - Token da PagHiper (obtenha em https://www.paghiper.com/area/credenciais/)
 
 **Variáveis opcionais (com valores padrão):**
 - `DOMAIN` - Domínio da aplicação (padrão: gestaoloja.reffix.com.br)
 - `JWT_SECRET` - Chave secreta para JWT (padrão: your-secret-key-change-in-production)
 - `FRONTEND_URL` - URL do frontend (padrão: https://${DOMAIN})
 - `VITE_API_URL` - URL da API backend (padrão: https://api.${DOMAIN})
+- `PAGHIPER_NOTIFICATION_URL` - URL do webhook PagHiper (padrão: https://${DOMAIN}/api/paghiper/webhook)
 
 ### 4. Deploy no Swarm
 

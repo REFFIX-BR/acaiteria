@@ -135,6 +135,35 @@ CREATE TABLE subscriptions (
 CREATE INDEX idx_subscriptions_tenant_id ON subscriptions(tenant_id);
 CREATE INDEX idx_subscriptions_active ON subscriptions(tenant_id, is_active) WHERE is_active = true;
 
+-- Pedidos de Planos (Plan Orders)
+CREATE TABLE plan_orders (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    plan_type VARCHAR(20) NOT NULL CHECK (plan_type IN ('basic', 'premium', 'enterprise')),
+    customer_name TEXT NOT NULL,
+    customer_email TEXT NOT NULL,
+    customer_document TEXT,
+    customer_phone TEXT,
+    payment_method VARCHAR(20) NOT NULL CHECK (payment_method IN ('pix', 'boleto')),
+    status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'cancelled', 'expired', 'failed')),
+    amount DECIMAL(10, 2) NOT NULL,
+    validity_days INTEGER NOT NULL DEFAULT 30,
+    paghiper_order_id TEXT,
+    paghiper_transaction_id TEXT,
+    paghiper_response JSONB,
+    due_date TIMESTAMP WITH TIME ZONE,
+    paid_at TIMESTAMP WITH TIME ZONE,
+    cancelled_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX idx_plan_orders_tenant_id ON plan_orders(tenant_id) WHERE deleted_at IS NULL;
+CREATE INDEX idx_plan_orders_status ON plan_orders(tenant_id, status) WHERE deleted_at IS NULL;
+CREATE INDEX idx_plan_orders_transaction_id ON plan_orders(paghiper_transaction_id) WHERE deleted_at IS NULL;
+CREATE INDEX idx_plan_orders_created_at ON plan_orders(tenant_id, created_at DESC) WHERE deleted_at IS NULL;
+
 -- Itens do Cardápio
 CREATE TABLE menu_items (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

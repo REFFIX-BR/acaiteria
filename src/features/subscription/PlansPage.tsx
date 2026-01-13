@@ -10,6 +10,7 @@ import { Check, Crown, Sparkles, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
 import type { PlanType } from '@/types'
+import { CheckoutModal } from './components/CheckoutModal'
 
 const plans = [
   {
@@ -46,6 +47,8 @@ export default function PlansPage() {
   const { setTenant } = useTenantStore()
   const { toast } = useToast()
   const [isUpgrading, setIsUpgrading] = useState<string | null>(null)
+  const [checkoutOpen, setCheckoutOpen] = useState(false)
+  const [selectedPlan, setSelectedPlan] = useState<{ id: PlanType; name: string; price: number } | null>(null)
 
   if (!currentTenant) {
     return (
@@ -57,33 +60,44 @@ export default function PlansPage() {
 
   const planInfo = getPlanInfo(currentTenant)
 
-  const handleUpgrade = async (planType: PlanType) => {
+  const handleUpgrade = (planType: PlanType) => {
     if (!currentTenant) return
 
-    setIsUpgrading(planType)
+    const plan = plans.find(p => p.id === planType)
+    if (!plan) return
+
+    // Abre o modal de checkout
+    setSelectedPlan({
+      id: planType,
+      name: plan.name,
+      price: plan.price,
+    })
+    setCheckoutOpen(true)
+  }
+
+  const handlePaymentSuccess = () => {
+    if (!currentTenant || !selectedPlan) return
 
     try {
-      // Simula processamento de pagamento
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-
-      // Atualiza o tenant com o novo plano
-      const updatedTenant = upgradeSubscription(currentTenant, planType)
+      // Atualiza o tenant com o novo plano após pagamento bem-sucedido
+      const updatedTenant = upgradeSubscription(currentTenant, selectedPlan.id)
       saveTenant(updatedTenant)
       setTenant(updatedTenant)
 
       toast({
-        title: 'Upgrade realizado!',
-        description: `Seu plano foi atualizado para ${plans.find(p => p.id === planType)?.name}`,
+        title: 'Assinatura ativada!',
+        description: `Seu plano ${selectedPlan.name} foi ativado com sucesso.`,
       })
+
+      setCheckoutOpen(false)
+      setSelectedPlan(null)
     } catch (error) {
-      console.error('Erro ao fazer upgrade:', error)
+      console.error('Erro ao ativar assinatura:', error)
       toast({
         title: 'Erro',
-        description: 'Erro ao processar upgrade. Tente novamente.',
+        description: 'Erro ao ativar assinatura. Entre em contato com o suporte.',
         variant: 'destructive',
       })
-    } finally {
-      setIsUpgrading(null)
     }
   }
 
@@ -216,15 +230,10 @@ export default function PlansPage() {
                     plan.popular && 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700'
                   )}
                   variant={isCurrentPlan ? 'outline' : 'default'}
-                  disabled={isCurrentPlan || isUpgradingThis}
+                  disabled={isCurrentPlan}
                   onClick={() => handleUpgrade(plan.id)}
                 >
-                  {isUpgradingThis ? (
-                    <>
-                      <span className="animate-spin mr-2">⏳</span>
-                      Processando...
-                    </>
-                  ) : isCurrentPlan ? (
+                  {isCurrentPlan ? (
                     'Plano Atual'
                   ) : (
                     'Assinar Plano'
@@ -264,6 +273,21 @@ export default function PlansPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Modal de Checkout */}
+      {selectedPlan && (
+        <CheckoutModal
+          open={checkoutOpen}
+          onClose={() => {
+            setCheckoutOpen(false)
+            setSelectedPlan(null)
+          }}
+          planName={selectedPlan.name}
+          planPrice={selectedPlan.price}
+          planType={selectedPlan.id}
+          onPaymentSuccess={handlePaymentSuccess}
+        />
+      )}
     </div>
   )
 }
