@@ -26,7 +26,8 @@ services:
       labels:
         # Traefik - HTTPS
         - "traefik.enable=true"
-        - "traefik.http.routers.acaiteria-api.rule=Host(`api.${DOMAIN:-gestaoloja.reffix.com.br}`)"
+        # Aceitar múltiplos hosts: api.gestaoloja.reffix.com.br e api.reffix.com.br
+        - "traefik.http.routers.acaiteria-api.rule=Host(`api.${DOMAIN:-gestaoloja.reffix.com.br}`) || Host(`api.reffix.com.br`)"
         - "traefik.http.routers.acaiteria-api.entrypoints=websecure"
         - "traefik.http.routers.acaiteria-api.tls=true"
         - "traefik.http.routers.acaiteria-api.tls.certresolver=letsencryptresolver"
