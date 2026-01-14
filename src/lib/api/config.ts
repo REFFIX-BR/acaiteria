@@ -1,41 +1,33 @@
 /**
  * Configuração da URL da API
- * Detecta automaticamente a URL base ou usa variável de ambiente
+ * Detecta automaticamente baseado no domínio atual (sem depender de variáveis de ambiente)
  */
 export function getApiUrl(): string {
-  // Prioridade 1: Variável de ambiente (definida no build)
-  const envUrl = import.meta.env.VITE_API_URL
-  
-  if (envUrl) {
-    console.log('[API Config] Usando VITE_API_URL:', envUrl)
-    return envUrl
-  }
-
-  // Prioridade 2: Detectar automaticamente baseado no domínio atual
   const currentOrigin = window.location.origin
   const hostname = window.location.hostname
   const protocol = window.location.protocol
 
   // Se já estiver no subdomínio api, usar a origem atual
   if (hostname.startsWith('api.')) {
-    console.log('[API Config] Detectado subdomínio api, usando:', currentOrigin)
     return currentOrigin
   }
 
-  // Tentar construir o subdomínio api
-  // Exemplo: gestaoloja.reffix.com.br -> api.gestaoloja.reffix.com.br
-  // Exemplo: localhost:5173 -> localhost:3000 (dev)
-  if (hostname.includes('localhost')) {
-    const devUrl = 'http://localhost:3000'
-    console.log('[API Config] Modo desenvolvimento, usando:', devUrl)
-    return devUrl
+  // Modo desenvolvimento (localhost)
+  if (hostname.includes('localhost') || hostname === '127.0.0.1') {
+    return 'http://localhost:3000'
   }
 
-  // Construir subdomínio api
+  // Se estiver acessando por IP, usar o mesmo IP na porta 3000
+  const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/
+  if (ipRegex.test(hostname)) {
+    return `${protocol}//${hostname}:3000`
+  }
+
+  // Construir subdomínio api automaticamente
+  // Exemplo: gestaoloja.reffix.com.br -> api.gestaoloja.reffix.com.br
+  // Exemplo: menu.reffix.com.br -> api.menu.reffix.com.br
   const apiHostname = hostname.replace(/^([^.]+\.)?/, 'api.')
-  const apiUrl = `${protocol}//${apiHostname}`
-  console.log('[API Config] Construído subdomínio api:', apiUrl)
-  return apiUrl
+  return `${protocol}//${apiHostname}`
 }
 
 /**

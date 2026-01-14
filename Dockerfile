@@ -3,9 +3,7 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Build arguments para variáveis de ambiente
-ARG VITE_API_URL=https://api.gestaoloja.reffix.com.br
-ENV VITE_API_URL=${VITE_API_URL}
+# Não precisa de variáveis de ambiente - detecção automática no frontend
 
 # Copiar arquivos de dependências
 COPY package*.json ./

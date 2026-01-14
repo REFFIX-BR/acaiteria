@@ -78,15 +78,7 @@ echo ""
 
 # Build do frontend
 echo -e "${YELLOW}📦 Building frontend...${NC}"
-# Carregar variáveis de ambiente do arquivo .env (se existir) para o build
-if [ -f .env ]; then
-    set -a
-    source .env
-    set +a
-fi
-# Usar VITE_API_URL do ambiente ou valor padrão
-VITE_API_URL=${VITE_API_URL:-https://api.gestaoloja.reffix.com.br}
-docker build --build-arg VITE_API_URL="${VITE_API_URL}" -t acaiteria-frontend:latest .
+docker build -t acaiteria-frontend:latest .
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✅ Frontend build concluído${NC}"
 else
@@ -128,13 +120,6 @@ if [ -z "$FRONTEND_URL" ]; then
     echo -e "${YELLOW}⚠️  FRONTEND_URL não definido, usando: ${FRONTEND_URL}${NC}"
 else
     echo -e "${GREEN}✅ FRONTEND_URL: ${FRONTEND_URL}${NC}"
-fi
-
-if [ -z "$VITE_API_URL" ]; then
-    export VITE_API_URL="https://api.${DOMAIN}"
-    echo -e "${YELLOW}⚠️  VITE_API_URL não definido, usando: ${VITE_API_URL}${NC}"
-else
-    echo -e "${GREEN}✅ VITE_API_URL: ${VITE_API_URL}${NC}"
 fi
 
 echo -e "${GREEN}✅ Variáveis de ambiente verificadas${NC}"

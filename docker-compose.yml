@@ -45,7 +45,6 @@ services:
     image: acaiteria-frontend:latest
     environment:
       NODE_ENV: production
-      VITE_API_URL: ${VITE_API_URL:-https://api.gestaoloja.reffix.com.br}
     deploy:
       replicas: 2
       restart_policy:
