@@ -12,6 +12,7 @@ import { Loader2, Lock, Shield } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { useTenantStore } from '@/stores/tenantStore'
 import { PaymentInstructions } from './PaymentInstructions'
+import { getApiUrl } from '@/lib/api/config'
 
 interface CheckoutModalProps {
   open: boolean
@@ -122,7 +123,7 @@ export function CheckoutModal({
     setIsProcessing(true)
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+      const apiUrl = getApiUrl()
       
       // Obter token JWT do localStorage (se existir)
       // TODO: Implementar autenticação JWT no frontend quando login migrar para backend
@@ -162,9 +163,18 @@ export function CheckoutModal({
 
     } catch (error: any) {
       console.error('Erro ao processar pagamento:', error)
+      
+      let errorMessage = 'Ocorreu um erro ao processar o pagamento. Tente novamente.'
+      
+      if (error.message?.includes('Failed to fetch') || error.message?.includes('ERR_NAME_NOT_RESOLVED')) {
+        errorMessage = 'Não foi possível conectar ao servidor. Verifique sua conexão com a internet ou entre em contato com o suporte.'
+      } else if (error.message) {
+        errorMessage = error.message
+      }
+      
       toast({
         title: 'Erro',
-        description: error.message || 'Ocorreu um erro ao processar o pagamento. Tente novamente.',
+        description: errorMessage,
         variant: 'destructive',
       })
     } finally {

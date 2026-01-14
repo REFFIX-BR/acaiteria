@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
 import { Check, Copy, Download, Loader2 } from 'lucide-react'
+import { getApiUrl } from '@/lib/api/config'
 
 interface PaymentInstructionsProps {
   orderId: string
@@ -34,7 +35,7 @@ export function PaymentInstructions({
   const [paymentStatus, setPaymentStatus] = useState<'pending' | 'paid' | 'cancelled'>('pending')
   const [isPolling, setIsPolling] = useState(true)
 
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+  const apiUrl = getApiUrl()
 
   // Polling para verificar status do pagamento
   useEffect(() => {
