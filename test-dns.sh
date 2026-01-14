@@ -19,26 +19,26 @@ else
 fi
 
 echo ""
-echo "2. Testando conectividade HTTP..."
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "https://$DOMAIN/health" 2>/dev/null || echo "000")
+echo "2. Testando conectividade HTTP (ignorando certificado SSL)..."
+HTTP_CODE=$(curl -k -s -o /dev/null -w "%{http_code}" --max-time 5 "https://$DOMAIN/health" 2>/dev/null || echo "000")
 
 if [ "$HTTP_CODE" = "200" ]; then
     echo "✅ Endpoint /health está respondendo (HTTP $HTTP_CODE)"
 elif [ "$HTTP_CODE" = "404" ]; then
     echo "⚠️  Endpoint retornou 404 (pode ser problema de roteamento)"
     echo "   Testando se o servidor está respondendo..."
-    curl -v "https://$DOMAIN/health" 2>&1 | head -20
+    curl -k -v "https://$DOMAIN/health" 2>&1 | head -20
 elif [ "$HTTP_CODE" = "000" ]; then
     echo "❌ Não foi possível conectar ao servidor"
     echo "   Verifique se o DNS está apontando para o IP correto"
 else
     echo "⚠️  Endpoint retornou HTTP $HTTP_CODE"
-    curl -v "https://$DOMAIN/health" 2>&1 | head -20
+    curl -k -v "https://$DOMAIN/health" 2>&1 | head -20
 fi
 
 echo ""
 echo "3. Testando endpoint de pagamento..."
-PAYMENT_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 -X POST "https://$DOMAIN/api/payment/test" -H "Content-Type: application/json" -d '{"test":true}' 2>/dev/null || echo "000")
+PAYMENT_CODE=$(curl -k -s -o /dev/null -w "%{http_code}" --max-time 5 -X POST "https://$DOMAIN/api/payment/test" -H "Content-Type: application/json" -d '{"test":true}' 2>/dev/null || echo "000")
 
 if [ "$PAYMENT_CODE" = "200" ]; then
     echo "✅ Endpoint /api/payment/test está respondendo (HTTP $PAYMENT_CODE)"
