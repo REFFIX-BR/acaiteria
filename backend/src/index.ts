@@ -22,25 +22,7 @@ dotenv.config()
 const app = express()
 const PORT = process.env.PORT || 3000
 
-// Middleware de segurança
-app.use(helmet())
-app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
-  credentials: true
-}))
-
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 100 // máximo 100 requests por IP
-})
-app.use('/api/', limiter)
-
-// Body parser
-app.use(express.json({ limit: '10mb' }))
-app.use(express.urlencoded({ extended: true, limit: '10mb' }))
-
-// Middleware de log para todas as requisições
+// Middleware de log para TODAS as requisições (ANTES de qualquer coisa)
 app.use((req, res, next) => {
   console.log('[Request]', {
     method: req.method,
@@ -51,10 +33,31 @@ app.use((req, res, next) => {
     headers: {
       authorization: req.headers.authorization ? 'present' : 'missing',
       'content-type': req.headers['content-type'],
+      host: req.headers.host,
     },
   })
   next()
 })
+
+// Middleware de segurança
+app.use(helmet())
+app.use(cors({
+  origin: process.env.FRONTEND_URL || '*',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}))
+
+// Rate limiting (mais permissivo para não bloquear requisições)
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 1000, // aumentado para não bloquear
+})
+app.use('/api/', limiter)
+
+// Body parser
+app.use(express.json({ limit: '10mb' }))
+app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
 // Health check
 app.get('/health', (req, res) => {
@@ -73,8 +76,10 @@ app.use('/api/customers', customerRoutes)
 app.use('/api/dashboard', dashboardRoutes)
 app.use('/api/settings', settingsRoutes)
 // Rotas de pagamento (checkout e status)
+console.log('📋 Registrando rota /api/payment')
 app.use('/api/payment', paymentRoutes)
 // Webhook PagHiper (precisa estar em /api/paghiper/webhook)
+console.log('📋 Registrando rota /api/paghiper')
 app.use('/api/paghiper', paghiperRoutes)
 
 // Debug: Log de todas as rotas registradas
