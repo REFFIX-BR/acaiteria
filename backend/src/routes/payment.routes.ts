@@ -21,6 +21,38 @@ router.post('/test', (req, res) => {
   res.json({ message: 'Payment POST routes working!', body: req.body, timestamp: new Date().toISOString() })
 })
 
+// Rota temporária de teste para /process sem autenticação (APENAS PARA DEBUG)
+router.post('/process-test', async (req: Request, res: Response) => {
+  console.log('[Payment] Rota /process-test chamada (SEM AUTENTICAÇÃO):', {
+    method: req.method,
+    path: req.path,
+    url: req.url,
+    body: req.body,
+    headers: req.headers,
+  })
+  
+  try {
+    const validation = paymentSchema.safeParse(req.body)
+    
+    if (!validation.success) {
+      return res.status(400).json({
+        success: false,
+        error: 'Dados inválidos',
+        details: validation.error.errors,
+      })
+    }
+
+    // Retornar sucesso simulado para testar roteamento
+    res.json({
+      success: true,
+      message: 'Roteamento funcionando! (modo teste - sem autenticação)',
+      received: validation.data,
+    })
+  } catch (error) {
+    return handlePlanOrderError(res, error)
+  }
+})
+
 // Rate limiter público (para webhook e status)
 const publicLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos

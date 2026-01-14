@@ -34,7 +34,10 @@ app.use((req, res, next) => {
       authorization: req.headers.authorization ? 'present' : 'missing',
       'content-type': req.headers['content-type'],
       host: req.headers.host,
+      origin: req.headers.origin,
+      'user-agent': req.headers['user-agent']?.substring(0, 50),
     },
+    body: req.method === 'POST' ? JSON.stringify(req.body).substring(0, 200) : undefined,
   })
   next()
 })
@@ -44,8 +47,9 @@ app.use(helmet())
 app.use(cors({
   origin: process.env.FRONTEND_URL || '*',
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Type', 'Authorization'],
 }))
 
 // Rate limiting (mais permissivo para não bloquear requisições)
