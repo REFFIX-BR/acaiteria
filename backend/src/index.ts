@@ -61,12 +61,24 @@ app.use('/api/payment', paymentRoutes)
 // Webhook PagHiper (precisa estar em /api/paghiper/webhook)
 app.use('/api/paghiper', paghiperRoutes)
 
+// Debug: Log de todas as rotas registradas
+console.log('📋 Rotas registradas:')
+console.log('  - /api/payment/* (paymentRoutes)')
+console.log('  - /api/paghiper/* (paghiperRoutes)')
+
 // Error handler
 app.use(errorHandler)
 
 // 404 handler
 app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found' })
+  console.log('[404] Rota não encontrada:', {
+    method: req.method,
+    path: req.path,
+    url: req.url,
+    originalUrl: req.originalUrl,
+    baseUrl: req.baseUrl,
+  })
+  res.status(404).json({ error: 'Route not found', path: req.path, method: req.method })
 })
 
 app.listen(PORT, () => {

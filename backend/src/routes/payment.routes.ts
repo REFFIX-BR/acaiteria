@@ -9,6 +9,18 @@ import { errorHandler } from '../middleware/errorHandler.js'
 
 const router = Router()
 
+// Rota de teste para verificar se o router está funcionando
+router.get('/test', (req, res) => {
+  console.log('[Payment] Rota /test chamada')
+  res.json({ message: 'Payment routes working!', timestamp: new Date().toISOString() })
+})
+
+// Rota de teste POST sem autenticação
+router.post('/test', (req, res) => {
+  console.log('[Payment] Rota POST /test chamada:', req.body)
+  res.json({ message: 'Payment POST routes working!', body: req.body, timestamp: new Date().toISOString() })
+})
+
 // Rate limiter público (para webhook e status)
 const publicLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
@@ -54,6 +66,15 @@ function parseWebhookDate(dateStr: string | undefined): Date | null {
  */
 router.post(
   '/process',
+  (req, res, next) => {
+    console.log('[Payment] Rota /process chamada:', {
+      method: req.method,
+      path: req.path,
+      url: req.url,
+      headers: req.headers,
+    })
+    next()
+  },
   authenticate,
   tenantGuard,
   async (req: AuthRequest, res) => {
