@@ -66,12 +66,18 @@ function parseWebhookDate(dateStr: string | undefined): Date | null {
  */
 router.post(
   '/process',
-  (req, res, next) => {
+  async (req: Request, res: Response, next: any) => {
     console.log('[Payment] Rota /process chamada:', {
       method: req.method,
       path: req.path,
       url: req.url,
-      headers: req.headers,
+      originalUrl: req.originalUrl,
+      baseUrl: req.baseUrl,
+      body: req.body,
+      headers: {
+        authorization: req.headers.authorization ? 'present' : 'missing',
+        'content-type': req.headers['content-type'],
+      },
     })
     next()
   },
