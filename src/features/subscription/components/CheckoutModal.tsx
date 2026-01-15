@@ -163,7 +163,21 @@ export function CheckoutModal({
         }),
       })
 
-      const result: PaymentResponse = await response.json()
+      // Verificar se a resposta é JSON válido
+      let result: PaymentResponse
+      try {
+        const responseData = await response.json()
+        result = responseData
+      } catch (parseError) {
+        console.error('[Checkout] Erro ao parsear resposta JSON:', parseError)
+        throw new Error('Resposta inválida do servidor')
+      }
+
+      // Verificar se a resposta tem o formato esperado
+      if (!result || typeof result !== 'object') {
+        console.error('[Checkout] Resposta inválida:', result)
+        throw new Error('Resposta inválida do servidor')
+      }
 
       if (!response.ok || !result.success) {
         // Verificar se é erro de autenticação

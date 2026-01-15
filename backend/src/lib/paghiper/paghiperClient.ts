@@ -161,6 +161,12 @@ async function createPixCharge(
 
   const data = (await response.json()) as PagHiperPixResponse
 
+  // Verificar se a resposta tem o formato esperado
+  if (!data || !data.create_request) {
+    console.error('[PagHiper] Resposta inesperada ao criar cobrança PIX:', data)
+    throw new Error('Resposta inválida da API PagHiper')
+  }
+
   if (response.status !== 201 || data.create_request.result !== 'success') {
     console.error('[PagHiper] Erro ao criar cobrança PIX:', {
       status: response.status,
@@ -246,6 +252,12 @@ async function createBoletoCharge(
   })
 
   const data = (await response.json()) as PagHiperBoletoResponse
+
+  // Verificar se a resposta tem o formato esperado
+  if (!data || !data.create_request) {
+    console.error('[PagHiper] Resposta inesperada ao criar cobrança Boleto:', data)
+    throw new Error('Resposta inválida da API PagHiper')
+  }
 
   if (response.status !== 201 || data.create_request.result !== 'success') {
     console.error('[PagHiper] Erro ao criar cobrança Boleto:', {
