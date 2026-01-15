@@ -87,6 +87,40 @@ async function refreshToken(): Promise<string | null> {
 }
 
 /**
+ * Helper para construir headers de forma type-safe
+ */
+function buildHeaders(existingHeaders?: HeadersInit, token?: string): HeadersInit {
+  const headers: Record<string, string> = {}
+  
+  // Copia headers existentes
+  if (existingHeaders) {
+    if (existingHeaders instanceof Headers) {
+      existingHeaders.forEach((value, key) => {
+        headers[key] = value
+      })
+    } else if (Array.isArray(existingHeaders)) {
+      existingHeaders.forEach(([key, value]) => {
+        headers[key] = value
+      })
+    } else {
+      Object.assign(headers, existingHeaders)
+    }
+  }
+  
+  // Adiciona Authorization se tiver token
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  
+  // Adiciona Content-Type se não existir
+  if (!headers['Content-Type'] && !headers['content-type']) {
+    headers['Content-Type'] = 'application/json'
+  }
+  
+  return headers
+}
+
+/**
  * Faz uma requisição autenticada com retry automático em caso de erro 401
  */
 export async function authenticatedFetch(
@@ -103,11 +137,7 @@ export async function authenticatedFetch(
   // Faz a requisição com o token
   let response = await fetch(url, {
     ...options,
-    headers: {
-      ...options.headers,
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': options.headers?.['Content-Type'] || 'application/json',
-    },
+    headers: buildHeaders(options.headers, token),
   })
 
   // Se receber 401, tenta renovar token e repetir a requisição uma vez
@@ -124,11 +154,7 @@ export async function authenticatedFetch(
       // Repete a requisição com o novo token
       response = await fetch(url, {
         ...options,
-        headers: {
-          ...options.headers,
-          'Authorization': `Bearer ${newToken}`,
-          'Content-Type': options.headers?.['Content-Type'] || 'application/json',
-        },
+        headers: buildHeaders(options.headers, newToken),
       })
       
       // Se ainda receber 401, lança erro
