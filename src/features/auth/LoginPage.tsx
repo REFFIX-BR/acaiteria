@@ -70,22 +70,53 @@ export default function LoginPage() {
             localStorage.setItem('auth_token', backendToken)
             console.log('[Login] Token JWT salvo com sucesso')
           }
+        } else if (response.status === 401) {
+          // Credenciais inválidas no backend - não usar fallback local
+          const errorData = await response.json().catch(() => ({}))
+          console.error('[Login] Credenciais inválidas no backend:', errorData)
+          toast({
+            title: 'Erro ao fazer login',
+            description: 'E-mail ou senha incorretos. Verifique suas credenciais.',
+            variant: 'destructive',
+          })
+          setIsLoading(false)
+          return
         } else if (response.status === 404) {
           console.error('[Login] Backend não encontrado (404). Verifique se a API está acessível em:', `${apiUrl}/api/auth/login`)
-          // Continua com autenticação local, mas o usuário será avisado
+          // Continua com autenticação local apenas se backend não estiver disponível
         } else {
           const errorData = await response.json().catch(() => ({}))
           console.warn('[Login] Falha ao fazer login no backend:', response.status, errorData)
+          // Se for erro do servidor (500, etc), não usar fallback
+          if (response.status >= 500) {
+            toast({
+              title: 'Erro no servidor',
+              description: 'O servidor está com problemas. Tente novamente mais tarde.',
+              variant: 'destructive',
+            })
+            setIsLoading(false)
+            return
+          }
         }
       } catch (error: any) {
         console.error('[Login] Erro ao conectar com backend:', error.message)
-        // Se for erro de rede (CORS, DNS, etc), mostra aviso mas continua
+        // Se for erro de rede (CORS, DNS, etc), mostra aviso mas continua com fallback
         if (error.message?.includes('Failed to fetch') || error.message?.includes('ERR_NAME_NOT_RESOLVED')) {
           console.warn('[Login] Não foi possível conectar ao backend. Continuando com autenticação local.')
+        } else {
+          // Outros erros não devem usar fallback
+          toast({
+            title: 'Erro de conexão',
+            description: 'Não foi possível conectar ao servidor. Verifique sua conexão.',
+            variant: 'destructive',
+          })
+          setIsLoading(false)
+          return
         }
       }
 
-      // Autenticação local (fallback ou complementar)
+      // Autenticação local (fallback APENAS se backend não estiver disponível)
+      // Se chegou aqui, o backend não respondeu ou retornou 404
       const user = authenticateUser(data.email, data.password)
       
       if (!user) {
