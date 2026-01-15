@@ -22,6 +22,10 @@ dotenv.config()
 const app = express()
 const PORT = process.env.PORT || 3000
 
+// Configurar trust proxy para funcionar corretamente com Traefik
+// Isso permite que o Express confie nos headers X-Forwarded-* do proxy reverso
+app.set('trust proxy', true)
+
 // Middleware de log para TODAS as requisições (ANTES de qualquer coisa)
 // Nota: req.body ainda não está disponível aqui (body parser vem depois)
 app.use((req, res, next) => {
