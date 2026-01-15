@@ -9,9 +9,15 @@ if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL environment variable is required')
 }
 
+// Configuração SSL: desabilitado por padrão, pode ser habilitado via variável de ambiente
+// Se DATABASE_URL já contém ?sslmode=require, o pg vai usar SSL automaticamente
+// Caso contrário, só usa SSL se DB_USE_SSL=true explicitamente
+const useSSL = process.env.DB_USE_SSL === 'true'
+const sslConfig = useSSL ? { rejectUnauthorized: false } : false
+
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  ssl: sslConfig,
   max: 20, // máximo de conexões no pool
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
