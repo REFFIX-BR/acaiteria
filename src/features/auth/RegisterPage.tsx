@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useTenantStore } from '@/stores/tenantStore'
 import { createUser } from '@/lib/auth/auth'
 import { getAllTenants, saveTenant } from '@/lib/storage/storage'
+import { getApiUrl } from '@/lib/api/config'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -69,9 +70,105 @@ export default function RegisterPage() {
     setIsLoading(true)
 
     try {
+      const apiUrl = getApiUrl()
+      let backendToken: string | null = null
+      let backendUser: any = null
+      let backendTenant: any = null
+
+      // Tenta criar conta no backend primeiro
+      try {
+        const response = await fetch(`${apiUrl}/api/auth/register`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: data.email,
+            password: data.password,
+            name: data.name,
+            tenantName: data.tenantName,
+            tenantSlug: data.tenantSlug.toLowerCase().replace(/\s+/g, '-'),
+          }),
+        })
+
+        if (response.ok) {
+          const result = await response.json()
+          backendToken = result.token
+          backendUser = result.user
+          backendTenant = {
+            id: result.user.tenantId,
+            name: result.user.tenantName,
+            slug: result.user.tenantSlug,
+            primaryColor: '#8b5cf6',
+            secondaryColor: '#ec4899',
+            createdAt: new Date(),
+            subscription: createInitialSubscription(new Date()),
+          }
+          
+          // Salva o token JWT
+          if (backendToken) {
+            localStorage.setItem('auth_token', backendToken)
+            console.log('[Register] Conta criada no backend com sucesso')
+          }
+        } else {
+          const errorData = await response.json().catch(() => ({}))
+          
+          // Se for erro de email/slug já existente, mostra erro específico
+          if (response.status === 409) {
+            toast({
+              title: 'Erro',
+              description: errorData.error === 'Email already registered' 
+                ? 'Este e-mail já está cadastrado. Tente fazer login.'
+                : errorData.error === 'Slug already taken'
+                ? 'Este slug já está em uso. Escolha outro.'
+                : errorData.error || 'Erro ao criar conta',
+              variant: 'destructive',
+            })
+            setIsLoading(false)
+            return
+          }
+          
+          console.warn('[Register] Falha ao criar conta no backend:', response.status, errorData)
+          // Continua com criação local como fallback
+        }
+      } catch (error: any) {
+        console.error('[Register] Erro ao conectar com backend:', error.message)
+        // Se for erro de rede, continua com criação local
+        if (!error.message?.includes('Failed to fetch') && !error.message?.includes('ERR_NAME_NOT_RESOLVED')) {
+          toast({
+            title: 'Erro',
+            description: 'Erro ao criar conta. Tente novamente.',
+            variant: 'destructive',
+          })
+          setIsLoading(false)
+          return
+        }
+      }
+
+      // Se o backend criou com sucesso, usa os dados do backend
+      if (backendUser && backendTenant) {
+        const user = {
+          id: backendUser.id,
+          email: backendUser.email,
+          name: backendUser.name,
+          tenantId: backendUser.tenantId,
+          role: backendUser.role,
+          createdAt: new Date(),
+        }
+        
+        // Salva localmente também para fallback
+        saveTenant(backendTenant)
+        setUser(user)
+        setTenant(backendTenant)
+        setNewUserName(user.name)
+        setShowWelcomeModal(true)
+        return
+      }
+
+      // Fallback: criação local (se backend não estiver disponível)
       const tenants = getAllTenants()
       
-      // Verifica se slug já existe
+      // Verifica se slug já existe localmente
       const existingTenant = tenants.find(t => t.slug === data.tenantSlug.toLowerCase())
       if (existingTenant) {
         toast({
@@ -83,7 +180,7 @@ export default function RegisterPage() {
         return
       }
 
-      // Cria novo tenant (açaiteria)
+      // Cria novo tenant (açaiteria) localmente
       const createdAt = new Date()
       const tenant: Tenant = {
         id: `tenant-${Date.now()}`,
@@ -96,7 +193,7 @@ export default function RegisterPage() {
       }
       saveTenant(tenant)
 
-      // Cria usuário
+      // Cria usuário localmente
       const user = createUser({
         email: data.email,
         password: data.password,
@@ -109,6 +206,13 @@ export default function RegisterPage() {
       setUser(user)
       setTenant(tenant)
       setNewUserName(user.name)
+
+      // Avisa que está usando modo offline
+      toast({
+        title: 'Conta criada localmente',
+        description: 'Backend não disponível. Dados salvos localmente.',
+        variant: 'default',
+      })
 
       // Mostra modal de boas-vindas
       setShowWelcomeModal(true)

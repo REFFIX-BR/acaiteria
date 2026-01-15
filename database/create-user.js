@@ -13,8 +13,24 @@ const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
+// Tentar diferentes formas de conexão
+let connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
+  // Tentar conectar via host do Docker ou localhost
+  const host = process.env.DB_HOST || 'localhost';
+  const port = process.env.DB_PORT || '5432';
+  const user = process.env.DB_USER || 'plataformacaiteria';
+  const password = process.env.DB_PASSWORD || 'plataformaacaiteria';
+  const database = process.env.DB_NAME || 'acaiteria';
+  
+  connectionString = `postgresql://${user}:${password}@${host}:${port}/${database}`;
+}
+
+console.log(`🔌 Conectando ao banco: ${connectionString.replace(/:[^:@]+@/, ':****@')}`);
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://plataformacaiteria:plataformaacaiteria@postgres_postgres:5432/acaiteria',
+  connectionString,
   ssl: false,
 });
 
