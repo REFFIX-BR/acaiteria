@@ -24,35 +24,63 @@ const registerSchema = z.object({
 // Login
 router.post('/login', async (req, res, next) => {
   try {
-    const { email, password } = loginSchema.parse(req.body)
+    console.log('[Auth] Login attempt:', { email: req.body?.email, hasPassword: !!req.body?.password })
+    
+    let email: string
+    let password: string
+    
+    try {
+      const parsed = loginSchema.parse(req.body)
+      email = parsed.email
+      password = parsed.password
+    } catch (validationError: any) {
+      console.error('[Auth] Erro de validação:', validationError.errors)
+      return res.status(400).json({ 
+        error: 'Invalid request data',
+        details: validationError.errors 
+      })
+    }
+    
+    console.log('[Auth] Email validado:', email)
 
+    console.log('[Auth] Buscando usuário no banco...')
     const result = await query(
       'SELECT u.id, u.email, u.password_hash, u.name, u.tenant_id, u.role, t.name as tenant_name, t.slug as tenant_slug FROM users u JOIN tenants t ON u.tenant_id = t.id WHERE u.email = $1 AND u.deleted_at IS NULL AND t.deleted_at IS NULL',
       [email]
     )
+    console.log('[Auth] Resultado da query:', { rowsFound: result.rows.length })
 
     if (result.rows.length === 0) {
+      console.log('[Auth] Usuário não encontrado')
       return res.status(401).json({ error: 'Invalid credentials' })
     }
 
     const user = result.rows[0]
+    console.log('[Auth] Usuário encontrado:', { id: user.id, email: user.email })
+    
+    console.log('[Auth] Comparando senha...')
     const isValid = await bcrypt.compare(password, user.password_hash)
+    console.log('[Auth] Senha válida:', isValid)
 
     if (!isValid) {
+      console.log('[Auth] Senha inválida')
       return res.status(401).json({ error: 'Invalid credentials' })
     }
 
     // Atualizar last_login
+    console.log('[Auth] Atualizando last_login...')
     await query(
       'UPDATE users SET last_login = NOW() WHERE id = $1',
       [user.id]
     )
 
+    console.log('[Auth] Gerando token JWT...')
     const token = jwt.sign(
       { userId: user.id, tenantId: user.tenant_id },
       JWT_SECRET,
       { expiresIn: '7d' }
     )
+    console.log('[Auth] Token gerado com sucesso')
 
     res.json({
       token,
@@ -66,7 +94,12 @@ router.post('/login', async (req, res, next) => {
         tenantSlug: user.tenant_slug,
       },
     })
-  } catch (error) {
+  } catch (error: any) {
+    console.error('[Auth] Erro no login:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+    })
     next(error)
   }
 })

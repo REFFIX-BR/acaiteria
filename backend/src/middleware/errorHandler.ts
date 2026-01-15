@@ -11,10 +11,24 @@ export function errorHandler(
   res: Response,
   next: NextFunction
 ) {
-  console.error('Error:', err)
+  console.error('[Error Handler]', {
+    message: err.message,
+    stack: err.stack,
+    code: err.code,
+    statusCode: err.statusCode,
+    path: req.path,
+    method: req.method,
+  })
 
   const statusCode = err.statusCode || 500
   const message = err.message || 'Internal server error'
+
+  // Garantir que os headers CORS sejam enviados mesmo em caso de erro
+  const origin = req.headers.origin
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin)
+    res.setHeader('Access-Control-Allow-Credentials', 'true')
+  }
 
   // Erro do PostgreSQL
   if (err.code === '23505') {

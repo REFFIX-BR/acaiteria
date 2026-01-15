@@ -44,8 +44,28 @@ app.use((req, res, next) => {
 
 // Middleware de segurança
 app.use(helmet())
+
+// Configuração CORS - aceitar múltiplas origens
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'https://gestaoloja.reffix.com.br',
+  'http://localhost:5173',
+  'http://localhost:3000',
+].filter(Boolean) as string[]
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
+  origin: (origin, callback) => {
+    // Permitir requisições sem origin (ex: Postman, curl)
+    if (!origin) return callback(null, true)
+    
+    // Se não há origens permitidas configuradas ou se a origem está na lista
+    if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+      callback(null, true)
+    } else {
+      console.warn('[CORS] Origem não permitida:', origin)
+      callback(null, true) // Por enquanto, permitir todas para debug
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
