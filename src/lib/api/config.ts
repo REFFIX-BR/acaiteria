@@ -7,9 +7,9 @@ export function getApiUrl(): string {
   const hostname = window.location.hostname
   const protocol = window.location.protocol
 
-  // Se já estiver no subdomínio api, usar a origem atual
-  if (hostname.startsWith('api.')) {
-    console.log('[API Config] Já está no subdomínio api:', currentOrigin)
+  // Se já estiver no subdomínio backgestao, usar a origem atual
+  if (hostname === 'backgestao.reffix.com.br') {
+    console.log('[API Config] Já está no subdomínio backgestao:', currentOrigin)
     return currentOrigin
   }
 
@@ -28,18 +28,23 @@ export function getApiUrl(): string {
     return ipUrl
   }
 
-  // Construir subdomínio api automaticamente
-  // Para domínios *.reffix.com.br, usar api.reffix.com.br (que está configurado no Traefik)
-  // Exemplo: gestaoloja.reffix.com.br -> api.reffix.com.br
-  // Exemplo: menu.reffix.com.br -> api.reffix.com.br
-  // Exemplo: reffix.com.br -> api.reffix.com.br
+  // Para domínios *.reffix.com.br, usar backgestao.reffix.com.br
+  // Exemplo: gestaoloja.reffix.com.br -> backgestao.reffix.com.br
   let apiHostname: string
   if (hostname === 'reffix.com.br' || hostname.endsWith('.reffix.com.br')) {
-    // Para qualquer domínio *.reffix.com.br, usar api.reffix.com.br
-    apiHostname = 'api.reffix.com.br'
+    // Para qualquer domínio *.reffix.com.br, usar backgestao.reffix.com.br
+    apiHostname = 'backgestao.reffix.com.br'
   } else {
-    // Para outros domínios, adicionar 'api.' no início
-    apiHostname = `api.${hostname}`
+    // Para outros domínios, usar localhost em desenvolvimento
+    apiHostname = 'localhost:3000'
+    const apiUrl = `http://${apiHostname}`
+    console.log('[API Config] URL construída (fallback):', {
+      hostname,
+      apiHostname,
+      apiUrl,
+      currentOrigin
+    })
+    return apiUrl
   }
   
   const apiUrl = `${protocol}//${apiHostname}`
