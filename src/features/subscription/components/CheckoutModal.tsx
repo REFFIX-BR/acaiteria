@@ -125,25 +125,14 @@ export function CheckoutModal({
     try {
       const apiUrl = getApiUrl()
       
-      // Obter token JWT do localStorage ou fazer login
+      // Obter token JWT do localStorage
       let token = localStorage.getItem('auth_token')
       
-      // Se não tiver token, tentar fazer login com as credenciais do usuário atual
-      if (!token && currentUser && currentUser.email) {
-        try {
-          // Tentar fazer login no backend para obter token
-          // Nota: Isso requer que o usuário tenha uma senha no backend
-          // Por enquanto, vamos apenas mostrar um erro se não tiver token
-          console.warn('[Checkout] Token JWT não encontrado. O usuário precisa fazer login no backend primeiro.')
-        } catch (error) {
-          console.error('[Checkout] Erro ao obter token:', error)
-        }
-      }
-
       if (!token) {
+        console.warn('[Checkout] Token JWT não encontrado. O usuário precisa fazer login no backend primeiro.')
         toast({
           title: 'Erro de autenticação',
-          description: 'Você precisa fazer login novamente. Por favor, faça logout e login novamente.',
+          description: 'Você precisa fazer login novamente para gerar o pagamento. Por favor, faça logout e login novamente.',
           variant: 'destructive',
         })
         setIsProcessing(false)

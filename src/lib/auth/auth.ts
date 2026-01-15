@@ -94,5 +94,7 @@ export function authenticateUser(email: string, password: string): User | null {
 export function logout(): void {
   setCurrentUser(null)
   setGlobalData('currentTenantId', null)
+  // Remove o token JWT do localStorage
+  localStorage.removeItem('auth_token')
 }
 

@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useTenantStore } from '@/stores/tenantStore'
 import { authenticateUser } from '@/lib/auth/auth'
 import { getTenantById } from '@/lib/storage/storage'
+import { getApiUrl } from '@/lib/api/config'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -42,6 +43,40 @@ export default function LoginPage() {
     setIsLoading(true)
     
     try {
+      // Primeiro, tenta fazer login no backend para obter o token JWT
+      const apiUrl = getApiUrl()
+      let backendToken: string | null = null
+      let backendUser: any = null
+
+      try {
+        const response = await fetch(`${apiUrl}/api/auth/login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: data.email,
+            password: data.password,
+          }),
+        })
+
+        if (response.ok) {
+          const result = await response.json()
+          backendToken = result.token
+          backendUser = result.user
+          
+          // Salva o token JWT no localStorage
+          if (backendToken) {
+            localStorage.setItem('auth_token', backendToken)
+          }
+        } else {
+          console.warn('[Login] Falha ao fazer login no backend, tentando autenticação local')
+        }
+      } catch (error) {
+        console.warn('[Login] Erro ao conectar com backend, tentando autenticação local:', error)
+      }
+
+      // Autenticação local (fallback ou complementar)
       const user = authenticateUser(data.email, data.password)
       
       if (!user) {
