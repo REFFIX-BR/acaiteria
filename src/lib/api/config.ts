@@ -29,17 +29,14 @@ export function getApiUrl(): string {
   }
 
   // Construir subdomínio api automaticamente
-  // Exemplo: gestaoloja.reffix.com.br -> api.gestaoloja.reffix.com.br
-  // Exemplo: menu.reffix.com.br -> api.menu.reffix.com.br
+  // Para domínios *.reffix.com.br, usar api.reffix.com.br (que está configurado no Traefik)
+  // Exemplo: gestaoloja.reffix.com.br -> api.reffix.com.br
+  // Exemplo: menu.reffix.com.br -> api.reffix.com.br
   // Exemplo: reffix.com.br -> api.reffix.com.br
   let apiHostname: string
-  if (hostname === 'reffix.com.br') {
-    // Se for apenas reffix.com.br, adicionar api. no início
-    apiHostname = `api.${hostname}`
-  } else if (hostname.endsWith('.reffix.com.br')) {
-    // Se tiver subdomínio (ex: gestaoloja.reffix.com.br), adicionar api. antes do primeiro subdomínio
-    // gestaoloja.reffix.com.br -> api.gestaoloja.reffix.com.br
-    apiHostname = `api.${hostname}`
+  if (hostname === 'reffix.com.br' || hostname.endsWith('.reffix.com.br')) {
+    // Para qualquer domínio *.reffix.com.br, usar api.reffix.com.br
+    apiHostname = 'api.reffix.com.br'
   } else {
     // Para outros domínios, adicionar 'api.' no início
     apiHostname = `api.${hostname}`
