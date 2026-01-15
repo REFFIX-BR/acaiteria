@@ -82,9 +82,21 @@ app.use(cors({
 }))
 
 // Rate limiting (mais permissivo para não bloquear requisições)
+// Configurar trust proxy corretamente para evitar avisos
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
   max: 1000, // aumentado para não bloquear
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Configurar para usar IP real quando atrás de proxy
+  keyGenerator: (req) => {
+    // Usar X-Forwarded-For se disponível, senão usar IP direto
+    const forwarded = req.headers['x-forwarded-for']
+    if (forwarded && typeof forwarded === 'string') {
+      return forwarded.split(',')[0].trim()
+    }
+    return req.ip || req.socket.remoteAddress || 'unknown'
+  },
 })
 app.use('/api/', limiter)
 

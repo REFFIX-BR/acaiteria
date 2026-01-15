@@ -5,8 +5,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useAuthStore } from '@/stores/authStore'
 import { useTenantStore } from '@/stores/tenantStore'
-import { authenticateUser, createUser } from '@/lib/auth/auth'
-import { getTenantById, saveTenant } from '@/lib/storage/storage'
+import { authenticateUser, getUserByEmail, getAllUsers, hashPasswordForStorage } from '@/lib/auth/auth'
+import { getTenantById, saveTenant, setGlobalData } from '@/lib/storage/storage'
 import { getApiUrl } from '@/lib/api/config'
 import { createInitialSubscription } from '@/lib/subscription/subscription'
 import { Button } from '@/components/ui/button'
@@ -88,20 +88,41 @@ export default function LoginPage() {
             saveTenant(tenant)
           }
           
-          // Criar usuário local (senha placeholder, não será usada)
-          const user = createUser({
-            email: backendUser.email,
-            password: 'backend-auth', // Placeholder
-            name: backendUser.name,
-            tenantId: backendUser.tenantId,
-            role: backendUser.role,
-          })
+          // Verificar se usuário já existe localmente, se não, criar
+          let user = getUserByEmail(backendUser.email)
           
-          // Atualizar ID para o ID do backend
-          const userWithBackendId = {
-            ...user,
-            id: backendUser.id,
+          if (!user) {
+            // Criar usuário local (senha placeholder, não será usada)
+            const users = getAllUsers()
+            user = {
+              id: backendUser.id,
+              email: backendUser.email,
+              password: hashPasswordForStorage('backend-auth'), // Placeholder
+              name: backendUser.name,
+              tenantId: backendUser.tenantId,
+              role: backendUser.role,
+              createdAt: new Date(),
+            }
+            users.push(user)
+            setGlobalData('users', users)
+          } else {
+            // Atualizar dados do usuário existente com dados do backend
+            user = {
+              ...user,
+              id: backendUser.id,
+              name: backendUser.name,
+              tenantId: backendUser.tenantId,
+              role: backendUser.role,
+            }
+            const users = getAllUsers()
+            const userIndex = users.findIndex(u => u.email === backendUser.email)
+            if (userIndex !== -1) {
+              users[userIndex] = user
+              setGlobalData('users', users)
+            }
           }
+          
+          const userWithBackendId = user
           
           // Definir usuário e tenant
           setUser(userWithBackendId)
