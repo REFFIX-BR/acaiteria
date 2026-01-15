@@ -13,6 +13,8 @@ import { useAuthStore } from '@/stores/authStore'
 import { useTenantStore } from '@/stores/tenantStore'
 import { PaymentInstructions } from './PaymentInstructions'
 import { getApiUrl } from '@/lib/api/config'
+import { ensureAuthToken, authenticatedFetch } from '@/lib/api/auth'
+import { useNavigate } from 'react-router-dom'
 
 interface CheckoutModalProps {
   open: boolean
@@ -60,6 +62,7 @@ export function CheckoutModal({
   onPaymentSuccess,
 }: CheckoutModalProps) {
   const { toast } = useToast()
+  const navigate = useNavigate()
   const currentUser = useAuthStore((state) => state.currentUser)
   const currentTenant = useTenantStore((state) => state.currentTenant)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -125,26 +128,31 @@ export function CheckoutModal({
     try {
       const apiUrl = getApiUrl()
       
-      // Obter token JWT do localStorage
-      let token = localStorage.getItem('auth_token')
+      // Garantir que temos um token válido
+      const token = await ensureAuthToken()
       
       if (!token) {
-        console.warn('[Checkout] Token JWT não encontrado. O usuário precisa fazer login no backend primeiro.')
+        console.warn('[Checkout] Não foi possível obter token de autenticação válido.')
         toast({
-          title: 'Erro de autenticação',
-          description: 'Você precisa fazer login novamente para gerar o pagamento. Por favor, faça logout e login novamente.',
+          title: 'Autenticação necessária',
+          description: 'Para gerar o pagamento, é necessário estar autenticado. Você será redirecionado para a página de login.',
           variant: 'destructive',
+          duration: 5000,
         })
+        
+        // Fechar modal e redirecionar para login após um breve delay
+        setTimeout(() => {
+          onClose()
+          navigate('/login')
+        }, 2000)
+        
         setIsProcessing(false)
         return
       }
 
-      const response = await fetch(`${apiUrl}/api/payment/process`, {
+      // Fazer requisição autenticada com retry automático
+      const response = await authenticatedFetch(`${apiUrl}/api/payment/process`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
         body: JSON.stringify({
           method: data.method,
           planType,
@@ -158,6 +166,24 @@ export function CheckoutModal({
       const result: PaymentResponse = await response.json()
 
       if (!response.ok || !result.success) {
+        // Verificar se é erro de autenticação
+        if (response.status === 401) {
+          toast({
+            title: 'Sessão expirada',
+            description: 'Sua sessão expirou. Por favor, faça login novamente para continuar.',
+            variant: 'destructive',
+            duration: 5000,
+          })
+          
+          setTimeout(() => {
+            onClose()
+            navigate('/login')
+          }, 2000)
+          
+          setIsProcessing(false)
+          return
+        }
+        
         throw new Error(result.error || 'Erro ao processar pagamento')
       }
 
@@ -175,8 +201,12 @@ export function CheckoutModal({
       console.error('Erro ao processar pagamento:', error)
       
       let errorMessage = 'Ocorreu um erro ao processar o pagamento. Tente novamente.'
+      let shouldRedirect = false
       
-      if (error.message?.includes('Failed to fetch') || error.message?.includes('ERR_NAME_NOT_RESOLVED')) {
+      if (error.message === 'AUTH_REQUIRED') {
+        errorMessage = 'É necessário estar autenticado para gerar o pagamento. Você será redirecionado para a página de login.'
+        shouldRedirect = true
+      } else if (error.message?.includes('Failed to fetch') || error.message?.includes('ERR_NAME_NOT_RESOLVED')) {
         errorMessage = 'Não foi possível conectar ao servidor. Verifique sua conexão com a internet ou entre em contato com o suporte.'
       } else if (error.message) {
         errorMessage = error.message
@@ -186,7 +216,15 @@ export function CheckoutModal({
         title: 'Erro',
         description: errorMessage,
         variant: 'destructive',
+        duration: shouldRedirect ? 5000 : 3000,
       })
+      
+      if (shouldRedirect) {
+        setTimeout(() => {
+          onClose()
+          navigate('/login')
+        }, 2000)
+      }
     } finally {
       setIsProcessing(false)
     }
