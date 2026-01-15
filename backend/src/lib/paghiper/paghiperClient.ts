@@ -148,7 +148,18 @@ async function createPixCharge(
     orderId: request.orderId,
     amount: request.amountCents / 100,
     customer: request.customer.email,
+    endpoint,
   })
+  
+  // Log do body sem expor o token completo (apenas primeiros e últimos caracteres)
+  const bodyForLog = { ...body }
+  if (bodyForLog.token) {
+    bodyForLog.token = bodyForLog.token.substring(0, 4) + '...' + bodyForLog.token.substring(bodyForLog.token.length - 4)
+  }
+  if (bodyForLog.apiKey) {
+    bodyForLog.apiKey = bodyForLog.apiKey.substring(0, 4) + '...' + bodyForLog.apiKey.substring(bodyForLog.apiKey.length - 4)
+  }
+  console.log('[PagHiper] Body da requisição PIX (com credenciais mascaradas):', JSON.stringify(bodyForLog, null, 2))
 
   const response = await fetch(endpoint, {
     method: 'POST',
@@ -159,19 +170,60 @@ async function createPixCharge(
     body: JSON.stringify(body),
   })
 
-  const data = (await response.json()) as PagHiperPixResponse
-
-  // Verificar se a resposta tem o formato esperado
-  if (!data || !data.create_request) {
-    console.error('[PagHiper] Resposta inesperada ao criar cobrança PIX:', data)
-    throw new Error('Resposta inválida da API PagHiper')
+  let data: any
+  let responseText: string
+  
+  try {
+    responseText = await response.text()
+    console.log('[PagHiper] Status HTTP:', response.status)
+    console.log('[PagHiper] Resposta bruta da API PIX (primeiros 1000 chars):', responseText.substring(0, 1000))
+    
+    if (!responseText || responseText.trim() === '') {
+      throw new Error('Resposta vazia da API PagHiper')
+    }
+    
+    data = JSON.parse(responseText)
+  } catch (parseError: any) {
+    console.error('[PagHiper] Erro ao fazer parse da resposta JSON:', {
+      error: parseError.message,
+      responseStatus: response.status,
+      responseText: responseText?.substring(0, 500),
+    })
+    throw new Error(`Resposta inválida da API PagHiper - não é JSON válido: ${parseError.message}`)
   }
 
-  if (response.status !== 201 || data.create_request.result !== 'success') {
+  console.log('[PagHiper] Resposta parseada da API PIX:', JSON.stringify(data, null, 2))
+
+  // Verificar se a resposta tem o formato esperado
+  if (!data) {
+    console.error('[PagHiper] Resposta é null ou undefined')
+    throw new Error('Resposta inválida da API PagHiper - resposta vazia')
+  }
+
+  // A PagHiper pode retornar diferentes estruturas de erro
+  if (!data.create_request) {
+    // Tentar verificar se é uma resposta de erro em outro formato
+    if (data.result && data.result !== 'success') {
+      console.error('[PagHiper] Erro na resposta (formato alternativo):', data)
+      throw new Error(data.response_message || data.message || 'Erro ao criar cobrança PIX')
+    }
+    
+    console.error('[PagHiper] Resposta inesperada ao criar cobrança PIX. Estrutura recebida:', {
+      hasData: !!data,
+      dataKeys: data ? Object.keys(data) : [],
+      fullData: JSON.stringify(data, null, 2),
+      responseStatus: response.status,
+    })
+    throw new Error('Resposta inválida da API PagHiper - estrutura create_request não encontrada')
+  }
+
+  // A PagHiper pode retornar 200 mesmo com erro, então verificamos o campo result
+  if (data.create_request.result !== 'success') {
     console.error('[PagHiper] Erro ao criar cobrança PIX:', {
       status: response.status,
       result: data.create_request.result,
       message: data.create_request.response_message,
+      fullResponse: JSON.stringify(data, null, 2),
     })
     throw new Error(
       data.create_request.response_message || 'Erro ao criar cobrança PIX'
@@ -240,7 +292,18 @@ async function createBoletoCharge(
     orderId: request.orderId,
     amount: request.amountCents / 100,
     customer: request.customer.email,
+    endpoint,
   })
+  
+  // Log do body sem expor o token completo (apenas primeiros e últimos caracteres)
+  const bodyForLog = { ...body }
+  if (bodyForLog.token) {
+    bodyForLog.token = bodyForLog.token.substring(0, 4) + '...' + bodyForLog.token.substring(bodyForLog.token.length - 4)
+  }
+  if (bodyForLog.apiKey) {
+    bodyForLog.apiKey = bodyForLog.apiKey.substring(0, 4) + '...' + bodyForLog.apiKey.substring(bodyForLog.apiKey.length - 4)
+  }
+  console.log('[PagHiper] Body da requisição Boleto (com credenciais mascaradas):', JSON.stringify(bodyForLog, null, 2))
 
   const response = await fetch(endpoint, {
     method: 'POST',
@@ -251,19 +314,60 @@ async function createBoletoCharge(
     body: JSON.stringify(body),
   })
 
-  const data = (await response.json()) as PagHiperBoletoResponse
-
-  // Verificar se a resposta tem o formato esperado
-  if (!data || !data.create_request) {
-    console.error('[PagHiper] Resposta inesperada ao criar cobrança Boleto:', data)
-    throw new Error('Resposta inválida da API PagHiper')
+  let data: any
+  let responseText: string
+  
+  try {
+    responseText = await response.text()
+    console.log('[PagHiper] Status HTTP:', response.status)
+    console.log('[PagHiper] Resposta bruta da API Boleto (primeiros 1000 chars):', responseText.substring(0, 1000))
+    
+    if (!responseText || responseText.trim() === '') {
+      throw new Error('Resposta vazia da API PagHiper')
+    }
+    
+    data = JSON.parse(responseText)
+  } catch (parseError: any) {
+    console.error('[PagHiper] Erro ao fazer parse da resposta JSON:', {
+      error: parseError.message,
+      responseStatus: response.status,
+      responseText: responseText?.substring(0, 500),
+    })
+    throw new Error(`Resposta inválida da API PagHiper - não é JSON válido: ${parseError.message}`)
   }
 
-  if (response.status !== 201 || data.create_request.result !== 'success') {
+  console.log('[PagHiper] Resposta parseada da API Boleto:', JSON.stringify(data, null, 2))
+
+  // Verificar se a resposta tem o formato esperado
+  if (!data) {
+    console.error('[PagHiper] Resposta é null ou undefined')
+    throw new Error('Resposta inválida da API PagHiper - resposta vazia')
+  }
+
+  // A PagHiper pode retornar diferentes estruturas de erro
+  if (!data.create_request) {
+    // Tentar verificar se é uma resposta de erro em outro formato
+    if (data.result && data.result !== 'success') {
+      console.error('[PagHiper] Erro na resposta (formato alternativo):', data)
+      throw new Error(data.response_message || data.message || 'Erro ao criar cobrança Boleto')
+    }
+    
+    console.error('[PagHiper] Resposta inesperada ao criar cobrança Boleto. Estrutura recebida:', {
+      hasData: !!data,
+      dataKeys: data ? Object.keys(data) : [],
+      fullData: JSON.stringify(data, null, 2),
+      responseStatus: response.status,
+    })
+    throw new Error('Resposta inválida da API PagHiper - estrutura create_request não encontrada')
+  }
+
+  // A PagHiper pode retornar 200 mesmo com erro, então verificamos o campo result
+  if (data.create_request.result !== 'success') {
     console.error('[PagHiper] Erro ao criar cobrança Boleto:', {
       status: response.status,
       result: data.create_request.result,
       message: data.create_request.response_message,
+      fullResponse: JSON.stringify(data, null, 2),
     })
     throw new Error(
       data.create_request.response_message || 'Erro ao criar cobrança Boleto'
