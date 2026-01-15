@@ -147,20 +147,27 @@ export default function RegisterPage() {
 
       // Se o backend criou com sucesso, usa os dados do backend
       if (backendUser && backendTenant) {
-        const user = {
-          id: backendUser.id,
+        // Criar usuário local para fallback (senha não é usada quando autenticado via backend)
+        // Usamos um hash placeholder já que a autenticação será feita via token JWT
+        const user = createUser({
           email: backendUser.email,
+          password: 'backend-auth', // Placeholder - não será usado pois autenticação é via JWT
           name: backendUser.name,
           tenantId: backendUser.tenantId,
           role: backendUser.role,
-          createdAt: new Date(),
+        })
+        
+        // Atualizar ID do usuário para o ID do backend
+        const userWithBackendId: typeof user = {
+          ...user,
+          id: backendUser.id,
         }
         
         // Salva localmente também para fallback
         saveTenant(backendTenant)
-        setUser(user)
+        setUser(userWithBackendId)
         setTenant(backendTenant)
-        setNewUserName(user.name)
+        setNewUserName(userWithBackendId.name)
         setShowWelcomeModal(true)
         return
       }
