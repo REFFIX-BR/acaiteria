@@ -33,9 +33,13 @@ export function getApiUrl(): string {
   // Exemplo: menu.reffix.com.br -> api.menu.reffix.com.br
   // Exemplo: reffix.com.br -> api.reffix.com.br
   let apiHostname: string
-  if (hostname === 'reffix.com.br' || hostname.endsWith('.reffix.com.br')) {
-    // Se for reffix.com.br ou *.reffix.com.br, substituir o primeiro subdomínio por 'api'
-    apiHostname = hostname.replace(/^([^.]+\.)?/, 'api.')
+  if (hostname === 'reffix.com.br') {
+    // Se for apenas reffix.com.br, adicionar api. no início
+    apiHostname = `api.${hostname}`
+  } else if (hostname.endsWith('.reffix.com.br')) {
+    // Se tiver subdomínio (ex: gestaoloja.reffix.com.br), adicionar api. antes do primeiro subdomínio
+    // gestaoloja.reffix.com.br -> api.gestaoloja.reffix.com.br
+    apiHostname = `api.${hostname}`
   } else {
     // Para outros domínios, adicionar 'api.' no início
     apiHostname = `api.${hostname}`

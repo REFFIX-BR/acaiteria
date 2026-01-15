@@ -68,12 +68,21 @@ export default function LoginPage() {
           // Salva o token JWT no localStorage
           if (backendToken) {
             localStorage.setItem('auth_token', backendToken)
+            console.log('[Login] Token JWT salvo com sucesso')
           }
+        } else if (response.status === 404) {
+          console.error('[Login] Backend não encontrado (404). Verifique se a API está acessível em:', `${apiUrl}/api/auth/login`)
+          // Continua com autenticação local, mas o usuário será avisado
         } else {
-          console.warn('[Login] Falha ao fazer login no backend, tentando autenticação local')
+          const errorData = await response.json().catch(() => ({}))
+          console.warn('[Login] Falha ao fazer login no backend:', response.status, errorData)
         }
-      } catch (error) {
-        console.warn('[Login] Erro ao conectar com backend, tentando autenticação local:', error)
+      } catch (error: any) {
+        console.error('[Login] Erro ao conectar com backend:', error.message)
+        // Se for erro de rede (CORS, DNS, etc), mostra aviso mas continua
+        if (error.message?.includes('Failed to fetch') || error.message?.includes('ERR_NAME_NOT_RESOLVED')) {
+          console.warn('[Login] Não foi possível conectar ao backend. Continuando com autenticação local.')
+        }
       }
 
       // Autenticação local (fallback ou complementar)
