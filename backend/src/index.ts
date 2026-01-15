@@ -23,22 +23,27 @@ const app = express()
 const PORT = process.env.PORT || 3000
 
 // Middleware de log para TODAS as requisições (ANTES de qualquer coisa)
+// Nota: req.body ainda não está disponível aqui (body parser vem depois)
 app.use((req, res, next) => {
-  console.log('[Request]', {
-    method: req.method,
-    path: req.path,
-    url: req.url,
-    originalUrl: req.originalUrl,
-    baseUrl: req.baseUrl,
-    headers: {
-      authorization: req.headers.authorization ? 'present' : 'missing',
-      'content-type': req.headers['content-type'],
-      host: req.headers.host,
-      origin: req.headers.origin,
-      'user-agent': req.headers['user-agent']?.substring(0, 50),
-    },
-    body: req.method === 'POST' ? JSON.stringify(req.body).substring(0, 200) : undefined,
-  })
+  try {
+    console.log('[Request]', {
+      method: req.method,
+      path: req.path,
+      url: req.url,
+      originalUrl: req.originalUrl,
+      baseUrl: req.baseUrl,
+      headers: {
+        authorization: req.headers.authorization ? 'present' : 'missing',
+        'content-type': req.headers['content-type'],
+        host: req.headers.host,
+        origin: req.headers.origin,
+        'user-agent': req.headers['user-agent']?.substring(0, 50) || 'N/A',
+      },
+    })
+  } catch (error) {
+    // Se houver erro no log, não quebra a requisição
+    console.error('[Request] Erro ao fazer log:', error)
+  }
   next()
 })
 
