@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTenantStore } from '@/stores/tenantStore'
 import { getTenantData, setTenantData, removeTenantData } from '@/lib/storage/storage'
-import { EvolutionAPIClient, normalizeInstanceName } from '@/lib/whatsapp/evolutionApi'
+import { normalizeInstanceName } from '@/lib/whatsapp/evolutionApi'
 import { useToast } from '@/hooks/use-toast'
+import { getApiUrl } from '@/lib/api/config'
+import { authenticatedFetch } from '@/lib/api/auth'
 import type { ConnectionState, WhatsAppInstance, WhatsAppConfig } from '@/types'
 
 export function useWhatsAppConnection() {
@@ -69,18 +71,6 @@ export function useWhatsAppConnection() {
 
     cancelledFlagRef.current = false
 
-    const config = currentTenant ? getTenantData<WhatsAppConfig>(currentTenant.id, 'whatsapp_config') : null
-    if (!config || !config.apiUrl || !config.apiKey) {
-      toast({
-        title: 'Erro',
-        description: 'Configuração da API não encontrada',
-        variant: 'destructive',
-      })
-      return
-    }
-
-    const client = new EvolutionAPIClient(config)
-
     monitoringIntervalRef.current = setInterval(async () => {
       if (cancelledFlagRef.current) {
         if (monitoringIntervalRef.current) {
@@ -91,22 +81,27 @@ export function useWhatsAppConnection() {
       }
 
       try {
-        const statusResult = await client.getConnectionState(instanceName)
+        const apiUrl = getApiUrl()
+        const response = await authenticatedFetch(`${apiUrl}/api/whatsapp/instances/${instanceName}/status`)
         
-        if (statusResult.success && statusResult.isConnected) {
-          // Conectado!
-          if (monitoringIntervalRef.current) {
-            clearInterval(monitoringIntervalRef.current)
-            monitoringIntervalRef.current = null
-          }
-
-          setState({ status: 'connected' })
-          saveInstance({ status: 'connected', lastSeen: new Date() })
+        if (response.ok) {
+          const data = await response.json()
           
-          toast({
-            title: 'Conectado!',
-            description: 'WhatsApp conectado com sucesso',
-          })
+          if (data.success && data.isConnected) {
+            // Conectado!
+            if (monitoringIntervalRef.current) {
+              clearInterval(monitoringIntervalRef.current)
+              monitoringIntervalRef.current = null
+            }
+
+            setState({ status: 'connected' })
+            saveInstance({ status: 'connected', lastSeen: new Date() })
+            
+            toast({
+              title: 'Conectado!',
+              description: 'WhatsApp conectado com sucesso',
+            })
+          }
         }
       } catch (error) {
         console.error('Erro ao verificar status:', error)
@@ -139,17 +134,25 @@ export function useWhatsAppConnection() {
     setState({ status: 'generating' })
 
     try {
-      const instanceName = config.instanceName || normalizeInstanceName(currentTenant.name)
-      const client = new EvolutionAPIClient(config)
+      const instanceName = config?.instanceName || normalizeInstanceName(currentTenant.name)
+      const apiUrl = getApiUrl()
 
-      // Cria instância
-      const createResult = await client.createInstance(instanceName, true)
-      
-      if (!createResult.success) {
-        setState({ status: 'error', error: createResult.error })
+      // Cria instância via backend
+      const response = await authenticatedFetch(`${apiUrl}/api/whatsapp/instances/create`, {
+        method: 'POST',
+        body: JSON.stringify({
+          instanceName,
+          useQRCode: true,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        setState({ status: 'error', error: result.error || 'Erro ao criar instância' })
         toast({
           title: 'Erro',
-          description: createResult.error || 'Erro ao criar instância',
+          description: result.error || 'Erro ao criar instância',
           variant: 'destructive',
         })
         return
@@ -161,24 +164,34 @@ export function useWhatsAppConnection() {
         status: 'connecting',
       })
 
-      // Aguarda um pouco e obtém QR Code
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      
-      const codeResult = await client.getConnectionCode(instanceName)
-      
-      if (codeResult.success && codeResult.qrcode) {
+      // Se o QR Code já veio na resposta, usar
+      if (result.connectionCode?.qrcode) {
         setState({ 
           status: 'waiting', 
-          qrcode: codeResult.qrcode 
+          qrcode: result.connectionCode.qrcode 
         })
         startMonitoring(instanceName)
       } else {
-        setState({ status: 'error', error: codeResult.error })
-        toast({
-          title: 'Erro',
-          description: codeResult.error || 'Erro ao obter QR Code',
-          variant: 'destructive',
-        })
+        // Se não veio, tentar obter novamente
+        await new Promise(resolve => setTimeout(resolve, 2000))
+        
+        const connectResponse = await authenticatedFetch(`${apiUrl}/api/whatsapp/instances/${instanceName}/connect`)
+        const connectResult = await connectResponse.json()
+        
+        if (connectResponse.ok && connectResult.success && connectResult.connectionCode?.qrcode) {
+          setState({ 
+            status: 'waiting', 
+            qrcode: connectResult.connectionCode.qrcode 
+          })
+          startMonitoring(instanceName)
+        } else {
+          setState({ status: 'error', error: 'Erro ao obter QR Code' })
+          toast({
+            title: 'Erro',
+            description: 'Erro ao obter QR Code',
+            variant: 'destructive',
+          })
+        }
       }
     } catch (error) {
       console.error('Erro ao criar instância:', error)
@@ -208,43 +221,53 @@ export function useWhatsAppConnection() {
     }
 
     const config = getTenantData<WhatsAppConfig>(currentTenant.id, 'whatsapp_config')
-    if (!config || !config.apiUrl || !config.apiKey) {
-      toast({
-        title: 'Erro',
-        description: 'Configure a URL e API Key primeiro',
-        variant: 'destructive',
-      })
-      return
-    }
+    const instanceName = config?.instanceName || normalizeInstanceName(currentTenant.name)
 
     setIsLoading(true)
     setState({ status: 'generating' })
 
     try {
-      const instanceName = config.instanceName || normalizeInstanceName(currentTenant.name)
-      const client = new EvolutionAPIClient(config)
+      const apiUrl = getApiUrl()
 
-      // Conecta com Pairing Code
-      const result = await client.connectWithPairingCode(instanceName, phoneNumber)
-      
-      if (result.success && result.pairingCode) {
-        // Salva instância no storage
-        saveInstance({
+      // Conecta com Pairing Code via backend
+      const response = await authenticatedFetch(`${apiUrl}/api/whatsapp/instances/connect-pairing`, {
+        method: 'POST',
+        body: JSON.stringify({
           instanceName,
           phoneNumber,
-          status: 'connecting',
-        })
+        }),
+      })
 
-        setState({ 
-          status: 'waiting', 
-          pairingCode: result.pairingCode 
-        })
-        startMonitoring(instanceName)
-      } else {
-        setState({ status: 'error', error: result.error })
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        setState({ status: 'error', error: result.error || 'Erro ao gerar Pairing Code' })
         toast({
           title: 'Erro',
           description: result.error || 'Erro ao gerar Pairing Code',
+          variant: 'destructive',
+        })
+        return
+      }
+
+      // Salva instância no storage
+      saveInstance({
+        instanceName,
+        phoneNumber,
+        status: 'connecting',
+      })
+
+      if (result.connectionCode?.pairingCode) {
+        setState({ 
+          status: 'waiting', 
+          pairingCode: result.connectionCode.pairingCode 
+        })
+        startMonitoring(instanceName)
+      } else {
+        setState({ status: 'error', error: 'Código de pairing não recebido' })
+        toast({
+          title: 'Erro',
+          description: 'Código de pairing não recebido',
           variant: 'destructive',
         })
       }
@@ -291,20 +314,14 @@ export function useWhatsAppConnection() {
     setIsLoggingOut(true)
 
     try {
-      const config = getTenantData<WhatsAppConfig>(currentTenant.id, 'whatsapp_config')
-      if (!config) {
-        toast({
-          title: 'Erro',
-          description: 'Configuração não encontrada',
-          variant: 'destructive',
-        })
-        return
-      }
+      const apiUrl = getApiUrl()
+      const response = await authenticatedFetch(`${apiUrl}/api/whatsapp/instances/${instanceName}/logout`, {
+        method: 'POST',
+      })
 
-      const client = new EvolutionAPIClient(config)
-      const result = await client.logoutInstance(instanceName)
+      const result = await response.json()
 
-      if (result.success) {
+      if (response.ok && result.success) {
         saveInstance({ status: 'disconnected' })
         setState({ status: 'disconnected' })
         toast({
@@ -337,22 +354,22 @@ export function useWhatsAppConnection() {
     setIsDeleting(true)
 
     try {
-      const config = getTenantData<WhatsAppConfig>(currentTenant.id, 'whatsapp_config')
-      if (!config) {
-        toast({
-          title: 'Erro',
-          description: 'Configuração não encontrada',
-          variant: 'destructive',
-        })
-        return
-      }
+      const apiUrl = getApiUrl()
 
-      const client = new EvolutionAPIClient(config)
-      
-      // Tenta deletar na API (pode não existir)
-      await client.deleteInstance(instanceName).catch(() => {
-        // Ignora erro se não existir
-      })
+      // Tenta deletar na API via backend (pode não existir)
+      try {
+        const response = await authenticatedFetch(`${apiUrl}/api/whatsapp/instances/${instanceName}`, {
+          method: 'DELETE',
+        })
+
+        if (!response.ok) {
+          // Ignora erro se não existir na API
+          console.warn('[WhatsApp] Erro ao deletar instância na API (pode não existir):', await response.json().catch(() => ({})))
+        }
+      } catch (error) {
+        // Ignora erro se não conseguir deletar na API
+        console.warn('[WhatsApp] Erro ao deletar instância na API:', error)
+      }
 
       // Remove do storage
       removeTenantData(currentTenant.id, 'whatsapp_instance')
@@ -382,46 +399,49 @@ export function useWhatsAppConnection() {
     setIsRefreshing(true)
 
     try {
-      const config = getTenantData<WhatsAppConfig>(currentTenant.id, 'whatsapp_config')
-      if (!config) {
-        toast({
-          title: 'Erro',
-          description: 'Configuração não encontrada',
-          variant: 'destructive',
-        })
-        return
-      }
+      const apiUrl = getApiUrl()
+      const response = await authenticatedFetch(`${apiUrl}/api/whatsapp/instances/${instanceName}/status`)
 
-      const client = new EvolutionAPIClient(config)
-      const statusResult = await client.getConnectionState(instanceName)
+      if (response.ok) {
+        const result = await response.json()
 
-      if (statusResult.success) {
-        const newStatus = statusResult.isConnected ? 'connected' : 'disconnected'
-        saveInstance({ 
-          status: newStatus as any,
-          lastSeen: new Date()
-        })
-        
-        if (statusResult.isConnected) {
-          setState({ status: 'connected' })
+        if (result.success) {
+          const newStatus = result.isConnected ? 'connected' : 'disconnected'
+          saveInstance({ 
+            status: newStatus as any,
+            lastSeen: new Date()
+          })
+          
+          if (result.isConnected) {
+            setState({ status: 'connected' })
+          } else {
+            setState({ status: 'disconnected' })
+          }
+
+          toast({
+            title: 'Status atualizado',
+            description: `WhatsApp está ${result.isConnected ? 'conectado' : 'desconectado'}`,
+          })
+        } else {
+          toast({
+            title: 'Erro',
+            description: result.error || 'Erro ao verificar status',
+            variant: 'destructive',
+          })
         }
-
-        toast({
-          title: 'Status atualizado',
-          description: `WhatsApp está ${statusResult.isConnected ? 'conectado' : 'desconectado'}`,
-        })
       } else {
+        const errorData = await response.json().catch(() => ({}))
         toast({
           title: 'Erro',
-          description: statusResult.error || 'Erro ao atualizar status',
+          description: errorData.error || 'Erro ao verificar status',
           variant: 'destructive',
         })
       }
     } catch (error) {
-      console.error('Erro ao atualizar status:', error)
+      console.error('Erro ao verificar status:', error)
       toast({
         title: 'Erro',
-        description: 'Erro ao atualizar status',
+        description: 'Erro ao verificar status',
         variant: 'destructive',
       })
     } finally {

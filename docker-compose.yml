@@ -13,6 +13,12 @@ services:
       PAGHIPER_API_KEY: ${PAGHIPER_API_KEY}
       PAGHIPER_TOKEN: ${PAGHIPER_TOKEN}
       PAGHIPER_NOTIFICATION_URL: ${PAGHIPER_NOTIFICATION_URL:-https://gestaoloja.reffix.com.br/api/paghiper/webhook}
+      # WhatsApp / Evolution API
+      EVOLUTION_API_URL: ${EVOLUTION_API_URL:-https://manager.reffix.com.br/api}
+      MANAGER_EMAIL: ${MANAGER_EMAIL:-contato.reffix@gmail.com}
+      MANAGER_PASSWORD: ${MANAGER_PASSWORD:-ManagerCriadocompuc0}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
+      EVOLUTION_API_GLOBAL_KEY: ${EVOLUTION_API_GLOBAL_KEY:-15c88ebc2e37f86d00e9ddeed}
     deploy:
       replicas: 2
       restart_policy:

@@ -16,6 +16,7 @@ import { dashboardRoutes } from './routes/dashboard.routes.js'
 import { settingsRoutes } from './routes/settings.routes.js'
 import paymentRoutes from './routes/payment.routes.js'
 import paghiperRoutes from './routes/paghiper.routes.js'
+import whatsappRoutes from './routes/whatsapp.routes.js'
 
 dotenv.config()
 
@@ -126,11 +127,15 @@ app.use('/api/payment', paymentRoutes)
 // Webhook PagHiper (precisa estar em /api/paghiper/webhook)
 console.log('📋 Registrando rota /api/paghiper')
 app.use('/api/paghiper', paghiperRoutes)
+// Rotas WhatsApp (Evolution API)
+console.log('📋 Registrando rota /api/whatsapp')
+app.use('/api/whatsapp', whatsappRoutes)
 
 // Debug: Log de todas as rotas registradas
 console.log('📋 Rotas registradas:')
 console.log('  - /api/payment/* (paymentRoutes)')
 console.log('  - /api/paghiper/* (paghiperRoutes)')
+console.log('  - /api/whatsapp/* (whatsappRoutes)')
 
 // Error handler
 app.use(errorHandler)
