@@ -171,7 +171,7 @@ async function createPixCharge(
   })
 
   let data: any
-  let responseText: string
+  let responseText: string = ''
   
   try {
     responseText = await response.text()
@@ -315,7 +315,7 @@ async function createBoletoCharge(
   })
 
   let data: any
-  let responseText: string
+  let responseText: string = ''
   
   try {
     responseText = await response.text()
