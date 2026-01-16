@@ -11,6 +11,7 @@ import {
   updateWhatsAppInstanceStatus,
   deleteWhatsAppInstance,
 } from '../db/storage.js'
+import { query } from '../db/connection.js'
 
 const router = Router()
 
@@ -118,13 +119,37 @@ router.post(
         })
       }
 
-      // Salvar instância no banco de dados
-      const dbInstance = await createWhatsAppInstance({
-        tenantId,
-        instanceName,
-        phoneNumber: phoneNumber || null,
-        status: 'created',
-      })
+      // Salvar instância no banco de dados (ou atualizar se já existir)
+      let dbInstance
+      try {
+        dbInstance = await createWhatsAppInstance({
+          tenantId,
+          instanceName,
+          phoneNumber: phoneNumber || null,
+          status: 'created',
+        })
+      } catch (error: any) {
+        // Se der erro de duplicata, buscar a instância existente
+        if (error?.code === '23505' || error?.message?.includes('duplicate key')) {
+          console.log('[WhatsApp] Instância já existe no banco, buscando existente...')
+          const existingInstance = await getWhatsAppInstanceByTenant(tenantId)
+          if (existingInstance && existingInstance.instanceName === instanceName) {
+            dbInstance = existingInstance
+            // Atualizar status e phone se necessário
+            await updateWhatsAppInstanceStatus(existingInstance.id, 'created')
+            if (phoneNumber && phoneNumber !== existingInstance.phoneNumber) {
+              await query(
+                'UPDATE whatsapp_instances SET phone_number = $1, updated_at = NOW() WHERE id = $2',
+                [phoneNumber, existingInstance.id]
+              )
+            }
+          } else {
+            throw error
+          }
+        } else {
+          throw error
+        }
+      }
 
       // Obter código de conexão
       let connectionCode = null

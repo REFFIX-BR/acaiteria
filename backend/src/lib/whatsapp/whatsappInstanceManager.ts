@@ -308,7 +308,49 @@ export class WhatsAppInstanceManager {
         })
 
         if (response.ok) {
-          const data = await response.json() as any
+          // Verificar Content-Type
+          const contentType = response.headers.get('content-type') || ''
+          console.log(`[WhatsApp Manager] Content-Type da resposta: ${contentType}`)
+          
+          // Se for imagem, converter para base64
+          if (contentType.includes('image/')) {
+            const arrayBuffer = await response.arrayBuffer()
+            const buffer = Buffer.from(arrayBuffer)
+            const base64 = buffer.toString('base64')
+            const imageType = contentType.includes('png') ? 'png' : contentType.includes('jpeg') || contentType.includes('jpg') ? 'jpeg' : 'png'
+            console.log(`[WhatsApp Manager] Imagem recebida (${imageType}), convertendo para base64...`)
+            return {
+              qrcode: `data:image/${imageType};base64,${base64}`,
+            }
+          }
+          
+          // Se for HTML, tentar extrair dados ou retornar erro
+          if (contentType.includes('text/html')) {
+            const htmlText = await response.text()
+            console.warn(`[WhatsApp Manager] Resposta HTML recebida de ${endpoint}:`, htmlText.substring(0, 500))
+            // Continuar para o próximo endpoint
+            continue
+          }
+          
+          // Tentar parsear como JSON
+          let data: any
+          try {
+            data = await response.json() as any
+          } catch (jsonError) {
+            // Se não for JSON, tentar como texto e verificar se é base64
+            const text = await response.text()
+            console.log(`[WhatsApp Manager] Resposta não é JSON, tentando como texto/base64:`, text.substring(0, 200))
+            
+            // Se parecer ser base64 direto
+            if (/^[A-Za-z0-9+/=]+$/.test(text.trim()) && text.length > 100) {
+              return {
+                qrcode: `data:image/png;base64,${text.trim()}`,
+              }
+            }
+            
+            // Continuar para o próximo endpoint
+            continue
+          }
           
           console.log(`[WhatsApp Manager] Dados recebidos de ${endpoint}:`, {
             hasQrcode: !!(data.qrcode || data.base64),
@@ -377,7 +419,12 @@ export class WhatsAppInstanceManager {
           // Continuar tentando outros endpoints mesmo se este falhar
           continue
         }
-      } catch (error) {
+      } catch (error: any) {
+        // Se for erro de JSON parse, já foi tratado acima
+        if (error.message?.includes('Unexpected token')) {
+          console.warn(`[WhatsApp Manager] Resposta não é JSON válido de ${endpoint}, tentando próximo endpoint...`)
+          continue
+        }
         console.warn(`[WhatsApp Manager] Erro ao obter código de ${endpoint}:`, error)
         continue
       }
