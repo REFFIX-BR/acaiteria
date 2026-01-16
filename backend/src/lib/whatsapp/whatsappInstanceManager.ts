@@ -671,13 +671,19 @@ export class WhatsAppInstanceManager {
    * Deleta uma instância
    */
   async deleteInstance(instanceName: string): Promise<boolean> {
+    // Endpoint correto: api.reffix.com.br/instance/delete/{instanceName}
+    // Base URL: usar api.reffix.com.br (sem /api)
+    const baseUrl = this.config.managerUrl.replace(/\/api\/?$/, '').replace(/manager\./, 'api.')
+    
     const deleteEndpoints = [
-      `${this.config.managerUrl}/instance/delete/${instanceName}`,
-      `${this.config.managerUrl}/instances/delete/${instanceName}`,
+      `${baseUrl}/instance/delete/${instanceName}`, // Endpoint correto - PRIORIDADE
+      `${this.config.managerUrl}/instance/delete/${instanceName}`, // Fallback
+      `${this.config.managerUrl}/instances/delete/${instanceName}`, // Fallback alternativo
     ]
 
     for (const endpoint of deleteEndpoints) {
       try {
+        console.log(`[WhatsApp Manager] Deletando instância em: ${endpoint}`)
         const response = await this.authenticatedRequest(endpoint, {
           method: 'DELETE',
         })
