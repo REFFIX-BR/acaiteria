@@ -334,15 +334,16 @@ router.get(
       const manager = getWhatsAppInstanceManager()
       // Usar token específico da instância
       const status = await manager.getConnectionState(instanceName, dbInstance.instanceToken)
-        const newStatus = status.status === 'connected' || status.status === 'open' 
-          ? 'connected' 
-          : status.status === 'connecting' 
-          ? 'connecting' 
-          : 'disconnected'
-        
-        if (dbInstance.status !== newStatus) {
-          await updateWhatsAppInstanceStatus(dbInstance.id, newStatus)
-        }
+      
+      // Atualizar status no banco de dados se mudou
+      const newStatus = status.status === 'connected' || status.status === 'open' 
+        ? 'connected' 
+        : status.status === 'connecting' 
+        ? 'connecting' 
+        : 'disconnected'
+      
+      if (dbInstance.status !== newStatus) {
+        await updateWhatsAppInstanceStatus(dbInstance.id, newStatus)
       }
 
       res.json({
