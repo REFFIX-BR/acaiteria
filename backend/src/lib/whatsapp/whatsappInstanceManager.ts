@@ -465,8 +465,15 @@ export class WhatsAppInstanceManager {
           // Extrair Pairing Code
           if (data.pairingCode || data.code) {
             const code = data.pairingCode || data.code
-            // Formatar código: XXXX-XXXX
-            pairingCode = code.toString().replace(/(\d{4})(\d{4})/, '$1-$2')
+            const codeStr = code.toString()
+            // Formatar código: XXXX-XXXX (4 caracteres, hífen, 4 caracteres)
+            // Funciona tanto para números quanto para alfanuméricos
+            if (codeStr.length === 8) {
+              pairingCode = `${codeStr.substring(0, 4)}-${codeStr.substring(4)}`
+            } else {
+              // Se não tiver 8 caracteres, usar como está
+              pairingCode = codeStr
+            }
             console.log(`[WhatsApp Manager] Pairing Code encontrado: ${pairingCode}`)
           }
           
@@ -488,7 +495,13 @@ export class WhatsAppInstanceManager {
             }
             
             if (data.response.pairingCode) {
-              pairingCode = data.response.pairingCode.toString().replace(/(\d{4})(\d{4})/, '$1-$2')
+              const codeStr = data.response.pairingCode.toString()
+              // Formatar código: XXXX-XXXX (funciona para números e alfanuméricos)
+              if (codeStr.length === 8) {
+                pairingCode = `${codeStr.substring(0, 4)}-${codeStr.substring(4)}`
+              } else {
+                pairingCode = codeStr
+              }
               console.log(`[WhatsApp Manager] Pairing Code encontrado em data.response: ${pairingCode}`)
             }
             
@@ -539,11 +552,19 @@ export class WhatsAppInstanceManager {
           // Formato do fetchInstances: data.pairingCode.code
           if (data.pairingCode) {
             if (typeof data.pairingCode === 'string') {
-              const formatted = data.pairingCode.toString().replace(/(\d{4})(\d{4})/, '$1-$2')
+              const codeStr = data.pairingCode.toString()
+              // Formatar código: XXXX-XXXX (funciona para números e alfanuméricos)
+              const formatted = codeStr.length === 8 
+                ? `${codeStr.substring(0, 4)}-${codeStr.substring(4)}`
+                : codeStr
               console.log(`[WhatsApp Manager] Pairing Code encontrado como string: ${formatted}`)
               return { pairingCode: formatted }
             } else if (data.pairingCode.code) {
-              const formatted = data.pairingCode.code.toString().replace(/(\d{4})(\d{4})/, '$1-$2')
+              const codeStr = data.pairingCode.code.toString()
+              // Formatar código: XXXX-XXXX (funciona para números e alfanuméricos)
+              const formatted = codeStr.length === 8 
+                ? `${codeStr.substring(0, 4)}-${codeStr.substring(4)}`
+                : codeStr
               console.log(`[WhatsApp Manager] Pairing Code encontrado em data.pairingCode.code: ${formatted}`)
               return { pairingCode: formatted }
             }
@@ -582,8 +603,9 @@ export class WhatsAppInstanceManager {
    * Fluxo correto conforme documentação:
    * 1. Criar instância com número e qrcode: true
    * 2. Consultar /api/instances/connect/{instanceName} para obter pairingCode
+   * @returns Objeto com connectionCode e instanceToken
    */
-  async connectWithPairingCode(instanceName: string, phoneNumber: string): Promise<ConnectionCodeResponse> {
+  async connectWithPairingCode(instanceName: string, phoneNumber: string): Promise<ConnectionCodeResponse & { instanceToken?: string }> {
     // Criar instância com número e qrcode: true (obrigatório para obter pairingCode)
     // Segundo a documentação: deve enviar number e qrcode: true
     const createResult = await this.createInstance({
@@ -601,7 +623,13 @@ export class WhatsAppInstanceManager {
 
     // Consultar /api/instances/connect/{instanceName} para obter pairingCode (e/ou QR Code)
     // A API retorna ambos quando qrcode: true e number está presente
-    return this.getConnectionCode(instanceName)
+    const connectionCode = await this.getConnectionCode(instanceName)
+    
+    // Retornar também o token da instância para salvar no banco
+    return {
+      ...connectionCode,
+      instanceToken: createResult.instanceToken,
+    }
   }
 
   /**

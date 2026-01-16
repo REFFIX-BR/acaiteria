@@ -282,13 +282,111 @@ router.post(
       }
 
       const { instanceName, phoneNumber } = validation.data
+      const tenantId = req.user.tenantId
+
+      // Verificar se já existe instância para este tenant (similar à rota de criação)
+      const existingInstance = await getWhatsAppInstanceByTenant(tenantId)
+      
+      if (existingInstance) {
+        // Verificar se a instância ainda existe na Evolution API
+        try {
+          const manager = getWhatsAppInstanceManager()
+          const status = await manager.getConnectionState(existingInstance.instanceName)
+          
+          // Se a instância existe na API, retornar erro de conflito
+          if (status.status !== 'disconnected') {
+            return res.status(409).json({
+              success: false,
+              error: 'Já existe uma instância WhatsApp para este tenant',
+              instanceName: existingInstance.instanceName,
+            })
+          }
+          
+          // Se não existe na API, remover do banco e permitir criar nova
+          await deleteWhatsAppInstance(existingInstance.id)
+        } catch (error) {
+          // Se não conseguir verificar, assumir que não existe e remover do banco
+          await deleteWhatsAppInstance(existingInstance.id)
+        }
+      }
 
       const manager = getWhatsAppInstanceManager()
-      const connectionCode = await manager.connectWithPairingCode(instanceName, phoneNumber)
+      const result = await manager.connectWithPairingCode(instanceName, phoneNumber)
+
+      // Extrair connectionCode e instanceToken
+      const { instanceToken, ...connectionCode } = result
+
+      // Salvar instância no banco de dados (similar à rota de criação)
+      let dbInstance
+      try {
+        dbInstance = await createWhatsAppInstance({
+          tenantId,
+          instanceName,
+          phoneNumber: phoneNumber || null,
+          status: 'created',
+          instanceToken: instanceToken || null,
+        })
+      } catch (error: any) {
+        // Se der erro de duplicata, buscar a instância existente
+        if (error?.code === '23505' || error?.message?.includes('duplicate key')) {
+          console.log('[WhatsApp] Instância já existe no banco, buscando existente...')
+          
+          let existingInstance = await getWhatsAppInstanceByName(instanceName)
+          
+          if (!existingInstance) {
+            existingInstance = await getWhatsAppInstanceByTenant(tenantId)
+          }
+          
+          if (!existingInstance) {
+            const directResult = await query(
+              `SELECT * FROM whatsapp_instances 
+               WHERE tenant_id = $1 AND instance_name = $2
+               ORDER BY created_at DESC 
+               LIMIT 1`,
+              [tenantId, instanceName]
+            )
+            
+            if (directResult.rows.length > 0) {
+              const row = directResult.rows[0]
+              if (row.deleted_at) {
+                await query(
+                  `UPDATE whatsapp_instances 
+                   SET deleted_at = NULL, updated_at = NOW() 
+                   WHERE id = $1`,
+                  [row.id]
+                )
+              }
+              existingInstance = await getWhatsAppInstanceByName(instanceName)
+            }
+          }
+          
+          if (existingInstance && existingInstance.instanceName === instanceName) {
+            dbInstance = existingInstance
+            // Atualizar status e token se necessário
+            await updateWhatsAppInstanceStatus(existingInstance.id, 'created', instanceToken || undefined)
+            if (phoneNumber && phoneNumber !== existingInstance.phoneNumber) {
+              await query(
+                'UPDATE whatsapp_instances SET phone_number = $1, updated_at = NOW() WHERE id = $2',
+                [phoneNumber, existingInstance.id]
+              )
+            }
+            console.log('[WhatsApp] Instância existente encontrada e atualizada:', existingInstance.id)
+          } else {
+            console.error('[WhatsApp] Erro: Instância duplicada mas não encontrada no banco')
+            throw error
+          }
+        } else {
+          throw error
+        }
+      }
 
       res.json({
         success: true,
-        instanceName,
+        instance: {
+          id: dbInstance.id,
+          instanceName: dbInstance.instanceName,
+          status: dbInstance.status,
+        },
         connectionCode,
       })
     } catch (error) {
