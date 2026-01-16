@@ -64,6 +64,7 @@ export class WhatsAppInstanceManager {
       const apiKey = this.config.apiKey || this.config.globalApiKey
       console.log('[WhatsApp Manager] Usando API Key para autenticação')
       // Com API Key, não precisamos fazer login, retornamos a key
+      // Mas vamos tentar validar fazendo uma requisição de teste
       return apiKey || null
     }
 
@@ -129,13 +130,25 @@ export class WhatsAppInstanceManager {
     }
 
     if (token) {
-      // Se for API Key, usar header 'apikey', senão usar 'Authorization'
+      // Se for API Key, usar header 'apikey' (padrão Evolution API)
       if (this.config.apiKey || this.config.globalApiKey) {
+        // Evolution API usa 'apikey' como header
         headers['apikey'] = token
+        console.log('[WhatsApp Manager] Enviando requisição com API Key (header: apikey)')
       } else {
         headers['Authorization'] = `Bearer ${token}`
+        console.log('[WhatsApp Manager] Enviando requisição com Bearer token')
       }
+    } else {
+      console.warn('[WhatsApp Manager] Nenhum token disponível para autenticação')
     }
+
+    console.log('[WhatsApp Manager] Headers da requisição:', {
+      url,
+      hasApikey: !!headers['apikey'],
+      hasAuthorization: !!headers['Authorization'],
+      method: options.method || 'GET',
+    })
 
     return fetch(url, {
       ...options,
@@ -178,20 +191,29 @@ export class WhatsAppInstanceManager {
         return { success: false, error: 'Não foi possível autenticar no Manager API' }
       }
 
+      // A URL base já pode ter /api, então vamos tentar diferentes combinações
+      const baseUrl = this.config.managerUrl.replace(/\/api\/?$/, '')
+      
       const createEndpoints = [
-        `${this.config.managerUrl}/instance/create`,
-        `${this.config.managerUrl}/instances/create`,
-        `${this.config.managerUrl}/api/instance/create`,
+        `${this.config.managerUrl}/instance/create`, // URL original completa
+        `${baseUrl}/instance/create`, // Sem /api
+        `${baseUrl}/instances/create`, // Plural sem /api
+        `${this.config.managerUrl}/instances/create`, // Plural com /api
       ]
 
       const body: any = {
-        instanceName: payload.instanceName,
+        name: payload.instanceName, // Evolution API usa 'name' em vez de 'instanceName'
         qrcode: payload.qrcode ?? true,
         integration: payload.integration || 'WHATSAPP-BAILEYS',
       }
 
       if (payload.number && !payload.qrcode) {
         body.number = this.validateBrazilianPhone(payload.number)
+      }
+      
+      // Adicionar também instanceName para compatibilidade
+      if (!body.name) {
+        body.instanceName = payload.instanceName
       }
 
       for (const endpoint of createEndpoints) {
@@ -200,11 +222,18 @@ export class WhatsAppInstanceManager {
             instanceName: payload.instanceName,
             qrcode: payload.qrcode,
             hasNumber: !!payload.number,
+            body: JSON.stringify(body),
           })
 
           const response = await this.authenticatedRequest(endpoint, {
             method: 'POST',
             body: JSON.stringify(body),
+          })
+          
+          console.log(`[WhatsApp Manager] Resposta do endpoint ${endpoint}:`, {
+            status: response.status,
+            statusText: response.statusText,
+            ok: response.ok,
           })
 
           if (response.ok) {
@@ -220,11 +249,19 @@ export class WhatsAppInstanceManager {
             continue
           }
 
-          const errorData = await response.json().catch(() => ({}))
-          console.warn(`[WhatsApp Manager] Erro ao criar instância em ${endpoint}:`, {
-            status: response.status,
-            error: errorData,
-          })
+          let errorData: any = {}
+          try {
+            const text = await response.text()
+            errorData = text ? JSON.parse(text) : {}
+            console.warn(`[WhatsApp Manager] Erro ao criar instância em ${endpoint}:`, {
+              status: response.status,
+              statusText: response.statusText,
+              error: errorData,
+              responseText: text.substring(0, 500), // Primeiros 500 chars
+            })
+          } catch (parseError) {
+            console.warn(`[WhatsApp Manager] Erro ao parsear resposta de ${endpoint}:`, parseError)
+          }
         } catch (error) {
           console.warn(`[WhatsApp Manager] Erro ao criar instância em ${endpoint}:`, error)
           continue
