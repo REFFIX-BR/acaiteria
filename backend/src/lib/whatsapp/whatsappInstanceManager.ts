@@ -340,30 +340,42 @@ export class WhatsAppInstanceManager {
     const baseUrl = this.config.managerUrl.replace(/\/api\/?$/, '')
     
     // Endpoints baseados na documentação da Evolution API
-    // Baseado nos testes curl: endpoint correto é /api/instances/connect/{nome} e retorna JSON com base64
+    // Baseado nos testes curl: endpoint correto é /api/instances/connect/{nome}
+    // OBS: Não usaremos fetchInstances como o usuário solicitou
     const connectEndpoints = [
-      `${this.config.managerUrl}/instances/${instanceName}/connect`, // Endpoint correto (testado!) - PRIORIDADE
-      `${this.config.managerUrl}/instances/${instanceName}/status`, // Status da instância (pode conter QR code)
-      `${this.config.managerUrl}/instance/${instanceName}/qrcode`, // QR Code direto
-      `${this.config.managerUrl}/instances/${instanceName}/qrcode`, // QR Code direto (plural)
-      `${this.config.managerUrl}/instance/fetchInstances`, // Lista todas (filtrar depois)
-      `${baseUrl}/instance/fetchInstances/${instanceName}`, // Endpoint específico (sem /api)
-      `${baseUrl}/instance/connect/${instanceName}`, // Sem /api
-      `${baseUrl}/instances/connect/${instanceName}`, // Plural sem /api
-      `${baseUrl}/instance/${instanceName}/qrcode`, // Sem /api
+      `${this.config.managerUrl}/instances/connect/${instanceName}`, // Endpoint correto (testado com curl!) - PRIORIDADE ÚNICA
     ]
 
     for (const endpoint of connectEndpoints) {
       try {
         console.log(`[WhatsApp Manager] Obtendo código de conexão de: ${endpoint}`)
-        const response = await this.authenticatedRequest(endpoint, {
+        
+        // Garantir que estamos usando Bearer token e Accept: application/json
+        const authToken = await this.authenticate()
+        const headers: any = {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        }
+        
+        if (authToken) {
+          const isJWT = authToken.includes('.') && authToken.split('.').length === 3
+          if (isJWT) {
+            headers['Authorization'] = `Bearer ${authToken}`
+          } else {
+            headers['apikey'] = authToken
+          }
+        }
+        
+        const response = await fetch(endpoint, {
           method: 'GET',
+          headers,
         })
 
         console.log(`[WhatsApp Manager] Resposta do endpoint ${endpoint}:`, {
           status: response.status,
           statusText: response.statusText,
           ok: response.ok,
+          contentType: response.headers.get('content-type'),
         })
 
         if (response.ok) {
