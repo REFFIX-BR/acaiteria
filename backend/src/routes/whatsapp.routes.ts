@@ -437,20 +437,37 @@ router.delete(
       }
 
       const { instanceName } = req.params
+      const tenantId = req.user.tenantId
 
-      const manager = getWhatsAppInstanceManager()
-      const deleted = await manager.deleteInstance(instanceName)
-
-      if (!deleted) {
-        return res.status(500).json({
+      // Verificar se a instância existe no banco de dados
+      const dbInstance = await getWhatsAppInstanceByName(instanceName)
+      if (!dbInstance || dbInstance.tenantId !== tenantId) {
+        return res.status(404).json({
           success: false,
-          error: 'Não foi possível deletar a instância',
+          error: 'Instância não encontrada',
+        })
+      }
+
+      // Deletar na Evolution API primeiro
+      const manager = getWhatsAppInstanceManager()
+      const deletedInAPI = await manager.deleteInstance(instanceName)
+
+      // Deletar do banco de dados (soft delete)
+      await deleteWhatsAppInstance(dbInstance.id)
+
+      if (!deletedInAPI) {
+        // Se não deletou na API mas deletou do banco, avisar
+        return res.status(207).json({
+          success: true,
+          message: 'Instância removida do sistema, mas pode não ter sido deletada na Evolution API',
+          deletedInAPI: false,
         })
       }
 
       res.json({
         success: true,
-        message: 'Instância deletada com sucesso',
+        message: 'Instância deletada com sucesso na Evolution API e no sistema',
+        deletedInAPI: true,
       })
     } catch (error) {
       return errorHandler(error as Error, req, res, () => {})

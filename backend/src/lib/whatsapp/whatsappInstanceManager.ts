@@ -681,6 +681,9 @@ export class WhatsAppInstanceManager {
       `${this.config.managerUrl}/instances/delete/${instanceName}`, // Fallback alternativo
     ]
 
+    let lastError: any = null
+    let lastStatus: number | null = null
+
     for (const endpoint of deleteEndpoints) {
       try {
         console.log(`[WhatsApp Manager] Deletando instância em: ${endpoint}`)
@@ -688,16 +691,56 @@ export class WhatsAppInstanceManager {
           method: 'DELETE',
         })
 
-        if (response.ok || response.status === 404) {
-          console.log(`[WhatsApp Manager] Instância deletada: ${instanceName}`)
+        lastStatus = response.status
+        console.log(`[WhatsApp Manager] Resposta do delete:`, {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok,
+        })
+
+        // 200/204 = sucesso, 404 = já deletado (aceitável)
+        if (response.ok) {
+          console.log(`[WhatsApp Manager] ✅ Instância deletada com sucesso na Evolution API: ${instanceName}`)
           return true
+        } else if (response.status === 404) {
+          // 404 pode significar que já foi deletada ou não existe
+          // Tentar ler resposta para entender melhor
+          try {
+            const errorText = await response.text()
+            console.log(`[WhatsApp Manager] ⚠️  Status 404 ao deletar: ${errorText.substring(0, 200)}`)
+            // Se todos os endpoints falharem, considerar como sucesso se foi 404
+            // (instância pode já não existir mais)
+          } catch (textError) {
+            // Ignorar erro ao ler texto
+          }
+        } else {
+          // Outros erros (400, 401, 403, 500, etc.) - tentar próximo endpoint
+          try {
+            const errorText = await response.text()
+            console.warn(`[WhatsApp Manager] ❌ Erro ao deletar (HTTP ${response.status}):`, errorText.substring(0, 200))
+          } catch (textError) {
+            console.warn(`[WhatsApp Manager] ❌ Erro ao deletar (HTTP ${response.status})`)
+          }
         }
       } catch (error) {
-        console.warn(`[WhatsApp Manager] Erro ao deletar instância em ${endpoint}:`, error)
+        lastError = error
+        console.warn(`[WhatsApp Manager] ❌ Erro ao deletar instância em ${endpoint}:`, error)
         continue
       }
     }
 
+    // Se todos os endpoints retornaram 404, considerar como sucesso
+    // (instância pode já não existir mais na Evolution API)
+    if (lastStatus === 404) {
+      console.log(`[WhatsApp Manager] ⚠️  Instância não encontrada na Evolution API (404) - considerando como deletada: ${instanceName}`)
+      return true
+    }
+
+    // Se chegou aqui, nenhum endpoint funcionou
+    console.error(`[WhatsApp Manager] ❌ Não foi possível deletar instância em nenhum endpoint: ${instanceName}`, {
+      lastStatus,
+      lastError,
+    })
     return false
   }
 }
