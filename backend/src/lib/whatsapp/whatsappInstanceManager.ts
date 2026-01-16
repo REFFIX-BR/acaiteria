@@ -139,7 +139,7 @@ export class WhatsAppInstanceManager {
 
     return fetch(url, {
       ...options,
-      headers: headers as HeadersInit,
+      headers: headers as any,
     })
   }
 
