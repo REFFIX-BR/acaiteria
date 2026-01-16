@@ -605,8 +605,8 @@ export class WhatsAppInstanceManager {
       }
       
       if (instanceToken) {
-        // Header correto: "API key" (com espaço)
-        headers['API key'] = instanceToken
+        // Header correto: "apikey" (sem espaço - headers HTTP não podem ter espaços)
+        headers['apikey'] = instanceToken
         console.log(`[WhatsApp Manager] Usando token da instância para verificar status: ${instanceToken.substring(0, 20)}...`)
       } else {
         // Fallback: usar autenticação global
