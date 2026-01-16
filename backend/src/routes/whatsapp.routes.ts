@@ -132,7 +132,40 @@ router.post(
         // Se der erro de duplicata, buscar a instância existente
         if (error?.code === '23505' || error?.message?.includes('duplicate key')) {
           console.log('[WhatsApp] Instância já existe no banco, buscando existente...')
-          const existingInstance = await getWhatsAppInstanceByTenant(tenantId)
+          
+          // Tentar buscar pelo nome primeiro (mais específico)
+          let existingInstance = await getWhatsAppInstanceByName(instanceName)
+          
+          // Se não encontrar pelo nome, tentar pelo tenant
+          if (!existingInstance) {
+            existingInstance = await getWhatsAppInstanceByTenant(tenantId)
+          }
+          
+          // Se ainda não encontrar, buscar diretamente no banco (pode estar com soft delete)
+          if (!existingInstance) {
+            const directResult = await query(
+              `SELECT * FROM whatsapp_instances 
+               WHERE tenant_id = $1 AND instance_name = $2
+               ORDER BY created_at DESC 
+               LIMIT 1`,
+              [tenantId, instanceName]
+            )
+            
+            if (directResult.rows.length > 0) {
+              // Se encontrou mas está com deleted_at, restaurar
+              const row = directResult.rows[0]
+              if (row.deleted_at) {
+                await query(
+                  `UPDATE whatsapp_instances 
+                   SET deleted_at = NULL, updated_at = NOW() 
+                   WHERE id = $1`,
+                  [row.id]
+                )
+              }
+              existingInstance = await getWhatsAppInstanceByName(instanceName)
+            }
+          }
+          
           if (existingInstance && existingInstance.instanceName === instanceName) {
             dbInstance = existingInstance
             // Atualizar status e phone se necessário
@@ -143,7 +176,9 @@ router.post(
                 [phoneNumber, existingInstance.id]
               )
             }
+            console.log('[WhatsApp] Instância existente encontrada e atualizada:', existingInstance.id)
           } else {
+            console.error('[WhatsApp] Erro: Instância duplicada mas não encontrada no banco')
             throw error
           }
         } else {
