@@ -87,7 +87,8 @@ export class WhatsAppInstanceManager {
 
           if (response.ok) {
             const data = await response.json() as any
-            const token = data.token || data.accessToken || data.access_token || data.data?.token
+            // Evolution API retorna token em data.token (testado com curl)
+            const token = data.data?.token || data.token || data.accessToken || data.access_token
             
             if (token) {
               this.authToken = token
@@ -186,7 +187,7 @@ export class WhatsAppInstanceManager {
   /**
    * Cria uma nova instância WhatsApp
    */
-  async createInstance(payload: CreateInstancePayload): Promise<{ success: boolean; error?: string; instanceName?: string }> {
+  async createInstance(payload: CreateInstancePayload): Promise<{ success: boolean; error?: string; instanceName?: string; instanceToken?: string }> {
     try {
       const token = await this.authenticate()
       if (!token) {
@@ -196,11 +197,12 @@ export class WhatsAppInstanceManager {
       // A URL base já pode ter /api, então vamos tentar diferentes combinações
       const baseUrl = this.config.managerUrl.replace(/\/api\/?$/, '')
       
+      // Baseado nos testes curl: endpoint correto é /api/instances/create (plural!) e requer Bearer token
       const createEndpoints = [
-        `${this.config.managerUrl}/instance/create`, // URL original completa
-        `${baseUrl}/instance/create`, // Sem /api
+        `${this.config.managerUrl}/instances/create`, // Endpoint correto (plural) - PRIORIDADE
         `${baseUrl}/instances/create`, // Plural sem /api
-        `${this.config.managerUrl}/instances/create`, // Plural com /api
+        `${baseUrl}/instance/create`, // Singular sem /api (fallback)
+        `${this.config.managerUrl}/instance/create`, // Singular com /api (fallback)
       ]
 
       const body: any = {
@@ -218,6 +220,9 @@ export class WhatsAppInstanceManager {
         body.instanceName = payload.instanceName
       }
 
+      // Obter token primeiro para usar Bearer (obrigatório para /api/instances/create)
+      const token = await this.authenticate()
+      
       for (const endpoint of createEndpoints) {
         try {
           console.log(`[WhatsApp Manager] Criando instância em: ${endpoint}`, {
@@ -227,8 +232,26 @@ export class WhatsAppInstanceManager {
             body: JSON.stringify(body),
           })
 
-          const response = await this.authenticatedRequest(endpoint, {
+          // Preparar headers com Bearer token (prioridade) ou API Key
+          const headers: any = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          }
+          
+          if (token) {
+            const isJWT = token.includes('.') && token.split('.').length === 3
+            if (isJWT) {
+              headers['Authorization'] = `Bearer ${token}`
+              console.log('[WhatsApp Manager] Usando Bearer token para criar instância')
+            } else {
+              headers['apikey'] = token
+              console.log('[WhatsApp Manager] Usando API Key para criar instância')
+            }
+          }
+
+          const response = await fetch(endpoint, {
             method: 'POST',
+            headers,
             body: JSON.stringify(body),
           })
           
@@ -239,8 +262,38 @@ export class WhatsAppInstanceManager {
           })
 
           if (response.ok) {
+            // Tentar extrair token da resposta (API Key da instância)
+            let instanceToken: string | null = null
+            try {
+              const responseData = await response.json() as any
+              console.log('[WhatsApp Manager] Resposta da criação:', {
+                hasData: !!responseData.data,
+                hasToken: !!(responseData.data?.token || responseData.token),
+              })
+              
+              // Token está em data.token (formato da Evolution API)
+              instanceToken = responseData.data?.token || responseData.token || null
+              
+              if (instanceToken) {
+                console.log(`[WhatsApp Manager] Token da instância obtido: ${instanceToken.substring(0, 20)}...`)
+              }
+            } catch (parseError) {
+              console.warn('[WhatsApp Manager] Erro ao parsear resposta da criação:', parseError)
+              // Recriar response para não quebrar o fluxo
+              const text = await response.text()
+              response = new Response(text, {
+                status: response.status,
+                statusText: response.statusText,
+                headers: response.headers,
+              })
+            }
+            
             console.log(`[WhatsApp Manager] Instância criada com sucesso: ${payload.instanceName}`)
-            return { success: true, instanceName: payload.instanceName }
+            return { 
+              success: true, 
+              instanceName: payload.instanceName,
+              instanceToken: instanceToken || undefined,
+            }
           }
 
           // Se erro 409 (Conflict), a instância já existe
@@ -288,15 +341,17 @@ export class WhatsAppInstanceManager {
     const baseUrl = this.config.managerUrl.replace(/\/api\/?$/, '')
     
     // Endpoints baseados na documentação da Evolution API
+    // Baseado nos testes curl: endpoint correto é /api/instances/connect/{nome} e retorna JSON com base64
     const connectEndpoints = [
-      `${baseUrl}/instance/fetchInstances/${instanceName}`, // Endpoint principal para obter dados da instância
-      `${this.config.managerUrl}/instance/fetchInstances/${instanceName}`, // Com /api
-      `${baseUrl}/instance/connect/${instanceName}`, // Sem /api (funcionou para create)
-      `${this.config.managerUrl}/instance/connect/${instanceName}`, // Com /api
+      `${this.config.managerUrl}/instances/${instanceName}/connect`, // Endpoint correto (testado!) - PRIORIDADE
+      `${this.config.managerUrl}/instances/${instanceName}/status`, // Status da instância (pode conter QR code)
+      `${this.config.managerUrl}/instance/${instanceName}/qrcode`, // QR Code direto
+      `${this.config.managerUrl}/instances/${instanceName}/qrcode`, // QR Code direto (plural)
+      `${this.config.managerUrl}/instance/fetchInstances`, // Lista todas (filtrar depois)
+      `${baseUrl}/instance/fetchInstances/${instanceName}`, // Endpoint específico (sem /api)
+      `${baseUrl}/instance/connect/${instanceName}`, // Sem /api
       `${baseUrl}/instances/connect/${instanceName}`, // Plural sem /api
-      `${this.config.managerUrl}/instances/connect/${instanceName}`, // Plural com /api
-      `${baseUrl}/instance/${instanceName}/qrcode`, // Endpoint alternativo
-      `${baseUrl}/instances/${instanceName}/qrcode`, // Plural alternativo
+      `${baseUrl}/instance/${instanceName}/qrcode`, // Sem /api
     ]
 
     for (const endpoint of connectEndpoints) {
@@ -520,86 +575,85 @@ export class WhatsAppInstanceManager {
   }
 
   /**
-   * Verifica status da conexão
+   * Verifica status da conexão usando o token específico da instância
+   * @param instanceName Nome da instância
+   * @param instanceToken Token específico da instância (API Key) - obrigatório
    */
-  async getConnectionState(instanceName: string): Promise<InstanceStatusResponse> {
-    const statusEndpoints = [
-      `${this.config.managerUrl}/instance/fetchInstances/${instanceName}`,
-      `${this.config.managerUrl}/instances/${instanceName}`,
-      `${this.config.managerUrl}/instances/status/${instanceName}`,
-    ]
-
-    for (const endpoint of statusEndpoints) {
-      try {
-        const response = await this.authenticatedRequest(endpoint, {
-          method: 'GET',
-        })
-
-        if (response.ok) {
-          const data = await response.json() as any
-          
-          // Diferentes formatos de resposta
-          const instance = data.instance || data.data?.instance || data
-          const status = instance?.status || instance?.state || 'close'
-          
-          // Normalizar status
-          let normalizedStatus: InstanceStatusResponse['status'] = 'close'
-          if (status === 'open' || status === 'connected') {
-            normalizedStatus = 'connected'
-          } else if (status === 'close' || status === 'disconnected') {
-            normalizedStatus = 'disconnected'
-          } else if (status === 'connecting') {
-            normalizedStatus = 'connecting'
-          } else if (status === 'created') {
-            normalizedStatus = 'created'
-          }
-
-          return {
-            status: normalizedStatus,
-            instanceName,
-          }
-        }
-      } catch (error) {
-        console.warn(`[WhatsApp Manager] Erro ao verificar status em ${endpoint}:`, error)
-        continue
-      }
-    }
-
-    // Se nenhum endpoint funcionou, tentar listar todas as instâncias
+  async getConnectionState(instanceName: string, instanceToken?: string): Promise<InstanceStatusResponse> {
+    // Endpoint correto: /instance/connectionState/{nome}
+    // Base URL: usar api.reffix.com.br (sem /api)
+    const baseUrl = this.config.managerUrl.replace(/\/api\/?$/, '').replace(/manager\./, 'api.')
+    
+    // Endpoint correto baseado na documentação
+    const endpoint = `${baseUrl}/instance/connectionState/${instanceName}`
+    
     try {
-      const response = await this.authenticatedRequest(`${this.config.managerUrl}/instance/fetchInstances`, {
+      // Usar token da instância se fornecido (prioridade)
+      const headers: any = {
+        'Accept': 'application/json',
+      }
+      
+      if (instanceToken) {
+        // Header correto: "API key" (com espaço)
+        headers['API key'] = instanceToken
+        console.log(`[WhatsApp Manager] Usando token da instância para verificar status: ${instanceToken.substring(0, 20)}...`)
+      } else {
+        // Fallback: usar autenticação global
+        const token = await this.authenticate()
+        if (token) {
+          const isJWT = token.includes('.') && token.split('.').length === 3
+          if (isJWT) {
+            headers['Authorization'] = `Bearer ${token}`
+          } else {
+            headers['apikey'] = token
+          }
+          console.log('[WhatsApp Manager] Usando token global para verificar status (fallback)')
+        } else {
+          throw new Error('Token da instância não fornecido e autenticação global falhou')
+        }
+      }
+      
+      const response = await fetch(endpoint, {
         method: 'GET',
+        headers,
       })
 
       if (response.ok) {
         const data = await response.json() as any
-        const instances = Array.isArray(data) ? data : (data.instances || data.data || [])
-        const instance = instances.find((inst: any) => 
-          inst.instanceName === instanceName || inst.name === instanceName
-        )
-
-        if (instance) {
-          const status = instance.status || instance.state || 'close'
-          let normalizedStatus: InstanceStatusResponse['status'] = 'close'
-          if (status === 'open' || status === 'connected') {
-            normalizedStatus = 'connected'
-          } else if (status === 'close' || status === 'disconnected') {
-            normalizedStatus = 'disconnected'
-          } else if (status === 'connecting') {
-            normalizedStatus = 'connecting'
-          }
-
-          return {
-            status: normalizedStatus,
-            instanceName,
-          }
+        console.log(`[WhatsApp Manager] Resposta do status:`, {
+          keys: Object.keys(data),
+          status: data.status || data.state || data.connectionState,
+        })
+        
+        // Diferentes formatos de resposta
+        const instance = data.instance || data.data?.instance || data
+        const status = instance?.status || instance?.state || instance?.connectionState || data.status || data.state || data.connectionState || 'close'
+        
+        // Normalizar status
+        let normalizedStatus: InstanceStatusResponse['status'] = 'close'
+        if (status === 'open' || status === 'connected' || status === 'CONNECTED') {
+          normalizedStatus = 'connected'
+        } else if (status === 'close' || status === 'disconnected' || status === 'DISCONNECTED') {
+          normalizedStatus = 'disconnected'
+        } else if (status === 'connecting' || status === 'CONNECTING') {
+          normalizedStatus = 'connecting'
+        } else if (status === 'created' || status === 'CREATED') {
+          normalizedStatus = 'created'
         }
+
+        return {
+          status: normalizedStatus,
+          instanceName,
+        }
+      } else {
+        const errorText = await response.text().catch(() => '')
+        console.warn(`[WhatsApp Manager] Erro ao verificar status (HTTP ${response.status}):`, errorText)
+        throw new Error(`Erro ao verificar status: HTTP ${response.status}`)
       }
     } catch (error) {
-      console.warn('[WhatsApp Manager] Erro ao listar instâncias:', error)
+      console.error(`[WhatsApp Manager] Erro ao verificar status em ${endpoint}:`, error)
+      throw error
     }
-
-    return { status: 'disconnected', instanceName }
   }
 
   /**

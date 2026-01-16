@@ -120,6 +120,9 @@ router.post(
       }
 
       // Salvar instância no banco de dados (ou atualizar se já existir)
+      // Capturar token da instância se foi retornado na criação
+      const instanceToken = result.instanceToken || null
+      
       let dbInstance
       try {
         dbInstance = await createWhatsAppInstance({
@@ -127,6 +130,7 @@ router.post(
           instanceName,
           phoneNumber: phoneNumber || null,
           status: 'created',
+          instanceToken: instanceToken || null,
         })
       } catch (error: any) {
         // Se der erro de duplicata, buscar a instância existente
@@ -168,8 +172,8 @@ router.post(
           
           if (existingInstance && existingInstance.instanceName === instanceName) {
             dbInstance = existingInstance
-            // Atualizar status e phone se necessário
-            await updateWhatsAppInstanceStatus(existingInstance.id, 'created')
+            // Atualizar status, phone e token se necessário
+            await updateWhatsAppInstanceStatus(existingInstance.id, 'created', instanceToken || undefined)
             if (phoneNumber && phoneNumber !== existingInstance.phoneNumber) {
               await query(
                 'UPDATE whatsapp_instances SET phone_number = $1, updated_at = NOW() WHERE id = $2',
@@ -308,14 +312,28 @@ router.get(
       }
 
       const { instanceName } = req.params
-
-      const manager = getWhatsAppInstanceManager()
-      const status = await manager.getConnectionState(instanceName)
       const tenantId = req.user.tenantId
 
-      // Atualizar status no banco de dados se mudou
+      // Buscar instância no banco para obter o token específico
       const dbInstance = await getWhatsAppInstanceByName(instanceName)
-      if (dbInstance && dbInstance.tenantId === tenantId) {
+      if (!dbInstance || dbInstance.tenantId !== tenantId) {
+        return res.status(404).json({
+          success: false,
+          error: 'Instância não encontrada',
+        })
+      }
+
+      // Verificar se tem token da instância (obrigatório para o endpoint de status)
+      if (!dbInstance.instanceToken) {
+        return res.status(400).json({
+          success: false,
+          error: 'Token da instância não encontrado. Recrie a instância.',
+        })
+      }
+
+      const manager = getWhatsAppInstanceManager()
+      // Usar token específico da instância
+      const status = await manager.getConnectionState(instanceName, dbInstance.instanceToken)
         const newStatus = status.status === 'connected' || status.status === 'open' 
           ? 'connected' 
           : status.status === 'connecting' 

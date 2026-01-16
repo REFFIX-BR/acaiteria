@@ -351,6 +351,7 @@ export interface WhatsAppInstance {
   phoneNumber?: string | null
   status: 'created' | 'connected' | 'disconnected' | 'connecting'
   integration: string
+  instanceToken?: string | null // Token específico da instância (API Key)
   createdAt: Date
   updatedAt: Date
 }
@@ -361,6 +362,7 @@ export interface CreateWhatsAppInstanceData {
   phoneNumber?: string | null
   status?: 'created' | 'connected' | 'disconnected' | 'connecting'
   integration?: string
+  instanceToken?: string | null // Token específico da instância retornado na criação
 }
 
 /**
@@ -408,8 +410,8 @@ export async function createWhatsAppInstance(
 ): Promise<WhatsAppInstance> {
   const result = await query(
     `INSERT INTO whatsapp_instances (
-      tenant_id, instance_name, phone_number, status, integration
-    ) VALUES ($1, $2, $3, $4, $5)
+      tenant_id, instance_name, phone_number, status, integration, instance_token
+    ) VALUES ($1, $2, $3, $4, $5, $6)
     RETURNING *`,
     [
       data.tenantId,
@@ -417,6 +419,7 @@ export async function createWhatsAppInstance(
       data.phoneNumber || null,
       data.status || 'created',
       data.integration || 'WHATSAPP-BAILEYS',
+      data.instanceToken || null,
     ]
   )
 
@@ -428,14 +431,27 @@ export async function createWhatsAppInstance(
  */
 export async function updateWhatsAppInstanceStatus(
   id: string,
-  status: 'created' | 'connected' | 'disconnected' | 'connecting'
+  status: 'created' | 'connected' | 'disconnected' | 'connecting',
+  instanceToken?: string | null
 ): Promise<WhatsAppInstance> {
+  const updates: string[] = ['status = $1', 'updated_at = NOW()']
+  const values: any[] = [status]
+  let paramIndex = 2
+
+  if (instanceToken !== undefined) {
+    updates.push(`instance_token = $${paramIndex}`)
+    values.push(instanceToken)
+    paramIndex++
+  }
+
+  values.push(id)
+
   const result = await query(
     `UPDATE whatsapp_instances 
-     SET status = $1, updated_at = NOW()
-     WHERE id = $2 AND deleted_at IS NULL
+     SET ${updates.join(', ')}
+     WHERE id = $${paramIndex} AND deleted_at IS NULL
      RETURNING *`,
-    [status, id]
+    values
   )
 
   if (result.rows.length === 0) {
@@ -468,6 +484,7 @@ function mapWhatsAppInstanceFromDb(row: any): WhatsAppInstance {
     phoneNumber: row.phone_number,
     status: row.status,
     integration: row.integration,
+    instanceToken: row.instance_token || null,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
   }
