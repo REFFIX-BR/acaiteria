@@ -232,9 +232,6 @@ async function createPixCharge(
     )
   }
 
-  // A PagHiper retorna 'pix_create_request' para PIX
-  const createRequest = data.pix_create_request || data.create_request
-
   console.log('[PagHiper] Cobrança PIX criada com sucesso:', {
     transactionId: createRequest.transaction_id,
     orderId: createRequest.order_id,
