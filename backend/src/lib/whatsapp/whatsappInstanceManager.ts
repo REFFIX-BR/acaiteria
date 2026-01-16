@@ -92,7 +92,7 @@ export class WhatsAppInstanceManager {
           })
 
           if (response.ok) {
-            const data = await response.json()
+            const data = await response.json() as any
             const token = data.token || data.accessToken || data.access_token
             
             if (token) {
@@ -123,9 +123,9 @@ export class WhatsAppInstanceManager {
   async authenticatedRequest(url: string, options: RequestInit = {}): Promise<Response> {
     const token = await this.authenticate()
     
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...options.headers,
+      ...(options.headers as Record<string, string> || {}),
     }
 
     if (token) {
@@ -139,7 +139,7 @@ export class WhatsAppInstanceManager {
 
     return fetch(url, {
       ...options,
-      headers,
+      headers: headers as HeadersInit,
     })
   }
 
@@ -258,7 +258,7 @@ export class WhatsAppInstanceManager {
         })
 
         if (response.ok) {
-          const data = await response.json()
+          const data = await response.json() as any
           
           // QR Code (pode vir em formatos diferentes)
           if (data.qrcode?.base64 || data.qrcode?.code || data.base64) {
@@ -339,7 +339,7 @@ export class WhatsAppInstanceManager {
         })
 
         if (response.ok) {
-          const data = await response.json()
+          const data = await response.json() as any
           
           // Diferentes formatos de resposta
           const instance = data.instance || data.data?.instance || data
@@ -375,7 +375,7 @@ export class WhatsAppInstanceManager {
       })
 
       if (response.ok) {
-        const data = await response.json()
+        const data = await response.json() as any
         const instances = Array.isArray(data) ? data : (data.instances || data.data || [])
         const instance = instances.find((inst: any) => 
           inst.instanceName === instanceName || inst.name === instanceName
