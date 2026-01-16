@@ -120,21 +120,12 @@ export function useWhatsAppConnection() {
       return
     }
 
-    const config = getTenantData<WhatsAppConfig>(currentTenant.id, 'whatsapp_config')
-    if (!config || !config.apiUrl || !config.apiKey) {
-      toast({
-        title: 'Erro',
-        description: 'Configure a URL e API Key primeiro',
-        variant: 'destructive',
-      })
-      return
-    }
-
     setIsLoading(true)
     setState({ status: 'generating' })
 
     try {
-      const instanceName = config?.instanceName || normalizeInstanceName(currentTenant.name)
+      // Gera nome da instância baseado no nome do tenant
+      const instanceName = normalizeInstanceName(currentTenant.name)
       const apiUrl = getApiUrl()
 
       // Cria instância via backend
@@ -220,8 +211,8 @@ export function useWhatsAppConnection() {
       return
     }
 
-    const config = getTenantData<WhatsAppConfig>(currentTenant.id, 'whatsapp_config')
-    const instanceName = config?.instanceName || normalizeInstanceName(currentTenant.name)
+    // Gera nome da instância baseado no nome do tenant
+    const instanceName = normalizeInstanceName(currentTenant.name)
 
     setIsLoading(true)
     setState({ status: 'generating' })

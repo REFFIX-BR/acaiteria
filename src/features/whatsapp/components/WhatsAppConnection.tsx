@@ -5,13 +5,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { 
   Smartphone, 
   CheckCircle2, 
@@ -26,18 +19,14 @@ import {
   ChevronUp,
   Check
 } from 'lucide-react'
-import { getTenantData } from '@/lib/storage/storage'
 import { useTenantStore } from '@/stores/tenantStore'
 import { useToast } from '@/hooks/use-toast'
-import type { WhatsAppConfig } from '@/types'
-import { APIConfig } from './APIConfig'
 
 export function WhatsAppConnection() {
   const currentTenant = useTenantStore((state) => state.currentTenant)
   const { toast } = useToast()
   const [pairingPhone, setPairingPhone] = useState('11999999999')
   const [showWhyConnect, setShowWhyConnect] = useState(true)
-  const [showConfigDialog, setShowConfigDialog] = useState(false)
   
   const {
     state,
@@ -54,22 +43,11 @@ export function WhatsAppConnection() {
     isRefreshing
   } = useWhatsAppConnection()
 
-  // Verifica se tem configuração da API
-  const config = currentTenant ? getTenantData<WhatsAppConfig>(currentTenant.id, 'whatsapp_config') : null
-  
   const handleCreateQRCode = () => {
-    if (!config || !config.apiUrl || !config.apiKey || !config.instanceName) {
-      setShowConfigDialog(true)
-      return
-    }
     createWithQRCode()
   }
 
   const handleConnectPairingCode = () => {
-    if (!config || !config.apiUrl || !config.apiKey || !config.instanceName) {
-      setShowConfigDialog(true)
-      return
-    }
     connectWithPairingCode(pairingPhone)
   }
   
@@ -391,19 +369,6 @@ export function WhatsAppConnection() {
           </div>
         </div>
       </CardContent>
-
-      {/* Dialog para configuração da API */}
-      <Dialog open={showConfigDialog} onOpenChange={setShowConfigDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Configuração da API</DialogTitle>
-            <DialogDescription>
-              Configure a URL da API, API Key e Nome da Instância para conectar o WhatsApp
-            </DialogDescription>
-          </DialogHeader>
-          <APIConfig onSuccess={() => setShowConfigDialog(false)} />
-        </DialogContent>
-      </Dialog>
     </Card>
   )
 }
