@@ -200,8 +200,10 @@ async function createPixCharge(
     throw new Error('Resposta inválida da API PagHiper - resposta vazia')
   }
 
-  // A PagHiper pode retornar diferentes estruturas de erro
-  if (!data.create_request) {
+  // A PagHiper retorna 'pix_create_request' para PIX (não 'create_request')
+  const createRequest = data.pix_create_request || data.create_request
+
+  if (!createRequest) {
     // Tentar verificar se é uma resposta de erro em outro formato
     if (data.result && data.result !== 'success') {
       console.error('[PagHiper] Erro na resposta (formato alternativo):', data)
@@ -214,39 +216,45 @@ async function createPixCharge(
       fullData: JSON.stringify(data, null, 2),
       responseStatus: response.status,
     })
-    throw new Error('Resposta inválida da API PagHiper - estrutura create_request não encontrada')
+    throw new Error('Resposta inválida da API PagHiper - estrutura pix_create_request/create_request não encontrada')
   }
 
   // A PagHiper pode retornar 200 mesmo com erro, então verificamos o campo result
-  if (data.create_request.result !== 'success') {
+  if (createRequest.result !== 'success') {
     console.error('[PagHiper] Erro ao criar cobrança PIX:', {
       status: response.status,
-      result: data.create_request.result,
-      message: data.create_request.response_message,
+      result: createRequest.result,
+      message: createRequest.response_message,
       fullResponse: JSON.stringify(data, null, 2),
     })
     throw new Error(
-      data.create_request.response_message || 'Erro ao criar cobrança PIX'
+      createRequest.response_message || 'Erro ao criar cobrança PIX'
     )
   }
 
+  // A PagHiper retorna 'pix_create_request' para PIX
+  const createRequest = data.pix_create_request || data.create_request
+
   console.log('[PagHiper] Cobrança PIX criada com sucesso:', {
-    transactionId: data.create_request.transaction_id,
-    orderId: data.create_request.order_id,
+    transactionId: createRequest.transaction_id,
+    orderId: createRequest.order_id,
   })
 
   // Calcular data de vencimento
   const dueDate = new Date()
   dueDate.setDate(dueDate.getDate() + (request.validityDays || 30))
 
+  // Para PIX, os dados estão em pix_code (objeto com qrcode_image_url, emv, etc)
+  const pixCode = createRequest.pix_code || {}
+
   return {
-    transactionId: data.create_request.transaction_id,
-    paghiperOrderId: data.create_request.order_id,
+    transactionId: createRequest.transaction_id,
+    paghiperOrderId: createRequest.order_id,
     dueDate,
     paymentInstructions: {
       pix: {
-        qrcodeImage: data.create_request.qrcode_image_url || null,
-        pixCode: data.create_request.pix_code || null,
+        qrcodeImage: pixCode.qrcode_image_url || null,
+        pixCode: pixCode.emv || null,
       },
     },
     raw: data,
