@@ -340,6 +340,139 @@ export async function updateTenantSubscription(
   return mapSubscriptionFromDb(result.rows[0])
 }
 
+// ============================================
+// WHATSAPP INSTANCES
+// ============================================
+
+export interface WhatsAppInstance {
+  id: string
+  tenantId: string
+  instanceName: string
+  phoneNumber?: string | null
+  status: 'created' | 'connected' | 'disconnected' | 'connecting'
+  integration: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface CreateWhatsAppInstanceData {
+  tenantId: string
+  instanceName: string
+  phoneNumber?: string | null
+  status?: 'created' | 'connected' | 'disconnected' | 'connecting'
+  integration?: string
+}
+
+/**
+ * Busca instância WhatsApp por tenant
+ */
+export async function getWhatsAppInstanceByTenant(tenantId: string): Promise<WhatsAppInstance | null> {
+  const result = await query(
+    `SELECT * FROM whatsapp_instances 
+     WHERE tenant_id = $1 AND deleted_at IS NULL 
+     ORDER BY created_at DESC 
+     LIMIT 1`,
+    [tenantId]
+  )
+
+  if (result.rows.length === 0) {
+    return null
+  }
+
+  return mapWhatsAppInstanceFromDb(result.rows[0])
+}
+
+/**
+ * Busca instância WhatsApp por nome
+ */
+export async function getWhatsAppInstanceByName(instanceName: string): Promise<WhatsAppInstance | null> {
+  const result = await query(
+    `SELECT * FROM whatsapp_instances 
+     WHERE instance_name = $1 AND deleted_at IS NULL 
+     LIMIT 1`,
+    [instanceName]
+  )
+
+  if (result.rows.length === 0) {
+    return null
+  }
+
+  return mapWhatsAppInstanceFromDb(result.rows[0])
+}
+
+/**
+ * Cria uma nova instância WhatsApp
+ */
+export async function createWhatsAppInstance(
+  data: CreateWhatsAppInstanceData
+): Promise<WhatsAppInstance> {
+  const result = await query(
+    `INSERT INTO whatsapp_instances (
+      tenant_id, instance_name, phone_number, status, integration
+    ) VALUES ($1, $2, $3, $4, $5)
+    RETURNING *`,
+    [
+      data.tenantId,
+      data.instanceName,
+      data.phoneNumber || null,
+      data.status || 'created',
+      data.integration || 'WHATSAPP-BAILEYS',
+    ]
+  )
+
+  return mapWhatsAppInstanceFromDb(result.rows[0])
+}
+
+/**
+ * Atualiza status da instância
+ */
+export async function updateWhatsAppInstanceStatus(
+  id: string,
+  status: 'created' | 'connected' | 'disconnected' | 'connecting'
+): Promise<WhatsAppInstance> {
+  const result = await query(
+    `UPDATE whatsapp_instances 
+     SET status = $1, updated_at = NOW()
+     WHERE id = $2 AND deleted_at IS NULL
+     RETURNING *`,
+    [status, id]
+  )
+
+  if (result.rows.length === 0) {
+    throw new Error('Instância não encontrada')
+  }
+
+  return mapWhatsAppInstanceFromDb(result.rows[0])
+}
+
+/**
+ * Deleta instância (soft delete)
+ */
+export async function deleteWhatsAppInstance(id: string): Promise<void> {
+  await query(
+    `UPDATE whatsapp_instances 
+     SET deleted_at = NOW()
+     WHERE id = $1`,
+    [id]
+  )
+}
+
+/**
+ * Mapeia resultado do banco para WhatsAppInstance
+ */
+function mapWhatsAppInstanceFromDb(row: any): WhatsAppInstance {
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    instanceName: row.instance_name,
+    phoneNumber: row.phone_number,
+    status: row.status,
+    integration: row.integration,
+    createdAt: new Date(row.created_at),
+    updatedAt: new Date(row.updated_at),
+  }
+}
+
 /**
  * Mapeia resultado do banco para PlanOrder
  */

@@ -4,6 +4,13 @@ import { tenantGuard } from '../middleware/tenantGuard.js'
 import { z } from 'zod'
 import { getWhatsAppInstanceManager } from '../lib/whatsapp/whatsappInstanceManager.js'
 import { errorHandler } from '../middleware/errorHandler.js'
+import {
+  getWhatsAppInstanceByTenant,
+  getWhatsAppInstanceByName,
+  createWhatsAppInstance,
+  updateWhatsAppInstanceStatus,
+  deleteWhatsAppInstance,
+} from '../db/storage.js'
 
 const router = Router()
 
@@ -44,13 +51,65 @@ router.post(
       }
 
       const { instanceName, useQRCode, phoneNumber } = validation.data
+      const tenantId = req.user.tenantId
+
+      // Verificar se já existe instância para este tenant
+      const existingInstance = await getWhatsAppInstanceByTenant(tenantId)
+      
+      if (existingInstance) {
+        // Verificar se a instância ainda existe na Evolution API
+        try {
+          const manager = getWhatsAppInstanceManager()
+          const status = await manager.getConnectionState(existingInstance.instanceName)
+          
+          // Se a instância existe na API, retornar erro de conflito
+          if (status.status !== 'disconnected') {
+            return res.status(409).json({
+              success: false,
+              error: 'Já existe uma instância WhatsApp para este tenant',
+              instanceName: existingInstance.instanceName,
+            })
+          }
+          
+          // Se não existe na API, remover do banco e permitir criar nova
+          await deleteWhatsAppInstance(existingInstance.id)
+        } catch (error) {
+          // Se não conseguir verificar, assumir que não existe e remover do banco
+          await deleteWhatsAppInstance(existingInstance.id)
+        }
+      }
 
       const manager = getWhatsAppInstanceManager()
-      const result = await manager.createInstance({
+      
+      // Tentar criar instância na Evolution API (com retry em caso de 409)
+      let result = await manager.createInstance({
         instanceName,
         qrcode: useQRCode,
         number: phoneNumber,
       })
+
+      // Se der erro 409 (Conflict), tentar deletar e recriar
+      if (!result.success) {
+        // Verificar se é erro de conflito (instância já existe na API)
+        const isConflict = result.error?.toLowerCase().includes('conflict') || 
+                          result.error?.toLowerCase().includes('409') ||
+                          result.error?.toLowerCase().includes('already exists')
+        
+        if (isConflict) {
+          try {
+            console.log('[WhatsApp] Instância já existe na API, tentando deletar e recriar...')
+            await manager.deleteInstance(instanceName)
+            await new Promise(resolve => setTimeout(resolve, 2000))
+            result = await manager.createInstance({
+              instanceName,
+              qrcode: useQRCode,
+              number: phoneNumber,
+            })
+          } catch (retryError) {
+            console.warn('[WhatsApp] Erro ao tentar recriar instância:', retryError)
+          }
+        }
+      }
 
       if (!result.success) {
         return res.status(500).json({
@@ -59,14 +118,22 @@ router.post(
         })
       }
 
+      // Salvar instância no banco de dados
+      const dbInstance = await createWhatsAppInstance({
+        tenantId,
+        instanceName,
+        phoneNumber: phoneNumber || null,
+        status: 'created',
+      })
+
       // Obter código de conexão
       let connectionCode = null
       try {
-        // Se for QR Code, aguardar um pouco antes de obter
+        // Se for QR Code, aguardar 3 segundos antes de obter (conforme documento)
         if (useQRCode) {
-          await new Promise(resolve => setTimeout(resolve, 2000))
+          await new Promise(resolve => setTimeout(resolve, 3000))
         } else {
-          // Se for pairing code, aguardar mais tempo
+          // Se for pairing code, aguardar 5 segundos
           await new Promise(resolve => setTimeout(resolve, 5000))
         }
         
@@ -78,7 +145,11 @@ router.post(
 
       res.json({
         success: true,
-        instanceName,
+        instance: {
+          id: dbInstance.id,
+          instanceName: dbInstance.instanceName,
+          status: dbInstance.status,
+        },
         connectionCode,
       })
     } catch (error) {
@@ -173,6 +244,21 @@ router.get(
 
       const manager = getWhatsAppInstanceManager()
       const status = await manager.getConnectionState(instanceName)
+      const tenantId = req.user.tenantId
+
+      // Atualizar status no banco de dados se mudou
+      const dbInstance = await getWhatsAppInstanceByName(instanceName)
+      if (dbInstance && dbInstance.tenantId === tenantId) {
+        const newStatus = status.status === 'connected' || status.status === 'open' 
+          ? 'connected' 
+          : status.status === 'connecting' 
+          ? 'connecting' 
+          : 'disconnected'
+        
+        if (dbInstance.status !== newStatus) {
+          await updateWhatsAppInstanceStatus(dbInstance.id, newStatus)
+        }
+      }
 
       res.json({
         success: true,

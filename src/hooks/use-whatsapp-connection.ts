@@ -71,12 +71,27 @@ export function useWhatsAppConnection() {
 
     cancelledFlagRef.current = false
 
+    // Timeout de 5 minutos (conforme documento)
+    const timeoutId = setTimeout(() => {
+      if (monitoringIntervalRef.current) {
+        clearInterval(monitoringIntervalRef.current)
+        monitoringIntervalRef.current = null
+      }
+      setState({ status: 'error', error: 'Tempo de conexão expirado' })
+      toast({
+        title: 'Tempo expirado',
+        description: 'O tempo para conectar o WhatsApp expirou. Tente novamente.',
+        variant: 'destructive',
+      })
+    }, 300000) // 5 minutos
+
     monitoringIntervalRef.current = setInterval(async () => {
       if (cancelledFlagRef.current) {
         if (monitoringIntervalRef.current) {
           clearInterval(monitoringIntervalRef.current)
           monitoringIntervalRef.current = null
         }
+        clearTimeout(timeoutId)
         return
       }
 
@@ -93,6 +108,7 @@ export function useWhatsAppConnection() {
               clearInterval(monitoringIntervalRef.current)
               monitoringIntervalRef.current = null
             }
+            clearTimeout(timeoutId)
 
             setState({ status: 'connected' })
             saveInstance({ status: 'connected', lastSeen: new Date() })
@@ -106,7 +122,7 @@ export function useWhatsAppConnection() {
       } catch (error) {
         console.error('Erro ao verificar status:', error)
       }
-    }, 5000) // Verifica a cada 5 segundos
+    }, 5000) // Verifica a cada 5 segundos (conforme documento)
   }, [currentTenant, saveInstance, toast])
 
   // Criar instância via QR Code
