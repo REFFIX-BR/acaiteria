@@ -59,16 +59,8 @@ export class WhatsAppInstanceManager {
       return this.authToken
     }
 
-    // Prioridade 1: API Key
-    if (this.config.apiKey || this.config.globalApiKey) {
-      const apiKey = this.config.apiKey || this.config.globalApiKey
-      console.log('[WhatsApp Manager] Usando API Key para autenticação')
-      // Com API Key, não precisamos fazer login, retornamos a key
-      // Mas vamos tentar validar fazendo uma requisição de teste
-      return apiKey || null
-    }
-
-    // Prioridade 2: Login via Email/Password
+    // Prioridade 1: Tentar fazer login mesmo com API Key (algumas versões da Evolution API exigem token JWT)
+    // Se tiver email/password, tentar login primeiro
     if (this.config.managerEmail && this.config.managerPassword) {
       const loginEndpoints = [
         `${this.config.managerUrl}/auth/login`,
@@ -85,6 +77,7 @@ export class WhatsAppInstanceManager {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              'Accept': 'application/json',
             },
             body: JSON.stringify({
               email: this.config.managerEmail,
@@ -94,13 +87,13 @@ export class WhatsAppInstanceManager {
 
           if (response.ok) {
             const data = await response.json() as any
-            const token = data.token || data.accessToken || data.access_token
+            const token = data.token || data.accessToken || data.access_token || data.data?.token
             
             if (token) {
               this.authToken = token
               // Token expira em 24 horas (padrão)
               this.tokenExpiry = Date.now() + 24 * 60 * 60 * 1000
-              console.log('[WhatsApp Manager] Login bem-sucedido')
+              console.log('[WhatsApp Manager] Login bem-sucedido, token JWT obtido')
               return token
             }
           }
@@ -109,9 +102,13 @@ export class WhatsAppInstanceManager {
           continue
         }
       }
+    }
 
-      console.error('[WhatsApp Manager] Falha ao fazer login em todos os endpoints')
-      return null
+    // Prioridade 2: API Key (fallback se login não funcionar)
+    if (this.config.apiKey || this.config.globalApiKey) {
+      const apiKey = this.config.apiKey || this.config.globalApiKey
+      console.log('[WhatsApp Manager] Usando API Key para autenticação (fallback)')
+      return apiKey || null
     }
 
     console.error('[WhatsApp Manager] Credenciais do Manager API não configuradas')
@@ -131,14 +128,18 @@ export class WhatsAppInstanceManager {
     }
 
     if (token) {
-      // Se for API Key, usar header 'apikey' (padrão Evolution API)
-      if (this.config.apiKey || this.config.globalApiKey) {
-        // Evolution API usa 'apikey' como header
+      // Verificar se o token parece ser uma API Key (geralmente mais curto) ou JWT (mais longo, contém pontos)
+      const isJWT = token.includes('.') && token.split('.').length === 3
+      const isApiKey = !isJWT && (this.config.apiKey || this.config.globalApiKey)
+      
+      if (isApiKey) {
+        // Evolution API usa 'apikey' como header para API Keys
         headers['apikey'] = token
         console.log('[WhatsApp Manager] Enviando requisição com API Key (header: apikey)')
       } else {
+        // JWT token usa Authorization Bearer
         headers['Authorization'] = `Bearer ${token}`
-        console.log('[WhatsApp Manager] Enviando requisição com Bearer token')
+        console.log('[WhatsApp Manager] Enviando requisição com Bearer token (JWT)')
       }
     } else {
       console.warn('[WhatsApp Manager] Nenhum token disponível para autenticação')
@@ -354,6 +355,24 @@ export class WhatsAppInstanceManager {
             
             // Continuar para o próximo endpoint
             continue
+          }
+          
+          // Se for lista de instâncias (fetchInstances sem nome), filtrar pela instância desejada
+          if (Array.isArray(data)) {
+            console.log(`[WhatsApp Manager] Lista de instâncias recebida (${data.length} instâncias), filtrando por: ${instanceName}`)
+            const instance = data.find((inst: any) => 
+              inst.instance?.instanceName === instanceName || 
+              inst.instanceName === instanceName ||
+              inst.name === instanceName
+            )
+            
+            if (instance) {
+              data = instance.instance || instance
+              console.log(`[WhatsApp Manager] Instância encontrada na lista!`)
+            } else {
+              console.warn(`[WhatsApp Manager] Instância ${instanceName} não encontrada na lista`)
+              continue
+            }
           }
           
           console.log(`[WhatsApp Manager] Dados recebidos de ${endpoint}:`, {
