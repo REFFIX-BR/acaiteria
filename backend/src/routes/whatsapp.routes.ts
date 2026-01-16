@@ -449,8 +449,9 @@ router.delete(
       }
 
       // Deletar na Evolution API primeiro
+      // Usar token da instância se disponível (obrigatório para api.reffix.com.br)
       const manager = getWhatsAppInstanceManager()
-      const deletedInAPI = await manager.deleteInstance(instanceName)
+      const deletedInAPI = await manager.deleteInstance(instanceName, dbInstance.instanceToken || undefined)
 
       // Deletar do banco de dados (soft delete)
       await deleteWhatsAppInstance(dbInstance.id)

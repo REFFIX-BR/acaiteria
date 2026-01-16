@@ -202,11 +202,12 @@ export class WhatsAppInstanceManager {
 
       const body: any = {
         name: payload.instanceName, // Evolution API usa 'name' em vez de 'instanceName'
-        qrcode: payload.qrcode ?? true,
+        qrcode: payload.qrcode ?? true, // Sempre true para obter tanto QR Code quanto Pairing Code
         integration: payload.integration || 'WHATSAPP-BAILEYS',
       }
 
-      if (payload.number && !payload.qrcode) {
+      // Se fornecer número, incluir no body (mesmo com qrcode: true, a API retorna pairingCode)
+      if (payload.number) {
         body.number = this.validateBrazilianPhone(payload.number)
       }
       
@@ -448,38 +449,51 @@ export class WhatsAppInstanceManager {
             dataPreview: JSON.stringify(data).substring(0, 500),
           })
           
-          // QR Code (pode vir em formatos diferentes)
+          // Coletar tanto QR Code quanto Pairing Code (podem vir juntos)
+          let qrcode: string | undefined
+          let pairingCode: string | undefined
+          
+          // Extrair QR Code (pode vir em formatos diferentes)
           if (data.qrcode?.base64 || data.qrcode?.code || data.base64) {
             const qrcodeBase64 = data.qrcode?.base64 || data.qrcode?.code || data.base64
+            qrcode = qrcodeBase64.startsWith('data:') 
+              ? qrcodeBase64 
+              : `data:image/png;base64,${qrcodeBase64}`
             console.log(`[WhatsApp Manager] QR Code encontrado!`)
-            return {
-              qrcode: qrcodeBase64.startsWith('data:') 
-                ? qrcodeBase64 
-                : `data:image/png;base64,${qrcodeBase64}`,
-            }
           }
 
-          // Pairing Code
+          // Extrair Pairing Code
           if (data.pairingCode || data.code) {
             const code = data.pairingCode || data.code
-            console.log(`[WhatsApp Manager] Pairing Code encontrado: ${code}`)
             // Formatar código: XXXX-XXXX
-            const formatted = code.toString().replace(/(\d{4})(\d{4})/, '$1-$2')
-            return { pairingCode: formatted }
+            pairingCode = code.toString().replace(/(\d{4})(\d{4})/, '$1-$2')
+            console.log(`[WhatsApp Manager] Pairing Code encontrado: ${pairingCode}`)
+          }
+          
+          // Retornar ambos se disponíveis, ou o que tiver
+          if (qrcode || pairingCode) {
+            return { qrcode, pairingCode }
           }
 
-          // Tentar extrair de response
+          // Tentar extrair de response (retornar ambos se disponíveis)
           if (data.response?.qrcode || data.response?.pairingCode) {
-            const qrcode = data.response.qrcode
-            const pairingCode = data.response.pairingCode
-            if (qrcode) {
+            let qrcode: string | undefined
+            let pairingCode: string | undefined
+            
+            if (data.response.qrcode) {
+              qrcode = data.response.qrcode.startsWith('data:') 
+                ? data.response.qrcode 
+                : `data:image/png;base64,${data.response.qrcode}`
               console.log(`[WhatsApp Manager] QR Code encontrado em data.response!`)
-              return { qrcode: qrcode.startsWith('data:') ? qrcode : `data:image/png;base64,${qrcode}` }
             }
-            if (pairingCode) {
+            
+            if (data.response.pairingCode) {
+              pairingCode = data.response.pairingCode.toString().replace(/(\d{4})(\d{4})/, '$1-$2')
               console.log(`[WhatsApp Manager] Pairing Code encontrado em data.response: ${pairingCode}`)
-              const formatted = pairingCode.toString().replace(/(\d{4})(\d{4})/, '$1-$2')
-              return { pairingCode: formatted }
+            }
+            
+            if (qrcode || pairingCode) {
+              return { qrcode, pairingCode }
             }
           }
 
@@ -565,12 +579,16 @@ export class WhatsAppInstanceManager {
 
   /**
    * Conecta via Pairing Code
+   * Fluxo correto conforme documentação:
+   * 1. Criar instância com número e qrcode: true
+   * 2. Consultar /api/instances/connect/{instanceName} para obter pairingCode
    */
   async connectWithPairingCode(instanceName: string, phoneNumber: string): Promise<ConnectionCodeResponse> {
-    // Criar instância com número
+    // Criar instância com número e qrcode: true (obrigatório para obter pairingCode)
+    // Segundo a documentação: deve enviar number e qrcode: true
     const createResult = await this.createInstance({
       instanceName,
-      qrcode: false,
+      qrcode: true, // OBRIGATÓRIO: mesmo com número, deve ser true para obter pairingCode
       number: phoneNumber,
     })
 
@@ -581,7 +599,8 @@ export class WhatsAppInstanceManager {
     // Aguardar alguns segundos para a instância estar pronta
     await new Promise(resolve => setTimeout(resolve, 5000))
 
-    // Obter Pairing Code
+    // Consultar /api/instances/connect/{instanceName} para obter pairingCode (e/ou QR Code)
+    // A API retorna ambos quando qrcode: true e number está presente
     return this.getConnectionCode(instanceName)
   }
 
@@ -669,27 +688,45 @@ export class WhatsAppInstanceManager {
 
   /**
    * Deleta uma instância
+   * @param instanceName Nome da instância
+   * @param instanceToken Token específico da instância (API Key) - opcional, mas recomendado para api.reffix.com.br
    */
-  async deleteInstance(instanceName: string): Promise<boolean> {
+  async deleteInstance(instanceName: string, instanceToken?: string): Promise<boolean> {
     // Endpoint correto: api.reffix.com.br/instance/delete/{instanceName}
     // Base URL: usar api.reffix.com.br (sem /api)
     const baseUrl = this.config.managerUrl.replace(/\/api\/?$/, '').replace(/manager\./, 'api.')
     
     const deleteEndpoints = [
-      `${baseUrl}/instance/delete/${instanceName}`, // Endpoint correto - PRIORIDADE
-      `${this.config.managerUrl}/instance/delete/${instanceName}`, // Fallback
-      `${this.config.managerUrl}/instances/delete/${instanceName}`, // Fallback alternativo
+      { url: `${baseUrl}/instance/delete/${instanceName}`, useInstanceToken: true }, // Endpoint correto - PRIORIDADE (requer instanceToken)
+      { url: `${this.config.managerUrl}/instance/delete/${instanceName}`, useInstanceToken: false }, // Fallback
+      { url: `${this.config.managerUrl}/instances/delete/${instanceName}`, useInstanceToken: false }, // Fallback alternativo
     ]
 
     let lastError: any = null
     let lastStatus: number | null = null
 
-    for (const endpoint of deleteEndpoints) {
+    for (const { url: endpoint, useInstanceToken } of deleteEndpoints) {
       try {
         console.log(`[WhatsApp Manager] Deletando instância em: ${endpoint}`)
-        const response = await this.authenticatedRequest(endpoint, {
-          method: 'DELETE',
-        })
+        
+        // Se usar instanceToken e estiver disponível, usar no header apikey
+        let response: Response
+        if (useInstanceToken && instanceToken) {
+          const headers: any = {
+            'Accept': 'application/json',
+            'apikey': instanceToken,
+          }
+          console.log(`[WhatsApp Manager] Usando token da instância para deletar: ${instanceToken.substring(0, 20)}...`)
+          response = await fetch(endpoint, {
+            method: 'DELETE',
+            headers,
+          })
+        } else {
+          // Usar autenticação global (Bearer token ou API key global)
+          response = await this.authenticatedRequest(endpoint, {
+            method: 'DELETE',
+          })
+        }
 
         lastStatus = response.status
         console.log(`[WhatsApp Manager] Resposta do delete:`, {
