@@ -282,9 +282,16 @@ export class WhatsAppInstanceManager {
    * Obtém código de conexão (QR Code ou Pairing Code)
    */
   async getConnectionCode(instanceName: string): Promise<ConnectionCodeResponse> {
+    // Remover /api do final da URL se existir
+    const baseUrl = this.config.managerUrl.replace(/\/api\/?$/, '')
+    
     const connectEndpoints = [
-      `${this.config.managerUrl}/instance/connect/${instanceName}`,
-      `${this.config.managerUrl}/instances/connect/${instanceName}`,
+      `${baseUrl}/instance/connect/${instanceName}`, // Sem /api (funcionou para create)
+      `${this.config.managerUrl}/instance/connect/${instanceName}`, // Com /api
+      `${baseUrl}/instances/connect/${instanceName}`, // Plural sem /api
+      `${this.config.managerUrl}/instances/connect/${instanceName}`, // Plural com /api
+      `${baseUrl}/instance/${instanceName}/qrcode`, // Endpoint alternativo
+      `${baseUrl}/instances/${instanceName}/qrcode`, // Plural alternativo
     ]
 
     for (const endpoint of connectEndpoints) {
@@ -294,12 +301,26 @@ export class WhatsAppInstanceManager {
           method: 'GET',
         })
 
+        console.log(`[WhatsApp Manager] Resposta do endpoint ${endpoint}:`, {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok,
+        })
+
         if (response.ok) {
           const data = await response.json() as any
+          
+          console.log(`[WhatsApp Manager] Dados recebidos de ${endpoint}:`, {
+            hasQrcode: !!(data.qrcode || data.base64),
+            hasPairingCode: !!(data.pairingCode || data.code),
+            keys: Object.keys(data),
+            dataPreview: JSON.stringify(data).substring(0, 500),
+          })
           
           // QR Code (pode vir em formatos diferentes)
           if (data.qrcode?.base64 || data.qrcode?.code || data.base64) {
             const qrcodeBase64 = data.qrcode?.base64 || data.qrcode?.code || data.base64
+            console.log(`[WhatsApp Manager] QR Code encontrado!`)
             return {
               qrcode: qrcodeBase64.startsWith('data:') 
                 ? qrcodeBase64 
@@ -310,6 +331,7 @@ export class WhatsAppInstanceManager {
           // Pairing Code
           if (data.pairingCode || data.code) {
             const code = data.pairingCode || data.code
+            console.log(`[WhatsApp Manager] Pairing Code encontrado: ${code}`)
             // Formatar código: XXXX-XXXX
             const formatted = code.toString().replace(/(\d{4})(\d{4})/, '$1-$2')
             return { pairingCode: formatted }
@@ -320,13 +342,40 @@ export class WhatsAppInstanceManager {
             const qrcode = data.response.qrcode
             const pairingCode = data.response.pairingCode
             if (qrcode) {
+              console.log(`[WhatsApp Manager] QR Code encontrado em data.response!`)
               return { qrcode: qrcode.startsWith('data:') ? qrcode : `data:image/png;base64,${qrcode}` }
             }
             if (pairingCode) {
+              console.log(`[WhatsApp Manager] Pairing Code encontrado em data.response: ${pairingCode}`)
               const formatted = pairingCode.toString().replace(/(\d{4})(\d{4})/, '$1-$2')
               return { pairingCode: formatted }
             }
           }
+
+          // Tentar outros formatos possíveis
+          if (data.data?.qrcode || data.data?.base64) {
+            const qrcodeBase64 = data.data.qrcode || data.data.base64
+            console.log(`[WhatsApp Manager] QR Code encontrado em data.data!`)
+            return {
+              qrcode: qrcodeBase64.startsWith('data:') 
+                ? qrcodeBase64 
+                : `data:image/png;base64,${qrcodeBase64}`,
+            }
+          }
+        } else {
+          // Log da resposta de erro para debug
+          try {
+            const errorText = await response.text()
+            console.warn(`[WhatsApp Manager] Erro ao obter código de ${endpoint}:`, {
+              status: response.status,
+              statusText: response.statusText,
+              error: errorText.substring(0, 500),
+            })
+          } catch (parseError) {
+            console.warn(`[WhatsApp Manager] Erro ao parsear resposta de ${endpoint}:`, parseError)
+          }
+          // Continuar tentando outros endpoints mesmo se este falhar
+          continue
         }
       } catch (error) {
         console.warn(`[WhatsApp Manager] Erro ao obter código de ${endpoint}:`, error)

@@ -129,18 +129,25 @@ router.post(
       // Obter código de conexão
       let connectionCode = null
       try {
-        // Se for QR Code, aguardar 3 segundos antes de obter (conforme documento)
+        // Se for QR Code, aguardar mais tempo (5 segundos) para garantir que a instância está pronta
         if (useQRCode) {
-          await new Promise(resolve => setTimeout(resolve, 3000))
+          console.log('[WhatsApp] Aguardando 5 segundos antes de obter QR Code...')
+          await new Promise(resolve => setTimeout(resolve, 5000))
         } else {
           // Se for pairing code, aguardar 5 segundos
           await new Promise(resolve => setTimeout(resolve, 5000))
         }
         
+        console.log('[WhatsApp] Tentando obter código de conexão...')
         connectionCode = await manager.getConnectionCode(instanceName)
+        console.log('[WhatsApp] Código de conexão obtido:', {
+          hasQrcode: !!connectionCode?.qrcode,
+          hasPairingCode: !!connectionCode?.pairingCode,
+        })
       } catch (error) {
         console.warn('[WhatsApp] Erro ao obter código de conexão:', error)
         // Não falhar se não conseguir obter o código imediatamente
+        // O frontend pode tentar novamente depois
       }
 
       res.json({
