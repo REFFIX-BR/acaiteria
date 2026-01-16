@@ -126,6 +126,7 @@ export class WhatsAppInstanceManager {
     
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      'Accept': 'application/json', // Importante: força retorno JSON em vez de HTML
       ...(options.headers as Record<string, string> || {}),
     }
 
@@ -285,7 +286,10 @@ export class WhatsAppInstanceManager {
     // Remover /api do final da URL se existir
     const baseUrl = this.config.managerUrl.replace(/\/api\/?$/, '')
     
+    // Endpoints baseados na documentação da Evolution API
     const connectEndpoints = [
+      `${baseUrl}/instance/fetchInstances/${instanceName}`, // Endpoint principal para obter dados da instância
+      `${this.config.managerUrl}/instance/fetchInstances/${instanceName}`, // Com /api
       `${baseUrl}/instance/connect/${instanceName}`, // Sem /api (funcionou para create)
       `${this.config.managerUrl}/instance/connect/${instanceName}`, // Com /api
       `${baseUrl}/instances/connect/${instanceName}`, // Plural sem /api
@@ -402,6 +406,47 @@ export class WhatsAppInstanceManager {
               qrcode: qrcodeBase64.startsWith('data:') 
                 ? qrcodeBase64 
                 : `data:image/png;base64,${qrcodeBase64}`,
+            }
+          }
+
+          // Formato do fetchInstances: data.qrcode.code ou data.qrcode.base64
+          if (data.qrcode) {
+            if (typeof data.qrcode === 'string') {
+              // QR Code direto como string
+              console.log(`[WhatsApp Manager] QR Code encontrado como string!`)
+              return {
+                qrcode: data.qrcode.startsWith('data:') 
+                  ? data.qrcode 
+                  : `data:image/png;base64,${data.qrcode}`,
+              }
+            } else if (data.qrcode.code) {
+              // QR Code em formato objeto com .code
+              console.log(`[WhatsApp Manager] QR Code encontrado em data.qrcode.code!`)
+              const qrcodeValue = data.qrcode.code
+              return {
+                qrcode: qrcodeValue.startsWith('data:') 
+                  ? qrcodeValue 
+                  : `data:image/png;base64,${qrcodeValue}`,
+              }
+            } else if (data.qrcode.base64) {
+              // QR Code em formato objeto com .base64
+              console.log(`[WhatsApp Manager] QR Code encontrado em data.qrcode.base64!`)
+              return {
+                qrcode: `data:image/png;base64,${data.qrcode.base64}`,
+              }
+            }
+          }
+
+          // Formato do fetchInstances: data.pairingCode.code
+          if (data.pairingCode) {
+            if (typeof data.pairingCode === 'string') {
+              const formatted = data.pairingCode.toString().replace(/(\d{4})(\d{4})/, '$1-$2')
+              console.log(`[WhatsApp Manager] Pairing Code encontrado como string: ${formatted}`)
+              return { pairingCode: formatted }
+            } else if (data.pairingCode.code) {
+              const formatted = data.pairingCode.code.toString().replace(/(\d{4})(\d{4})/, '$1-$2')
+              console.log(`[WhatsApp Manager] Pairing Code encontrado em data.pairingCode.code: ${formatted}`)
+              return { pairingCode: formatted }
             }
           }
         } else {
