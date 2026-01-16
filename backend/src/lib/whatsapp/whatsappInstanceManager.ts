@@ -189,11 +189,6 @@ export class WhatsAppInstanceManager {
    */
   async createInstance(payload: CreateInstancePayload): Promise<{ success: boolean; error?: string; instanceName?: string; instanceToken?: string }> {
     try {
-      const token = await this.authenticate()
-      if (!token) {
-        return { success: false, error: 'Não foi possível autenticar no Manager API' }
-      }
-
       // A URL base já pode ter /api, então vamos tentar diferentes combinações
       const baseUrl = this.config.managerUrl.replace(/\/api\/?$/, '')
       
@@ -221,7 +216,10 @@ export class WhatsAppInstanceManager {
       }
 
       // Obter token primeiro para usar Bearer (obrigatório para /api/instances/create)
-      const token = await this.authenticate()
+      const authToken = await this.authenticate()
+      if (!authToken) {
+        return { success: false, error: 'Não foi possível autenticar no Manager API' }
+      }
       
       for (const endpoint of createEndpoints) {
         try {
@@ -238,13 +236,13 @@ export class WhatsAppInstanceManager {
             'Accept': 'application/json',
           }
           
-          if (token) {
-            const isJWT = token.includes('.') && token.split('.').length === 3
+          if (authToken) {
+            const isJWT = authToken.includes('.') && authToken.split('.').length === 3
             if (isJWT) {
-              headers['Authorization'] = `Bearer ${token}`
+              headers['Authorization'] = `Bearer ${authToken}`
               console.log('[WhatsApp Manager] Usando Bearer token para criar instância')
             } else {
-              headers['apikey'] = token
+              headers['apikey'] = authToken
               console.log('[WhatsApp Manager] Usando API Key para criar instância')
             }
           }
@@ -264,6 +262,7 @@ export class WhatsAppInstanceManager {
           if (response.ok) {
             // Tentar extrair token da resposta (API Key da instância)
             let instanceToken: string | null = null
+            const responseClone = response.clone()
             try {
               const responseData = await response.json() as any
               console.log('[WhatsApp Manager] Resposta da criação:', {
@@ -279,13 +278,13 @@ export class WhatsAppInstanceManager {
               }
             } catch (parseError) {
               console.warn('[WhatsApp Manager] Erro ao parsear resposta da criação:', parseError)
-              // Recriar response para não quebrar o fluxo
-              const text = await response.text()
-              response = new Response(text, {
-                status: response.status,
-                statusText: response.statusText,
-                headers: response.headers,
-              })
+              // Tentar ler como texto se JSON falhar
+              try {
+                const text = await responseClone.text()
+                console.warn('[WhatsApp Manager] Resposta não é JSON:', text.substring(0, 200))
+              } catch (textError) {
+                console.warn('[WhatsApp Manager] Erro ao ler resposta:', textError)
+              }
             }
             
             console.log(`[WhatsApp Manager] Instância criada com sucesso: ${payload.instanceName}`)
