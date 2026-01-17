@@ -62,7 +62,14 @@ export function CampaignList({ refreshTrigger, onRefresh }: CampaignListProps) {
 
         if (response.ok) {
           const data = await response.json()
-          setCampaigns(data.campaigns || [])
+          // Normalizar campanhas do backend (converter datas de string para Date)
+          const normalizedCampaigns = (data.campaigns || []).map((campaign: any) => ({
+            ...campaign,
+            startDate: campaign.start_date ? new Date(campaign.start_date) : (campaign.startDate ? new Date(campaign.startDate) : new Date()),
+            endDate: campaign.end_date ? (campaign.end_date ? new Date(campaign.end_date) : undefined) : (campaign.endDate ? new Date(campaign.endDate) : undefined),
+            createdAt: campaign.created_at ? new Date(campaign.created_at) : (campaign.createdAt ? new Date(campaign.createdAt) : new Date()),
+          }))
+          setCampaigns(normalizedCampaigns)
         } else {
           console.error('[CampaignList] Erro ao buscar campanhas:', response.status)
           setCampaigns([])
@@ -272,9 +279,11 @@ export function CampaignList({ refreshTrigger, onRefresh }: CampaignListProps) {
                     )}
                     <div className="text-xs text-muted-foreground">
                       <span>
-                        Início: {format(new Date(campaign.startDate), 'dd/MM/yyyy')}
+                        Início: {campaign.startDate && !isNaN(new Date(campaign.startDate).getTime()) 
+                          ? format(new Date(campaign.startDate), 'dd/MM/yyyy')
+                          : 'Data inválida'}
                       </span>
-                      {campaign.endDate && (
+                      {campaign.endDate && !isNaN(new Date(campaign.endDate).getTime()) && (
                         <span className="ml-4">
                           Término: {format(new Date(campaign.endDate), 'dd/MM/yyyy')}
                         </span>
