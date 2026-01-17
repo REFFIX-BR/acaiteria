@@ -653,8 +653,10 @@ router.post(
           responseData = JSON.parse(textResponse)
         }
       } catch (parseError) {
-        // Se não conseguir parsear, usar a resposta como está
-        responseData = { message: textResponse }
+        // Se não conseguir parsear, usar a resposta de erro genérica
+        responseData = { 
+          error: `Erro ao processar resposta: ${parseError instanceof Error ? parseError.message : 'Erro desconhecido'}` 
+        }
       }
 
       if (response.ok) {
