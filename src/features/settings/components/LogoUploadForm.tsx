@@ -23,6 +23,8 @@ export const LogoUploadForm = forwardRef<LogoUploadFormRef, LogoUploadFormProps>
     const { toast } = useToast()
     const [logoPreview, setLogoPreview] = useState<string | null>(null)
     const [hasChanges, setHasChanges] = useState(false)
+    const [isUploading, setIsUploading] = useState(false)
+    const [selectedFile, setSelectedFile] = useState<File | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     // Carrega logo atual do tenant
@@ -32,7 +34,7 @@ export const LogoUploadForm = forwardRef<LogoUploadFormRef, LogoUploadFormProps>
       }
     }, [currentTenant])
 
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0]
       if (!file || !currentTenant) return
 
@@ -56,23 +58,51 @@ export const LogoUploadForm = forwardRef<LogoUploadFormRef, LogoUploadFormProps>
         return
       }
 
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        const logoUrl = event.target?.result as string
+      setIsUploading(true)
+      setSelectedFile(file)
+
+      try {
+        // Preview local imediato
+        const reader = new FileReader()
+        reader.onload = (event) => {
+          const previewUrl = event.target?.result as string
+          setLogoPreview(previewUrl)
+        }
+        reader.readAsDataURL(file)
+
+        // Fazer upload para MinIO
+        console.log('[LogoUploadForm] Iniciando upload de logo:', {
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type,
+          tenantId: currentTenant.id,
+          tenantSlug: currentTenant.slug,
+        })
+
+        const { uploadImage } = await import('@/lib/api/upload')
+        const logoUrl = await uploadImage(file, 'logo', {
+          tenantId: currentTenant.id,
+          tenantSlug: currentTenant.slug,
+        })
+
+        console.log('[LogoUploadForm] Upload concluído, URL recebida:', logoUrl)
+        
+        // Atualiza o preview com a URL do MinIO
         setLogoPreview(logoUrl)
         setHasChanges(true)
         onChanges?.(true)
-      }
-
-      reader.onerror = () => {
+      } catch (error) {
+        console.error('[LogoUploadForm] Erro ao fazer upload:', error)
         toast({
           title: 'Erro',
-          description: 'Erro ao carregar a imagem',
+          description: error instanceof Error ? error.message : 'Erro ao fazer upload da imagem',
           variant: 'destructive',
         })
+        setSelectedFile(null)
+        setLogoPreview(currentTenant.logo || null)
+      } finally {
+        setIsUploading(false)
       }
-
-      reader.readAsDataURL(file)
     }
 
     const handleRemoveLogo = () => {
@@ -85,6 +115,59 @@ export const LogoUploadForm = forwardRef<LogoUploadFormRef, LogoUploadFormProps>
       if (!currentTenant) return
 
       try {
+        // Se há um arquivo selecionado mas ainda não foi feito upload, fazer agora
+        if (selectedFile && logoPreview && logoPreview.startsWith('data:')) {
+          console.log('[LogoUploadForm] Fazendo upload antes de salvar...')
+          setIsUploading(true)
+          
+          try {
+            const { uploadImage } = await import('@/lib/api/upload')
+            const logoUrl = await uploadImage(selectedFile, 'logo', {
+              tenantId: currentTenant.id,
+              tenantSlug: currentTenant.slug,
+            })
+            setLogoPreview(logoUrl)
+            setSelectedFile(null)
+          } catch (uploadError) {
+            console.error('[LogoUploadForm] Erro ao fazer upload:', uploadError)
+            throw uploadError
+          } finally {
+            setIsUploading(false)
+          }
+        }
+
+        const logoUrl = logoPreview && !logoPreview.startsWith('data:') ? logoPreview : undefined
+
+        // Salva no backend
+        try {
+          const { getApiUrl } = await import('@/lib/api/config')
+          const { getAuthToken } = await import('@/lib/api/auth')
+          const apiUrl = getApiUrl()
+          const token = getAuthToken()
+
+          if (token) {
+            const response = await fetch(`${apiUrl}/api/tenants`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                logo: logoUrl,
+              }),
+            })
+
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({}))
+              throw new Error(errorData.error || `Erro ao salvar logo no backend: ${response.status}`)
+            }
+          }
+        } catch (error) {
+          console.error('[LogoUploadForm] Erro ao salvar logo no backend:', error)
+          // Continua para salvar no localStorage mesmo se falhar no backend
+        }
+
+        // Salva no localStorage
         const allTenants = getAllTenants()
         const tenantIndex = allTenants.findIndex(t => t.id === currentTenant.id)
         
@@ -94,7 +177,7 @@ export const LogoUploadForm = forwardRef<LogoUploadFormRef, LogoUploadFormProps>
 
         const updatedTenant = {
           ...allTenants[tenantIndex],
-          logo: logoPreview || undefined,
+          logo: logoUrl,
         }
 
         allTenants[tenantIndex] = updatedTenant
@@ -102,6 +185,7 @@ export const LogoUploadForm = forwardRef<LogoUploadFormRef, LogoUploadFormProps>
         setTenant(updatedTenant)
         
         setHasChanges(false)
+        setSelectedFile(null)
         onChanges?.(false)
 
         toast({
@@ -109,10 +193,10 @@ export const LogoUploadForm = forwardRef<LogoUploadFormRef, LogoUploadFormProps>
           description: 'Logo atualizado com sucesso',
         })
       } catch (error) {
-        console.error('Erro ao salvar logo:', error)
+        console.error('[LogoUploadForm] Erro ao salvar logo:', error)
         toast({
           title: 'Erro',
-          description: 'Erro ao salvar logo',
+          description: error instanceof Error ? error.message : 'Erro ao salvar logo',
           variant: 'destructive',
         })
         throw error
@@ -177,9 +261,10 @@ export const LogoUploadForm = forwardRef<LogoUploadFormRef, LogoUploadFormProps>
                   variant="outline"
                   size="sm"
                   onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
                 >
                   <Upload className="h-4 w-4 mr-2" />
-                  {logoPreview ? 'Alterar Logo' : 'Carregar Logo'}
+                  {isUploading ? 'Enviando...' : logoPreview ? 'Alterar Logo' : 'Carregar Logo'}
                 </Button>
                 {logoPreview && (
                   <Button
