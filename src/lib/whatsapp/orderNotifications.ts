@@ -26,6 +26,18 @@ async function sendWhatsAppMessage(
       textLength: text.length,
     })
 
+    // Verifica se tem token antes de tentar enviar
+    const { getAuthToken } = await import('@/lib/api/auth')
+    const token = getAuthToken()
+    
+    if (!token) {
+      console.warn('[WhatsApp] Token de autenticação não encontrado. Notificação não será enviada.')
+      return {
+        success: false,
+        error: 'Autenticação necessária. Por favor, faça login novamente.',
+      }
+    }
+
     const response = await authenticatedFetch(url, {
       method: 'POST',
       headers: {
