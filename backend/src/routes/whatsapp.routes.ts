@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express'
+import { Router, Request, Response as ExpressResponse } from 'express'
 import { authenticate, AuthRequest } from '../middleware/auth.js'
 import { tenantGuard } from '../middleware/tenantGuard.js'
 import { z } from 'zod'
@@ -36,7 +36,7 @@ router.post(
   '/instances/create',
   authenticate,
   tenantGuard,
-  async (req: AuthRequest, res: Response) => {
+  async (req: AuthRequest, res: ExpressResponse) => {
     try {
       if (!req.user) {
         return res.status(401).json({ success: false, error: 'Não autenticado' })
@@ -237,7 +237,7 @@ router.get(
   '/instances/:instanceName/connect',
   authenticate,
   tenantGuard,
-  async (req: AuthRequest, res: Response) => {
+  async (req: AuthRequest, res: ExpressResponse) => {
     try {
       if (!req.user) {
         return res.status(401).json({ success: false, error: 'Não autenticado' })
@@ -266,7 +266,7 @@ router.post(
   '/instances/connect-pairing',
   authenticate,
   tenantGuard,
-  async (req: AuthRequest, res: Response) => {
+  async (req: AuthRequest, res: ExpressResponse) => {
     try {
       if (!req.user) {
         return res.status(401).json({ success: false, error: 'Não autenticado' })
@@ -403,7 +403,7 @@ router.get(
   '/instances/:instanceName/status',
   authenticate,
   tenantGuard,
-  async (req: AuthRequest, res: Response) => {
+  async (req: AuthRequest, res: ExpressResponse) => {
     try {
       if (!req.user) {
         return res.status(401).json({ success: false, error: 'Não autenticado' })
@@ -464,7 +464,7 @@ router.post(
   '/instances/:instanceName/logout',
   authenticate,
   tenantGuard,
-  async (req: AuthRequest, res: Response) => {
+  async (req: AuthRequest, res: ExpressResponse) => {
     try {
       if (!req.user) {
         return res.status(401).json({ success: false, error: 'Não autenticado' })
@@ -490,11 +490,11 @@ router.post(
       let success = false
       for (const endpoint of logoutEndpoints) {
         try {
-          const response = await manager.authenticatedRequest(endpoint, {
+          const fetchResponse = await manager.authenticatedRequest(endpoint, {
             method: 'POST',
           })
 
-          if (response.ok) {
+          if (fetchResponse.ok) {
             success = true
             break
           }
@@ -528,7 +528,7 @@ router.delete(
   '/instances/:instanceName',
   authenticate,
   tenantGuard,
-  async (req: AuthRequest, res: Response) => {
+  async (req: AuthRequest, res: ExpressResponse) => {
     try {
       if (!req.user) {
         return res.status(401).json({ success: false, error: 'Não autenticado' })
@@ -569,428 +569,6 @@ router.delete(
         deletedInAPI: true,
       })
     } catch (error) {
-      return errorHandler(error as Error, req, res, () => {})
-    }
-  }
-)
-
-/**
- * POST /api/whatsapp/messages/send
- * Envia mensagem via WhatsApp usando o endpoint api.reffix.com.br
- */
-router.post(
-  '/messages/send',
-  authenticate,
-  tenantGuard,
-  async (req: AuthRequest, res: Response) => {
-    try {
-      if (!req.user) {
-        return res.status(401).json({ success: false, error: 'Não autenticado' })
-      }
-
-      const { instanceName, phone, text } = req.body
-
-      if (!instanceName || !phone || !text) {
-        return res.status(400).json({
-          success: false,
-          error: 'Campos obrigatórios: instanceName, phone, text',
-        })
-      }
-
-      const tenantId = req.user.tenantId
-
-      // Verificar se a instância pertence ao tenant
-      const dbInstance = await getWhatsAppInstanceByName(instanceName)
-      if (!dbInstance || dbInstance.tenantId !== tenantId) {
-        return res.status(404).json({
-          success: false,
-          error: 'Instância não encontrada ou não pertence ao tenant',
-        })
-      }
-
-      // Verificar se a instância está conectada
-      if (dbInstance.status !== 'connected') {
-        return res.status(400).json({
-          success: false,
-          error: 'Instância não está conectada',
-        })
-      }
-
-      // Formatar número de telefone (sem @s.whatsapp.net para api.reffix.com.br)
-      let formattedPhone = phone.replace(/\D/g, '')
-      const originalPhone = formattedPhone
-      
-      // Se não começar com 55, adiciona o código do país
-      if (!formattedPhone.startsWith('55')) {
-        // Se for número brasileiro (10 ou 11 dígitos), adiciona 55
-        if (formattedPhone.length === 11 || formattedPhone.length === 10) {
-          formattedPhone = '55' + formattedPhone
-        }
-      }
-
-      console.log('[WhatsApp Send Message] Formatação do número:', {
-        original: phone,
-        limpo: originalPhone,
-        formatado: formattedPhone,
-        length: formattedPhone.length,
-      })
-
-      // Obter token de autenticação (prioridade: instanceToken > API key global)
-      // O instanceToken é obrigatório para api.reffix.com.br
-      let apiKey = dbInstance.instanceToken
-      
-      // Se não tiver instanceToken, tenta usar a API key global como fallback
-      if (!apiKey) {
-        apiKey = process.env.EVOLUTION_API_KEY || process.env.EVOLUTION_API_GLOBAL_KEY
-        console.warn('[WhatsApp Send Message] InstanceToken não encontrado, usando API key global')
-      }
-      
-      if (!apiKey) {
-        console.error('[WhatsApp Send Message] Nenhum token de autenticação disponível')
-        return res.status(500).json({
-          success: false,
-          error: 'Token de autenticação não configurado. Recrie a instância do WhatsApp.',
-        })
-      }
-
-      const apiUrl = `https://api.reffix.com.br/message/sendText/${instanceName}`
-      const requestBody = {
-        number: formattedPhone,
-        text: text,
-      }
-
-      console.log('[WhatsApp Send Message] Enviando mensagem:', {
-        url: apiUrl,
-        instanceName,
-        number: formattedPhone,
-        textLength: text.length,
-        hasInstanceToken: !!dbInstance.instanceToken,
-        hasApiKey: !!apiKey,
-        usingInstanceToken: !!dbInstance.instanceToken,
-      })
-
-      // Enviar mensagem via api.reffix.com.br
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': apiKey,
-        },
-        body: JSON.stringify(requestBody),
-      })
-
-      console.log('[WhatsApp Send Message] Resposta recebida:', {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok,
-        headers: Object.fromEntries(response.headers.entries()),
-      })
-
-      let responseData: any = {}
-      try {
-        const textResponse = await response.text()
-        console.log('[WhatsApp Send Message] Resposta texto:', textResponse.substring(0, 500))
-        if (textResponse) {
-          responseData = JSON.parse(textResponse)
-        }
-      } catch (parseError) {
-        console.error('[WhatsApp Send Message] Erro ao parsear resposta:', parseError)
-        // Se não conseguir parsear, usar a resposta de erro genérica
-        responseData = { 
-          error: `Erro ao processar resposta: ${parseError instanceof Error ? parseError.message : 'Erro desconhecido'}` 
-        }
-      }
-
-      if (response.ok) {
-        console.log('[WhatsApp Send Message] Mensagem enviada com sucesso!', responseData)
-        res.json({
-          success: true,
-          message: 'Mensagem enviada com sucesso',
-          data: responseData,
-        })
-      } else {
-        console.error('[WhatsApp Send Message] Erro ao enviar mensagem:', {
-          status: response.status,
-          error: responseData.error || responseData.message,
-          details: responseData,
-        })
-        res.status(response.status).json({
-          success: false,
-          error: responseData.error || responseData.message || `Erro HTTP ${response.status}`,
-          details: responseData,
-        })
-      }
-    } catch (error) {
-      console.error('[WhatsApp Send Message] Erro:', error)
-      return errorHandler(error as Error, req, res, () => {})
-    }
-  }
-)
-
-/**
- * POST /api/whatsapp/campaigns/send
- * Envia campanha em massa via WhatsApp (backend faz o envio usando credenciais do servidor)
- */
-const sendCampaignSchema = z.object({
-  campaignId: z.string().optional(),
-  customerIds: z.array(z.string()).optional(), // Se não fornecido, envia para todos
-  message: z.string().min(1),
-  imageUrl: z.string().optional(),
-  sendInterval: z.number().min(15).optional().default(15),
-})
-
-router.post(
-  '/campaigns/send',
-  authenticate,
-  tenantGuard,
-  async (req: AuthRequest, res: Response) => {
-    try {
-      if (!req.user) {
-        return res.status(401).json({ success: false, error: 'Não autenticado' })
-      }
-
-      const validation = sendCampaignSchema.safeParse(req.body)
-      if (!validation.success) {
-        return res.status(400).json({
-          success: false,
-          error: 'Dados inválidos',
-          details: validation.error.errors,
-        })
-      }
-
-      const { campaignId, customerIds, message, imageUrl, sendInterval } = validation.data
-      const tenantId = req.user.tenantId
-
-      // Buscar instância do tenant
-      const dbInstance = await getWhatsAppInstanceByTenant(tenantId)
-      if (!dbInstance) {
-        return res.status(404).json({
-          success: false,
-          error: 'Instância WhatsApp não encontrada para este tenant',
-        })
-      }
-
-      if (dbInstance.status !== 'connected') {
-        return res.status(400).json({
-          success: false,
-          error: 'Instância WhatsApp não está conectada',
-        })
-      }
-
-      // Buscar clientes do banco
-      let customers: Array<{ id: string; phone: string }> = []
-      if (customerIds && customerIds.length > 0) {
-        const result = await query(
-          'SELECT id, phone FROM customers WHERE tenant_id = $1 AND id = ANY($2::uuid[]) AND deleted_at IS NULL',
-          [tenantId, customerIds]
-        )
-        customers = result.rows
-      } else {
-        // Buscar todos os clientes do tenant
-        const result = await query(
-          'SELECT id, phone FROM customers WHERE tenant_id = $1 AND deleted_at IS NULL',
-          [tenantId]
-        )
-        customers = result.rows
-      }
-
-      if (customers.length === 0) {
-        return res.status(400).json({
-          success: false,
-          error: 'Nenhum cliente encontrado para enviar',
-        })
-      }
-
-      // Obter token de autenticação
-      let apiKey = dbInstance.instanceToken
-      if (!apiKey) {
-        apiKey = process.env.EVOLUTION_API_KEY || process.env.EVOLUTION_API_GLOBAL_KEY
-      }
-      
-      if (!apiKey) {
-        return res.status(500).json({
-          success: false,
-          error: 'Token de autenticação não configurado',
-        })
-      }
-
-      const instanceName = dbInstance.instanceName
-      // Usar api.reffix.com.br diretamente conforme especificação
-      const baseUrl = 'https://api.reffix.com.br'
-
-      console.log('[WhatsApp Campaign Send] Iniciando envio em massa:', {
-        tenantId,
-        instanceName,
-        totalCustomers: customers.length,
-        hasImage: !!imageUrl,
-        sendInterval,
-      })
-
-      // Enviar mensagens com intervalo
-      const results: Array<{ customerId: string; success: boolean; error?: string }> = []
-      let sent = 0
-      let failed = 0
-
-      for (let i = 0; i < customers.length; i++) {
-        const customer = customers[i]
-        
-        try {
-          // Formatar número de telefone (sem @s.whatsapp.net para api.reffix.com.br)
-          let formattedPhone = customer.phone.replace(/\D/g, '')
-          if (!formattedPhone.startsWith('55') && (formattedPhone.length === 11 || formattedPhone.length === 10)) {
-            formattedPhone = '55' + formattedPhone
-          }
-
-          let response: Response
-          
-          if (imageUrl) {
-            // Enviar mídia
-            const extension = imageUrl.split('.').pop()?.toLowerCase() || 'jpg'
-            let mimetype = 'image/jpeg'
-            if (extension === 'png') mimetype = 'image/png'
-            else if (extension === 'gif') mimetype = 'image/gif'
-            else if (extension === 'webp') mimetype = 'image/webp'
-
-            const fileName = imageUrl.split('/').pop() || `image.${extension}`
-            
-            const mediaUrl = `${baseUrl}/message/sendMedia/${instanceName}`
-            const mediaPayload = {
-              number: formattedPhone,
-              mediatype: 'image',
-              mimetype,
-              media: imageUrl,
-              fileName,
-              caption: message,
-            }
-
-            console.log(`[WhatsApp Campaign Send] Enviando mídia para cliente ${i + 1}/${customers.length}:`, {
-              phone: formattedPhone,
-              hasCaption: !!message,
-            })
-
-            response = await fetch(mediaUrl, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'apikey': apiKey,
-              },
-              body: JSON.stringify(mediaPayload),
-            })
-          } else {
-            // Enviar texto
-            const textUrl = `${baseUrl}/message/sendText/${instanceName}`
-            const textPayload = {
-              number: formattedPhone,
-              text: message,
-            }
-
-            console.log(`[WhatsApp Campaign Send] Enviando texto para cliente ${i + 1}/${customers.length}:`, {
-              phone: formattedPhone,
-            })
-
-            response = await fetch(textUrl, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'apikey': apiKey,
-              },
-              body: JSON.stringify(textPayload),
-            })
-          }
-
-          const responseData = await response.json().catch(() => ({}))
-          
-          if (response.ok) {
-            sent++
-            results.push({ customerId: customer.id, success: true })
-          } else {
-            failed++
-            results.push({
-              customerId: customer.id,
-              success: false,
-              error: responseData.error || responseData.message || `Erro HTTP ${response.status}`,
-            })
-          }
-        } catch (error) {
-          failed++
-          results.push({
-            customerId: customer.id,
-            success: false,
-            error: error instanceof Error ? error.message : 'Erro desconhecido',
-          })
-        }
-
-        // Aguardar intervalo entre envios (exceto na última)
-        if (i < customers.length - 1) {
-          await new Promise((resolve) => setTimeout(resolve, sendInterval * 1000))
-        }
-      }
-
-      // Atualizar métricas da campanha se houver
-      if (campaignId) {
-        await query(
-          `UPDATE campaigns 
-           SET sent = sent + $1, 
-               delivered = delivered + $2, 
-               failed = failed + $3,
-               updated_at = NOW()
-           WHERE id = $4 AND tenant_id = $5`,
-          [sent, sent, failed, campaignId, tenantId]
-        )
-      }
-
-      // Salvar histórico de envios
-      const sendHistory = results.map((result) => ({
-        tenantId,
-        campaignId: campaignId || null,
-        customerId: result.customerId,
-        phone: customers.find(c => c.id === result.customerId)?.phone || '',
-        message,
-        status: result.success ? 'sent' : 'failed',
-        sentAt: result.success ? new Date() : null,
-        error: result.error || null,
-        createdAt: new Date(),
-      }))
-
-      if (sendHistory.length > 0) {
-        const values = sendHistory.map((_, idx) => {
-          const base = idx * 8
-          return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8})`
-        }).join(', ')
-
-        const params = sendHistory.flatMap(h => [
-          h.tenantId,
-          h.campaignId,
-          h.customerId,
-          h.phone,
-          h.message,
-          h.status,
-          h.sentAt,
-          h.error,
-        ])
-
-        await query(
-          `INSERT INTO whatsapp_sends (tenant_id, campaign_id, customer_id, phone, message, status, sent_at, error, created_at)
-           VALUES ${values}`,
-          params
-        )
-      }
-
-      console.log('[WhatsApp Campaign Send] Envio concluído:', {
-        sent,
-        failed,
-        total: customers.length,
-      })
-
-      res.json({
-        success: true,
-        sent,
-        failed,
-        total: customers.length,
-        results,
-      })
-    } catch (error) {
-      console.error('[WhatsApp Campaign Send] Erro:', error)
       return errorHandler(error as Error, req, res, () => {})
     }
   }

@@ -2,6 +2,8 @@ import { useState, useMemo, useEffect } from 'react'
 import { useTenantStore } from '@/stores/tenantStore'
 import { getTenantData, setTenantData } from '@/lib/storage/storage'
 import type { Transaction } from '@/types'
+import { getApiUrl } from '@/lib/api/config'
+import { authenticatedFetch } from '@/lib/api/auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -33,7 +35,6 @@ import { cn } from '@/lib/utils'
 import { OrderDetailsModal } from './components/OrderDetailsModal'
 import type { Order } from '@/types'
 import { motion, AnimatePresence } from 'framer-motion'
-import { notifyOrderStatusChange } from '@/lib/whatsapp/orderNotifications'
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('pt-BR', {
@@ -94,72 +95,6 @@ export default function OrdersPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [lastPendingCount, setLastPendingCount] = useState(0)
   const [isPageVisible, setIsPageVisible] = useState(true)
-  const [isLoadingOrders, setIsLoadingOrders] = useState(false)
-
-  // Busca pedidos do backend
-  useEffect(() => {
-    const fetchOrders = async () => {
-      if (!currentTenant) return
-
-      setIsLoadingOrders(true)
-      try {
-        const { getApiUrl } = await import('@/lib/api/config')
-        const { getAuthToken } = await import('@/lib/api/auth')
-        const apiUrl = getApiUrl()
-        const token = getAuthToken()
-
-        if (!token) {
-          // Se não tem token, usa apenas localStorage
-          setIsLoadingOrders(false)
-          return
-        }
-
-        const response = await fetch(`${apiUrl}/api/orders`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        })
-
-        if (response.ok) {
-          const data = await response.json()
-          if (data.orders && Array.isArray(data.orders)) {
-            // Converte os pedidos do backend para o formato local
-            const formattedOrders: Order[] = data.orders.map((order: any) => ({
-              id: order.id,
-              tenantId: order.tenant_id,
-              customerName: order.customer_name,
-              customerPhone: order.customer_phone,
-              items: order.items || [],
-              subtotal: parseFloat(order.subtotal) || 0,
-              total: parseFloat(order.total) || 0,
-              status: order.status || 'pending',
-              paymentMethod: order.payment_method,
-              deliveryType: order.delivery_type,
-              deliveryAddress: order.delivery_address,
-              notes: order.notes,
-              source: order.source || 'digital',
-              createdAt: new Date(order.created_at),
-              updatedAt: new Date(order.updated_at),
-              acceptedAt: order.accepted_at ? new Date(order.accepted_at) : undefined,
-              readyAt: order.ready_at ? new Date(order.ready_at) : undefined,
-              deliveredAt: order.delivered_at ? new Date(order.delivered_at) : undefined,
-            }))
-
-            // Salva no localStorage como cache
-            setTenantData(currentTenant.id, 'orders', formattedOrders)
-          }
-        } else {
-          console.error('[OrdersPage] Erro ao buscar pedidos do backend:', response.status)
-        }
-      } catch (error) {
-        console.error('[OrdersPage] Erro ao buscar pedidos do backend:', error)
-      } finally {
-        setIsLoadingOrders(false)
-      }
-    }
-
-    fetchOrders()
-  }, [currentTenant, refreshTrigger])
 
   const orders = useMemo(() => {
     if (!currentTenant) return []
@@ -204,115 +139,105 @@ export default function OrdersPage() {
     if (!currentTenant) return
 
     try {
-      // Atualiza no backend primeiro
-      try {
-        const { getApiUrl } = await import('@/lib/api/config')
-        const { getAuthToken } = await import('@/lib/api/auth')
-        const apiUrl = getApiUrl()
-        const token = getAuthToken()
+      // Primeiro, atualizar no backend via API
+      const apiUrl = getApiUrl()
+      const response = await authenticatedFetch(`${apiUrl}/api/orders/${orderId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: newStatus }),
+      })
 
-        if (token) {
-          const response = await fetch(`${apiUrl}/api/orders/${orderId}/status`, {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ 
-              status: newStatus,
-              customerName: undefined, // Não necessário para atualização de status
-              deliveryType: undefined, // Não necessário para atualização de status
-            }),
-          })
-
-          if (!response.ok) {
-            console.error('[OrdersPage] Erro ao atualizar status no backend:', response.status)
-            // Continua para atualizar no localStorage mesmo se o backend falhar
-          }
-        }
-      } catch (error) {
-        console.error('[OrdersPage] Erro ao atualizar status no backend:', error)
-        // Continua para atualizar no localStorage mesmo se o backend falhar
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Erro ao atualizar status' }))
+        const errorMessage = errorData.error || errorData.message || 'Erro ao atualizar status do pedido'
+        const error = new Error(errorMessage)
+        ;(error as any).response = response
+        ;(error as any).errorData = errorData
+        throw error
       }
 
-      // Atualiza no localStorage
+      // Atualizar localmente apenas se a API responder com sucesso
       const allOrders = getTenantData<Order[]>(currentTenant.id, 'orders') || []
       const orderIndex = allOrders.findIndex((o) => o.id === orderId)
       
-      if (orderIndex === -1) return
+      if (orderIndex !== -1) {
+        const order = allOrders[orderIndex]
+        const oldStatus = order.status
+        const updatedOrder: Order = {
+          ...order,
+          status: newStatus,
+          updatedAt: new Date(),
+          acceptedAt: newStatus === 'accepted' ? new Date() : order.acceptedAt,
+          readyAt: newStatus === 'ready' ? new Date() : order.readyAt,
+          deliveredAt: newStatus === 'delivered' ? new Date() : order.deliveredAt,
+        }
 
-      const order = allOrders[orderIndex]
-      const updatedOrder: Order = {
-        ...order,
-        status: newStatus,
-        updatedAt: new Date(),
-        acceptedAt: newStatus === 'accepted' ? new Date() : order.acceptedAt,
-        readyAt: newStatus === 'ready' ? new Date() : order.readyAt,
-        deliveredAt: newStatus === 'delivered' ? new Date() : order.deliveredAt,
-      }
+        allOrders[orderIndex] = updatedOrder
+        setTenantData(currentTenant.id, 'orders', allOrders)
+        setRefreshTrigger((prev) => prev + 1)
 
-      allOrders[orderIndex] = updatedOrder
-      setTenantData(currentTenant.id, 'orders', allOrders)
-      setRefreshTrigger((prev) => prev + 1)
+        // Se o pedido foi marcado como entregue, cria uma transação de entrada
+        if (newStatus === 'delivered' && oldStatus !== 'delivered') {
+          const transactions = getTenantData<Transaction[]>(currentTenant.id, 'transactions') || []
+          
+          // Verifica se já existe uma transação para este pedido (evita duplicatas)
+          const existingTransaction = transactions.find(
+            (t) => t.type === 'income' && t.description.includes(`Pedido #${order.id}`)
+          )
 
-      // Envia notificação via WhatsApp (não bloqueia a atualização)
-      console.log('[OrdersPage] Tentando enviar notificação WhatsApp para status:', newStatus)
-      notifyOrderStatusChange(currentTenant.id, updatedOrder, newStatus)
-        .then((result) => {
-          if (result.success) {
-            console.log('[OrdersPage] Notificação WhatsApp enviada com sucesso!')
+          if (!existingTransaction) {
+            const newTransaction: Transaction = {
+              id: `transaction-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              type: 'income',
+              category: 'Vendas',
+              amount: order.total,
+              description: `Pedido #${order.id} - ${order.customerName}${order.deliveryType === 'delivery' ? ' (Entrega)' : ' (Retirada)'}`,
+              date: new Date(),
+              createdAt: new Date(),
+            }
+
+            transactions.push(newTransaction)
+            setTenantData(currentTenant.id, 'transactions', transactions)
+
+            toast({
+              title: 'Status atualizado',
+              description: `Pedido ${statusConfig[newStatus].label.toLowerCase()} e adicionado ao fluxo de caixa`,
+            })
           } else {
-            console.error('[OrdersPage] Falha ao enviar notificação WhatsApp:', result.error)
+            toast({
+              title: 'Status atualizado',
+              description: `Pedido ${statusConfig[newStatus].label.toLowerCase()}`,
+            })
           }
-        })
-        .catch((error) => {
-          console.error('[OrdersPage] Erro ao enviar notificação WhatsApp:', error)
-        })
-
-      // Se o pedido foi marcado como entregue, cria uma transação de entrada
-      if (newStatus === 'delivered' && order.status !== 'delivered') {
-        const transactions = getTenantData<Transaction[]>(currentTenant.id, 'transactions') || []
-        
-        // Verifica se já existe uma transação para este pedido (evita duplicatas)
-        const existingTransaction = transactions.find(
-          (t) => t.type === 'income' && t.description.includes(`Pedido #${order.id}`)
-        )
-
-        if (!existingTransaction) {
-          const newTransaction: Transaction = {
-            id: `transaction-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            type: 'income',
-            category: 'Vendas',
-            amount: order.total,
-            description: `Pedido #${order.id} - ${order.customerName}${order.deliveryType === 'delivery' ? ' (Entrega)' : ' (Retirada)'}`,
-            date: new Date(),
-            createdAt: new Date(),
-          }
-
-          transactions.push(newTransaction)
-          setTenantData(currentTenant.id, 'transactions', transactions)
-
-          toast({
-            title: 'Status atualizado',
-            description: `Pedido ${statusConfig[newStatus].label.toLowerCase()} e adicionado ao fluxo de caixa`,
-          })
         } else {
           toast({
             title: 'Status atualizado',
             description: `Pedido ${statusConfig[newStatus].label.toLowerCase()}`,
           })
         }
-      } else {
-        toast({
-          title: 'Status atualizado',
-          description: `Pedido ${statusConfig[newStatus].label.toLowerCase()}`,
-        })
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao atualizar pedido:', error)
+      
+      // Se o erro for de formato de ID inválido, informar que o pedido precisa ser recriado
+      const errorMessage = error?.message || error?.errorData?.error || ''
+      const errorDetails = error?.errorData?.details || ''
+      
+      if (
+        errorMessage.includes('Invalid order ID format') || 
+        errorMessage.includes('Order must be created') ||
+        error?.response?.status === 400
+      ) {
+        toast({
+          title: 'Pedido não encontrado no servidor',
+          description: 'Este pedido foi criado antes da atualização. Por favor, remova este pedido ou aguarde que novos pedidos sejam criados corretamente.',
+          variant: 'destructive',
+        })
+        return
+      }
+      
       toast({
         title: 'Erro',
-        description: 'Erro ao atualizar status do pedido',
+        description: errorMessage || errorDetails || 'Erro ao atualizar status do pedido',
         variant: 'destructive',
       })
     }

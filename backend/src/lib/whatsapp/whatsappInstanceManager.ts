@@ -808,6 +808,135 @@ export class WhatsAppInstanceManager {
     })
     return false
   }
+
+  /**
+   * Envia mensagem de texto via WhatsApp
+   * @param instanceName Nome da instância
+   * @param instanceToken Token específico da instância (obrigatório)
+   * @param phoneNumber Número do destinatário (com DDI, ex: 5524999999999)
+   * @param message Texto da mensagem
+   * @param options Opções adicionais (delay, quoted, etc)
+   */
+  async sendTextMessage(
+    instanceName: string,
+    instanceToken: string,
+    phoneNumber: string,
+    message: string,
+    options?: {
+      delay?: number
+      quoted?: any
+      linkPreview?: boolean
+      mentionsEveryOne?: boolean
+      mentioned?: string[]
+    }
+  ): Promise<{ success: boolean; error?: string; messageId?: string }> {
+    // Endpoint correto: api.reffix.com.br/message/sendText/{instanceName}
+    // Base URL: usar api.reffix.com.br (sem /api)
+    const baseUrl = this.config.managerUrl.replace(/\/api\/?$/, '').replace(/manager\./, 'api.')
+    const endpoint = `${baseUrl}/message/sendText/${instanceName}`
+
+    try {
+      // Formatar número: remover caracteres não numéricos e garantir que tenha DDI
+      // O número deve ter formato: 55 + DDD (2 dígitos) + número (8 ou 9 dígitos)
+      // Exemplo: 5524999999999 (55 + 24 + 999999999)
+      let cleanedNumber = phoneNumber.replace(/\D/g, '')
+      
+      // Se o número não começar com 55, adicionar
+      if (!cleanedNumber.startsWith('55')) {
+        cleanedNumber = `55${cleanedNumber}`
+      }
+      
+      // Remover zeros à esquerda que podem ter sido adicionados (exceto o 55)
+      // Exemplo: 55024999999999 -> 5524999999999
+      if (cleanedNumber.length > 13 && cleanedNumber.startsWith('550')) {
+        cleanedNumber = cleanedNumber.replace(/^550/, '55')
+      }
+      
+      const formattedNumber = cleanedNumber
+      
+      console.log(`[WhatsApp Manager] Formatação do número:`, {
+        original: phoneNumber,
+        cleaned: cleanedNumber,
+        formatted: formattedNumber,
+        length: formattedNumber.length,
+      })
+
+      const body: any = {
+        number: formattedNumber,
+        text: message,
+      }
+
+      // Adicionar opções se fornecidas
+      if (options?.delay !== undefined) {
+        body.delay = options.delay
+      }
+      if (options?.quoted) {
+        body.quoted = options.quoted
+      }
+      if (options?.linkPreview !== undefined) {
+        body.linkPreview = options.linkPreview
+      }
+      if (options?.mentionsEveryOne !== undefined) {
+        body.mentionsEveryOne = options.mentionsEveryOne
+      }
+      if (options?.mentioned) {
+        body.mentioned = options.mentioned
+      }
+
+      console.log(`[WhatsApp Manager] Enviando mensagem via: ${endpoint}`, {
+        number: formattedNumber,
+        messageLength: message.length,
+        hasOptions: !!options,
+      })
+
+      // Usar token da instância no header apikey (obrigatório para api.reffix.com.br)
+      const headers: any = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'apikey': instanceToken,
+      }
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      })
+
+      console.log(`[WhatsApp Manager] Resposta do envio:`, {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+      })
+
+      if (response.ok) {
+        try {
+          const data = await response.json() as any
+          console.log(`[WhatsApp Manager] ✅ Mensagem enviada com sucesso`)
+          return {
+            success: true,
+            messageId: data.messageId || data.id || data.key?.id,
+          }
+        } catch (parseError) {
+          // Se não conseguir parsear JSON, considerar sucesso se status for 200
+          console.log(`[WhatsApp Manager] ✅ Mensagem enviada (resposta não é JSON)`)
+          return { success: true }
+        }
+      } else {
+        const errorText = await response.text().catch(() => '')
+        console.warn(`[WhatsApp Manager] ❌ Erro ao enviar mensagem (HTTP ${response.status}):`, errorText.substring(0, 200))
+        return {
+          success: false,
+          error: `Erro ao enviar mensagem: HTTP ${response.status} - ${errorText.substring(0, 100)}`,
+        }
+      }
+    } catch (error) {
+      console.error(`[WhatsApp Manager] ❌ Erro ao enviar mensagem:`, error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro desconhecido ao enviar mensagem',
+      }
+    }
+  }
 }
 
 // Instância singleton

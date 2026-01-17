@@ -11,6 +11,8 @@ import type { Order, Customer } from '@/types'
 import { useToast } from '@/hooks/use-toast'
 import { CustomerIdentificationModal } from './CustomerIdentificationModal'
 import { getOrderSourceFromUrl } from '@/lib/menu/menuUrl'
+import { getApiUrl } from '@/lib/api/config'
+import { authenticatedFetch } from '@/lib/api/auth'
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('pt-BR', {
@@ -43,7 +45,6 @@ interface CartSidebarProps {
   whatsAppNumber?: string
   customMessage?: string
   tenantId?: string
-  tenantSlug?: string
   onCreateOrder?: () => void
   tenantName?: string
 }
@@ -61,7 +62,6 @@ export function CartSidebar({
   whatsAppNumber = '',
   customMessage = 'Olá! Gostaria de fazer um pedido.',
   tenantId,
-  tenantSlug,
   onCreateOrder,
   tenantName = 'Restaurante',
 }: CartSidebarProps) {
@@ -242,7 +242,7 @@ export function CartSidebar({
     if (allowWhatsAppOrder && whatsAppNumber) {
       handleWhatsAppOrderWithCustomer(name, phone)
     } else {
-      handleCreateOrderWithCustomer(name, phone)
+      void handleCreateOrderWithCustomer(name, phone)
     }
   }
 
@@ -254,37 +254,9 @@ export function CartSidebar({
     return `${numbers.slice(0, 5)}-${numbers.slice(5, 8)}`
   }
 
-  const handleZipCodeChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleZipCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = formatZipCode(e.target.value)
     setDeliveryZipCode(formatted)
-    
-    // Consulta CEP quando tiver 8 dígitos (sem hífen)
-    const cleanZipCode = formatted.replace(/\D/g, '')
-    if (cleanZipCode.length === 8) {
-      try {
-        const response = await fetch(`https://viacep.com.br/ws/${cleanZipCode}/json/`)
-        const data = await response.json()
-        
-        // Verifica se o CEP foi encontrado (não retorna erro)
-        if (data.cep && !data.erro) {
-          // Preenche automaticamente os campos
-          if (data.logradouro) {
-            setDeliveryAddress(data.logradouro)
-          }
-          if (data.bairro) {
-            setDeliveryNeighborhood(data.bairro)
-          }
-          // localidade seria a cidade, mas não temos campo para isso no momento
-          // Se precisar, pode adicionar depois
-        } else {
-          // CEP não encontrado - limpa os campos (opcional, pode deixar como está)
-          console.log('CEP não encontrado')
-        }
-      } catch (error) {
-        console.error('Erro ao consultar CEP:', error)
-        // Em caso de erro, apenas loga - não interfere no preenchimento manual
-      }
-    }
   }
 
   const handleFinalizeOrder = () => {
@@ -337,7 +309,7 @@ export function CartSidebar({
     if (allowWhatsAppOrder && whatsAppNumber) {
       handleWhatsAppOrderWithCustomer(customerName, customerPhone)
     } else {
-      handleCreateOrderWithCustomer(customerName, customerPhone)
+      void handleCreateOrderWithCustomer(customerName, customerPhone)
     }
   }
 
@@ -433,7 +405,10 @@ export function CartSidebar({
     }
 
     try {
+      const allOrders = getTenantData<Order[]>(tenantId, 'orders') || []
+
       const orderItems = items.map((item) => ({
+        id: `order-item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         menuItemId: item.item.id,
         menuItemName: item.item.name,
         size: item.size?.name,
@@ -479,75 +454,72 @@ export function CartSidebar({
         }
       }
 
-      // Busca o tenant slug para fazer a requisição pública
-      const { getApiUrl } = await import('@/lib/api/config')
+      // Criar pedido no backend primeiro
       const apiUrl = getApiUrl()
+      console.log('[CartSidebar] Criando pedido no backend:', { customerName: name, customerPhone: phone, itemCount: orderItems.length })
       
-      // Usa o tenantSlug passado como prop, ou tenta buscar do localStorage
-      let slug = tenantSlug
-      if (!slug && tenantId) {
-        const { getTenantById } = await import('@/lib/storage/storage')
-        const tenant = getTenantById(tenantId)
-        if (tenant) {
-          slug = tenant.slug
-        }
-      }
-      
-      if (!slug) {
-        throw new Error('Tenant slug não encontrado')
-      }
-
-      const payload = {
-        customerName: name,
-        customerPhone: phone,
-        items: orderItems,
-        subtotal: total,
-        total,
-        paymentMethod: orderPaymentMethod,
-        deliveryType,
-        deliveryAddress: fullAddress,
-        notes: paymentMethod === 'cash' && needsChange && cashReceived
-          ? `Pagamento em dinheiro. Valor recebido: ${formatCurrency(parseFloat(cashReceived.replace(',', '.')) || 0)}. Troco: ${formatCurrency(change)}`
-          : undefined,
-        source: getOrderSourceFromUrl(),
-      }
-
-      // Salva no backend primeiro
-      const response = await fetch(`${apiUrl}/api/orders/public/${slug}`, {
+      const response = await authenticatedFetch(`${apiUrl}/api/orders`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          customerName: name,
+          customerPhone: phone,
+          items: orderItems.map(item => ({
+            menuItemId: item.menuItemId,
+            menuItemName: item.menuItemName,
+            size: item.size,
+            additions: item.additions,
+            complements: item.complements,
+            fruits: item.fruits,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            totalPrice: item.totalPrice,
+          })),
+          subtotal: total,
+          total,
+          paymentMethod: orderPaymentMethod,
+          deliveryType,
+          deliveryAddress: fullAddress,
+          notes: paymentMethod === 'cash' && needsChange && cashReceived
+            ? `Pagamento em dinheiro. Valor recebido: ${formatCurrency(parseFloat(cashReceived.replace(',', '.')) || 0)}. Troco: ${formatCurrency(change)}`
+            : undefined,
+          source: getOrderSourceFromUrl(),
+        }),
       })
 
+      console.log('[CartSidebar] Resposta do backend:', { status: response.status, ok: response.ok })
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || `Erro ao criar pedido no backend: ${response.status}`)
+        const errorData = await response.json().catch(() => ({ error: 'Erro ao criar pedido' }))
+        console.error('[CartSidebar] Erro ao criar pedido no backend:', errorData)
+        throw new Error(errorData.error || 'Erro ao criar pedido no servidor')
       }
 
       const result = await response.json()
       const backendOrderId = result.id
-
-      // Converte os dados para o formato local e salva no localStorage como cache
-      const allOrders = getTenantData<Order[]>(tenantId, 'orders') || []
       
+      console.log('[CartSidebar] Pedido criado no backend com ID:', backendOrderId)
+      
+      if (!backendOrderId || typeof backendOrderId !== 'string' || !backendOrderId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+        console.error('[CartSidebar] ID do backend não é um UUID válido:', backendOrderId)
+        throw new Error('ID do pedido retornado pelo servidor é inválido')
+      }
+
+      // Criar pedido local com o ID do backend
       const newOrder: Order = {
         id: backendOrderId,
         tenantId,
         customerName: name,
         customerPhone: phone,
-        items: orderItems.map(item => ({
-          id: `order-item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          ...item,
-        })),
+        items: orderItems,
         subtotal: total,
         total,
         status: 'pending',
         paymentMethod: orderPaymentMethod,
         deliveryType,
         deliveryAddress: fullAddress,
-        notes: payload.notes,
+        notes: paymentMethod === 'cash' && needsChange && cashReceived
+          ? `Pagamento em dinheiro. Valor recebido: ${formatCurrency(parseFloat(cashReceived.replace(',', '.')) || 0)}. Troco: ${formatCurrency(change)}`
+          : undefined,
         source: getOrderSourceFromUrl(),
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -563,11 +535,13 @@ export function CartSidebar({
 
       onCreateOrder?.()
       onClose()
-    } catch (error) {
-      console.error('Erro ao criar pedido:', error)
+    } catch (error: any) {
+      console.error('[CartSidebar] Erro completo ao criar pedido:', error)
+      
+      const errorMessage = error?.message || 'Erro desconhecido ao criar pedido'
       toast({
-        title: 'Erro',
-        description: error instanceof Error ? error.message : 'Erro ao criar pedido',
+        title: 'Erro ao criar pedido',
+        description: errorMessage,
         variant: 'destructive',
       })
     }
@@ -809,21 +783,6 @@ export function CartSidebar({
                         {(!showAddressOption || useSavedAddress) && (
                           <>
                             <div className="space-y-2">
-                              <Label htmlFor="deliveryZipCode" className="text-xs font-bold uppercase tracking-widest text-white/60">
-                                CEP *
-                              </Label>
-                              <Input
-                                id="deliveryZipCode"
-                                placeholder="00000-000"
-                                value={deliveryZipCode}
-                                onChange={handleZipCodeChange}
-                                maxLength={9}
-                                className="bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-primary"
-                                style={{ '--tw-ring-color': primaryColor } as any}
-                              />
-                            </div>
-
-                            <div className="space-y-2">
                               <Label htmlFor="deliveryAddress" className="text-xs font-bold uppercase tracking-widest text-white/60">
                                 Endereço *
                               </Label>
@@ -837,18 +796,35 @@ export function CartSidebar({
                               />
                             </div>
 
-                            <div className="space-y-2">
-                              <Label htmlFor="deliveryNumber" className="text-xs font-bold uppercase tracking-widest text-white/60">
-                                Número *
-                              </Label>
-                              <Input
-                                id="deliveryNumber"
-                                placeholder="123"
-                                value={deliveryNumber}
-                                onChange={(e) => setDeliveryNumber(e.target.value)}
-                                className="bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-primary"
-                                style={{ '--tw-ring-color': primaryColor } as any}
-                              />
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="deliveryNumber" className="text-xs font-bold uppercase tracking-widest text-white/60">
+                                  Número *
+                                </Label>
+                                <Input
+                                  id="deliveryNumber"
+                                  placeholder="123"
+                                  value={deliveryNumber}
+                                  onChange={(e) => setDeliveryNumber(e.target.value)}
+                                  className="bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-primary"
+                                  style={{ '--tw-ring-color': primaryColor } as any}
+                                />
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label htmlFor="deliveryZipCode" className="text-xs font-bold uppercase tracking-widest text-white/60">
+                                  CEP *
+                                </Label>
+                                <Input
+                                  id="deliveryZipCode"
+                                  placeholder="00000-000"
+                                  value={deliveryZipCode}
+                                  onChange={handleZipCodeChange}
+                                  maxLength={9}
+                                  className="bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-primary"
+                                  style={{ '--tw-ring-color': primaryColor } as any}
+                                />
+                              </div>
                             </div>
 
                             <div className="space-y-2">
