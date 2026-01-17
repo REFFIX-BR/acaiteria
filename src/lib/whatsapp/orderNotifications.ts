@@ -19,8 +19,21 @@ async function sendWhatsAppMessage(
     const apiUrl = getApiUrl()
     const url = `${apiUrl}/api/whatsapp/messages/send`
     
+    // Verifica se localStorage está disponível
+    const isLocalStorageAvailable = typeof window !== 'undefined' && window.localStorage !== null
+    console.log('[WhatsApp] localStorage disponível:', isLocalStorageAvailable)
+    
     // Obtém o token do localStorage (pode ser null)
     const token = getAuthToken()
+    
+    // Log detalhado sobre o token
+    console.log('[WhatsApp] Token de autenticação:', {
+      exists: !!token,
+      length: token ? token.length : 0,
+      preview: token ? `${token.substring(0, 20)}...` : null,
+      localStorageKey: 'auth_token',
+      localStorageValue: isLocalStorageAvailable ? localStorage.getItem('auth_token') : 'N/A (localStorage não disponível)',
+    })
     
     console.log('[WhatsApp] Enviando mensagem via backend:', {
       url,
