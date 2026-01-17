@@ -14,35 +14,36 @@ async function sendWhatsAppMessage(
   try {
     // Importa dinamicamente para evitar dependência circular
     const { getApiUrl } = await import('@/lib/api/config')
-    const { authenticatedFetch } = await import('@/lib/api/auth')
+    const { getAuthToken } = await import('@/lib/api/auth')
     
     const apiUrl = getApiUrl()
     const url = `${apiUrl}/api/whatsapp/messages/send`
+    
+    // Obtém o token do localStorage (pode ser null)
+    const token = getAuthToken()
     
     console.log('[WhatsApp] Enviando mensagem via backend:', {
       url,
       instance,
       phone,
       textLength: text.length,
+      hasToken: !!token,
     })
 
-    // Verifica se tem token antes de tentar enviar
-    const { getAuthToken } = await import('@/lib/api/auth')
-    const token = getAuthToken()
+    // Constrói headers
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
     
-    if (!token) {
-      console.warn('[WhatsApp] Token de autenticação não encontrado. Notificação não será enviada.')
-      return {
-        success: false,
-        error: 'Autenticação necessária. Por favor, faça login novamente.',
-      }
+    // Adiciona token se existir
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
     }
 
-    const response = await authenticatedFetch(url, {
+    // Faz a requisição diretamente com fetch
+    const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify({
         instanceName: instance,
         phone: phone,
