@@ -12,7 +12,6 @@ import {
   deleteWhatsAppInstance,
 } from '../db/storage.js'
 import { query } from '../db/connection.js'
-import { z } from 'zod'
 
 const router = Router()
 
