@@ -489,11 +489,13 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
                   variant: 'destructive',
                 })
               })
-            }
           } catch (error) {
             console.error('[CampaignForm] Erro ao preparar envio automático:', error)
             // Não bloquear o salvamento da campanha se houver erro no envio
           }
+        } catch (error) {
+          console.error('[CampaignForm] Erro ao enviar campanha:', error)
+          // Não bloquear o salvamento da campanha se houver erro no envio
         }
       }
 
