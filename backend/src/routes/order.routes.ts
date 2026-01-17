@@ -114,12 +114,16 @@ router.post('/', async (req: AuthRequest, res, next) => {
 
     // Criar itens do pedido
     for (const item of data.items) {
+      // Se menuItemId não for UUID válido, usar NULL (itens podem não estar no banco ainda)
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+      const menuItemId = uuidRegex.test(item.menuItemId) ? item.menuItemId : null
+      
       await query(
         `INSERT INTO order_items (order_id, menu_item_id, menu_item_name, size, additions, complements, fruits, quantity, unit_price, total_price)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
         [
           orderId,
-          item.menuItemId,
+          menuItemId,
           item.menuItemName,
           item.size || null,
           item.additions,
