@@ -561,12 +561,18 @@ export class EvolutionAPIClient {
 
       console.log('[EvolutionAPI] Enviando mídia:', {
         endpoint,
+        fullUrl: endpoint,
+        apiUrl: this.apiUrl,
         instanceName,
         phone: formattedPhone,
         mediaType,
         mimetype,
-        mediaUrl,
+        mediaUrl: mediaUrl.substring(0, 80) + (mediaUrl.length > 80 ? '...' : ''),
         caption: caption.substring(0, 50) + (caption.length > 50 ? '...' : ''),
+        payload: {
+          ...payload,
+          media: payload.media.substring(0, 80) + '...',
+        },
       })
 
       const response = await fetch(endpoint, {
@@ -630,12 +636,25 @@ export class EvolutionAPIClient {
     // Garantir que o intervalo seja no mínimo 15 segundos
     const interval = Math.max(15, sendInterval) * 1000 // Converter para milissegundos
 
+    console.log('[EvolutionAPI] sendBulkMessage iniciado:', {
+      totalCustomers: customers.length,
+      hasImage: !!imageUrl,
+      imageUrl: imageUrl?.substring(0, 50) + (imageUrl && imageUrl.length > 50 ? '...' : ''),
+      sendInterval,
+      instanceName,
+    })
+
     for (let i = 0; i < customers.length; i++) {
       const customer = customers[i]
       
       // Se houver imagem, envia mídia, senão envia texto
       let result
       if (imageUrl) {
+        console.log(`[EvolutionAPI] Enviando mídia para cliente ${i + 1}/${customers.length}:`, {
+          customerId: customer.id,
+          phone: customer.phone,
+          imageUrl: imageUrl.substring(0, 50) + '...',
+        })
         result = await this.sendMedia(
           instanceName,
           customer.phone,
@@ -644,6 +663,10 @@ export class EvolutionAPIClient {
           'image'
         )
       } else {
+        console.log(`[EvolutionAPI] Enviando texto para cliente ${i + 1}/${customers.length}:`, {
+          customerId: customer.id,
+          phone: customer.phone,
+        })
         result = await this.sendMessage(instanceName, customer.phone, message)
       }
       

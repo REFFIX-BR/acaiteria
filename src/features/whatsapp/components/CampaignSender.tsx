@@ -140,6 +140,15 @@ export function CampaignSender() {
         }
       }
 
+      console.log('[CampaignSender] Preparando envio:', {
+        totalCustomers: customersToSend.length,
+        hasCampaign: selectedCampaign !== 'none',
+        campaignImage: campaignImage?.substring(0, 50) + (campaignImage && campaignImage.length > 50 ? '...' : ''),
+        sendInterval,
+        instanceName: config.instanceName,
+        apiUrl: config.apiUrl,
+      })
+
       const results = await client.sendBulkMessage(
         config.instanceName!,
         customersToSend,
@@ -150,6 +159,12 @@ export function CampaignSender() {
         sendInterval,
         campaignImage // Passa a imagem da campanha se houver
       )
+
+      console.log('[CampaignSender] Resultado do envio:', {
+        sent: results.sent,
+        failed: results.failed,
+        total: results.results.length,
+      })
 
       // Salva histórico de envios
       const history = getTenantData<WhatsAppSend[]>(currentTenant.id, 'whatsapp_sends') || []
