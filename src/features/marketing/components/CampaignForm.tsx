@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
 import { Plus, Edit, Upload, Image as ImageIcon, X } from 'lucide-react'
-import type { Campaign } from '@/types'
+import type { Campaign, Customer, WhatsAppConfig, WhatsAppSend } from '@/types'
 
 const campaignSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório'),
@@ -381,6 +381,129 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
       setTenantData(currentTenant.id, 'campaigns', campaigns)
 
       console.log('[CampaignForm] Campanha salva com sucesso')
+
+      // Se for campanha WhatsApp ou Promoção e status ativo, enviar automaticamente para todos os clientes
+      if ((data.type === 'whatsapp' || data.type === 'promotion') && (!campaign || campaign.status === 'active')) {
+        try {
+          console.log('[CampaignForm] Iniciando envio automático da campanha WhatsApp...')
+          
+          // Buscar configuração do WhatsApp
+          const whatsappConfig = getTenantData<WhatsAppConfig>(currentTenant.id, 'whatsapp_config')
+          
+          if (!whatsappConfig || !whatsappConfig.connected || !whatsappConfig.instanceName) {
+            console.warn('[CampaignForm] WhatsApp não configurado ou desconectado')
+            toast({
+              title: 'Aviso',
+              description: 'Campanha salva, mas WhatsApp não está configurado. Configure o WhatsApp para enviar automaticamente.',
+              variant: 'default',
+            })
+          } else {
+            // Buscar todos os clientes
+            const allCustomers = getTenantData<Customer[]>(currentTenant.id, 'customers') || []
+            
+            if (allCustomers.length === 0) {
+              console.warn('[CampaignForm] Nenhum cliente cadastrado')
+              toast({
+                title: 'Aviso',
+                description: 'Campanha salva, mas não há clientes cadastrados para enviar.',
+                variant: 'default',
+              })
+            } else {
+              // Enviar campanha automaticamente
+              const { EvolutionAPIClient } = await import('@/lib/whatsapp/evolutionApi')
+              const client = new EvolutionAPIClient(whatsappConfig)
+              
+              const sendInterval = data.sendInterval || 15
+              
+              // Montar mensagem com informações da campanha
+              let message = data.description || ''
+              
+              // Se for promoção, adicionar informação de desconto
+              if (data.type === 'promotion' && data.discount) {
+                const discountText = `🎉 Promoção: ${data.discount}% de desconto!\n\n`
+                message = discountText + (message || 'Confira nossa promoção especial!')
+              }
+              
+              // Adicionar nome da campanha se houver
+              if (data.name) {
+                message = `📢 ${data.name}\n\n${message}`
+              }
+              
+              const imageUrl = finalImageUrl || undefined
+              
+              console.log('[CampaignForm] Enviando para', allCustomers.length, 'clientes...')
+              
+              // Enviar em background (não bloquear a UI)
+              client.sendBulkMessage(
+                whatsappConfig.instanceName,
+                allCustomers,
+                message,
+                undefined, // Sem callback de progresso para não bloquear
+                sendInterval,
+                imageUrl
+              ).then((results) => {
+                console.log('[CampaignForm] Envio automático concluído:', {
+                  sent: results.sent,
+                  failed: results.failed,
+                  total: results.results.length,
+                })
+                
+                // Atualizar métricas da campanha
+                const updatedCampaigns = getTenantData<Campaign[]>(currentTenant.id, 'campaigns') || []
+                const campaignIndex = updatedCampaigns.findIndex((c) => 
+                  c.id === (campaign?.id || tempId)
+                )
+                
+                if (campaignIndex !== -1) {
+                  updatedCampaigns[campaignIndex] = {
+                    ...updatedCampaigns[campaignIndex],
+                    metrics: {
+                      ...updatedCampaigns[campaignIndex].metrics,
+                      sent: updatedCampaigns[campaignIndex].metrics.sent + results.sent,
+                      delivered: updatedCampaigns[campaignIndex].metrics.delivered + results.sent,
+                      failed: updatedCampaigns[campaignIndex].metrics.failed + results.failed,
+                    },
+                  }
+                  setTenantData(currentTenant.id, 'campaigns', updatedCampaigns)
+                }
+                
+                // Salvar histórico de envios
+                const history = getTenantData<WhatsAppSend[]>(currentTenant.id, 'whatsapp_sends') || []
+                const newSends: WhatsAppSend[] = results.results.map((result) => {
+                  const customer = allCustomers.find((c) => c.id === result.customerId)!
+                  return {
+                    id: `send-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                    campaignId: campaign?.id || tempId,
+                    customerId: customer.id,
+                    phone: customer.phone,
+                    message,
+                    status: result.success ? 'sent' : 'failed',
+                    sentAt: result.success ? new Date() : undefined,
+                    error: result.error,
+                    createdAt: new Date(),
+                  }
+                })
+                setTenantData(currentTenant.id, 'whatsapp_sends', [...history, ...newSends])
+                
+                toast({
+                  title: 'Campanha enviada!',
+                  description: `${results.sent} mensagem(ns) enviada(s) para ${allCustomers.length} cliente(s)`,
+                })
+              }).catch((error) => {
+                console.error('[CampaignForm] Erro ao enviar campanha automaticamente:', error)
+                toast({
+                  title: 'Erro no envio',
+                  description: 'Campanha salva, mas houve erro ao enviar mensagens. Tente novamente.',
+                  variant: 'destructive',
+                })
+              })
+            }
+          }
+        } catch (error) {
+          console.error('[CampaignForm] Erro ao preparar envio automático:', error)
+          // Não bloquear o salvamento da campanha se houver erro no envio
+        }
+      }
 
       toast({
         title: 'Sucesso',
