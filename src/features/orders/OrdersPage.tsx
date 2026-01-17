@@ -157,6 +157,7 @@ export default function OrdersPage() {
       
       if (orderIndex !== -1) {
         const order = allOrders[orderIndex]
+        const oldStatus = order.status
         const updatedOrder: Order = {
           ...order,
           status: newStatus,
@@ -169,46 +170,46 @@ export default function OrdersPage() {
         allOrders[orderIndex] = updatedOrder
         setTenantData(currentTenant.id, 'orders', allOrders)
         setRefreshTrigger((prev) => prev + 1)
-      }
 
-      // Se o pedido foi marcado como entregue, cria uma transação de entrada
-      if (newStatus === 'delivered' && order.status !== 'delivered') {
-        const transactions = getTenantData<Transaction[]>(currentTenant.id, 'transactions') || []
-        
-        // Verifica se já existe uma transação para este pedido (evita duplicatas)
-        const existingTransaction = transactions.find(
-          (t) => t.type === 'income' && t.description.includes(`Pedido #${order.id}`)
-        )
+        // Se o pedido foi marcado como entregue, cria uma transação de entrada
+        if (newStatus === 'delivered' && oldStatus !== 'delivered') {
+          const transactions = getTenantData<Transaction[]>(currentTenant.id, 'transactions') || []
+          
+          // Verifica se já existe uma transação para este pedido (evita duplicatas)
+          const existingTransaction = transactions.find(
+            (t) => t.type === 'income' && t.description.includes(`Pedido #${order.id}`)
+          )
 
-        if (!existingTransaction) {
-          const newTransaction: Transaction = {
-            id: `transaction-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            type: 'income',
-            category: 'Vendas',
-            amount: order.total,
-            description: `Pedido #${order.id} - ${order.customerName}${order.deliveryType === 'delivery' ? ' (Entrega)' : ' (Retirada)'}`,
-            date: new Date(),
-            createdAt: new Date(),
+          if (!existingTransaction) {
+            const newTransaction: Transaction = {
+              id: `transaction-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              type: 'income',
+              category: 'Vendas',
+              amount: order.total,
+              description: `Pedido #${order.id} - ${order.customerName}${order.deliveryType === 'delivery' ? ' (Entrega)' : ' (Retirada)'}`,
+              date: new Date(),
+              createdAt: new Date(),
+            }
+
+            transactions.push(newTransaction)
+            setTenantData(currentTenant.id, 'transactions', transactions)
+
+            toast({
+              title: 'Status atualizado',
+              description: `Pedido ${statusConfig[newStatus].label.toLowerCase()} e adicionado ao fluxo de caixa`,
+            })
+          } else {
+            toast({
+              title: 'Status atualizado',
+              description: `Pedido ${statusConfig[newStatus].label.toLowerCase()}`,
+            })
           }
-
-          transactions.push(newTransaction)
-          setTenantData(currentTenant.id, 'transactions', transactions)
-
-          toast({
-            title: 'Status atualizado',
-            description: `Pedido ${statusConfig[newStatus].label.toLowerCase()} e adicionado ao fluxo de caixa`,
-          })
         } else {
           toast({
             title: 'Status atualizado',
             description: `Pedido ${statusConfig[newStatus].label.toLowerCase()}`,
           })
         }
-      } else {
-        toast({
-          title: 'Status atualizado',
-          description: `Pedido ${statusConfig[newStatus].label.toLowerCase()}`,
-        })
       }
     } catch (error) {
       console.error('Erro ao atualizar pedido:', error)
