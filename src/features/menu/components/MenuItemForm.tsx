@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/hooks/use-toast'
-import { Plus, Edit, ChefHat, DollarSign, Image as ImageIcon, Package, Trash2 } from 'lucide-react'
+import { Plus, Edit, ChefHat, DollarSign, Image as ImageIcon, Package, Trash2, Upload, X } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import type { MenuItem } from '@/types'
 
@@ -104,6 +104,9 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
   const [open, setOpen] = useState(false)
   const [newCategoryDialogOpen, setNewCategoryDialogOpen] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState('')
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const {
     register,
@@ -265,6 +268,8 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
       setValue('additions', menuItem.additions || [])
       setValue('complements', menuItem.complements || [])
       setValue('fruits', menuItem.fruits || [])
+      setImagePreview(menuItem.image || null)
+      setImageFile(null)
     } else {
       reset({
         basePrice: 0,
@@ -277,6 +282,8 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
         complements: [],
         fruits: [],
       })
+      setImagePreview(null)
+      setImageFile(null)
     }
   }, [menuItem, setValue, reset])
 
@@ -301,11 +308,32 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
         throw new Error('Token de autenticação não encontrado. Faça login novamente.')
       }
 
+      // Fazer upload da imagem se houver arquivo selecionado
+      let imageUrl = data.image && data.image.trim() ? data.image : null
+      
+      if (imageFile && currentTenant) {
+        try {
+          const { uploadImage } = await import('@/lib/api/upload')
+          imageUrl = await uploadImage(imageFile, 'menu-item', {
+            tenantId: currentTenant.id,
+            tenantSlug: currentTenant.slug,
+          })
+        } catch (error) {
+          console.error('Erro ao fazer upload da imagem:', error)
+          toast({
+            title: 'Erro',
+            description: error instanceof Error ? error.message : 'Erro ao fazer upload da imagem',
+            variant: 'destructive',
+          })
+          return
+        }
+      }
+
       const payload = {
         name: data.name,
         description: data.description,
         basePrice: data.basePrice,
-        image: data.image && data.image.trim() ? data.image : null,
+        image: imageUrl,
         category: data.category,
         available: data.available,
         maxAdditions: data.maxAdditions !== undefined ? data.maxAdditions : null,
@@ -427,6 +455,8 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
       })
 
       setOpen(false)
+      setImageFile(null)
+      setImagePreview(null)
       onSuccess?.()
       reset()
     } catch (error) {
@@ -571,16 +601,106 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="image" className="flex items-center gap-2">
                     <ImageIcon className="h-4 w-4" />
-                    Foto do Produto (URL)
+                    Foto do Produto
                   </Label>
-                  <Input
-                    id="image"
-                    type="url"
-                    placeholder="https://exemplo.com/imagem.jpg"
-                    {...register('image')}
+                  
+                  {/* Preview da imagem */}
+                  {(imagePreview || watch('image')) && (
+                    <div className="relative w-32 h-32 border rounded-lg overflow-hidden mb-2">
+                      <img
+                        src={imagePreview || watch('image') || ''}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none'
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="icon"
+                        className="absolute top-1 right-1 h-6 w-6"
+                        onClick={() => {
+                          setImageFile(null)
+                          setImagePreview(null)
+                          setValue('image', '')
+                          if (fileInputRef.current) {
+                            fileInputRef.current.value = ''
+                          }
+                        }}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Upload de arquivo */}
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex-1"
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      {imageFile ? 'Trocar Imagem' : 'Fazer Upload'}
+                    </Button>
+                    <Input
+                      id="image-url"
+                      type="url"
+                      placeholder="Ou cole uma URL"
+                      {...register('image')}
+                      className="flex-1"
+                      onChange={(e) => {
+                        if (e.target.value && !imageFile) {
+                          setImagePreview(e.target.value)
+                        }
+                      }}
+                    />
+                  </div>
+                  
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+
+                      // Valida tipo
+                      if (!file.type.startsWith('image/')) {
+                        toast({
+                          title: 'Erro',
+                          description: 'Por favor, selecione uma imagem válida',
+                          variant: 'destructive',
+                        })
+                        return
+                      }
+
+                      // Valida tamanho
+                      if (file.size > 5 * 1024 * 1024) {
+                        toast({
+                          title: 'Erro',
+                          description: 'A imagem deve ter no máximo 5MB',
+                          variant: 'destructive',
+                        })
+                        return
+                      }
+
+                      setImageFile(file)
+                      
+                      // Preview local
+                      const reader = new FileReader()
+                      reader.onload = (event) => {
+                        setImagePreview(event.target?.result as string)
+                      }
+                      reader.readAsDataURL(file)
+                    }}
                   />
+                  
                   <p className="text-xs text-muted-foreground">
-                    Link da imagem do produto (opcional)
+                    Faça upload de uma imagem ou cole uma URL (opcional)
                   </p>
                 </div>
               </div>

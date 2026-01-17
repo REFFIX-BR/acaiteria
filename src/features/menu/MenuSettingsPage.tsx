@@ -47,7 +47,7 @@ export default function MenuSettingsPage() {
     return saved || defaultSettings
   })
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !currentTenant) return
 
@@ -71,14 +71,42 @@ export default function MenuSettingsPage() {
       return
     }
 
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      const logoUrl = event.target?.result as string
-      
+    try {
+      // Fazer upload para MinIO
+      const { uploadImage } = await import('@/lib/api/upload')
+      const logoUrl = await uploadImage(file, 'logo', {
+        tenantId: currentTenant.id,
+        tenantSlug: currentTenant.slug,
+      })
+
       // Atualiza o tenant com o novo logo
       const updatedTenant = {
         ...currentTenant,
         logo: logoUrl,
+      }
+      
+      // Salva no backend
+      try {
+        const { getApiUrl } = await import('@/lib/api/config')
+        const { getAuthToken } = await import('@/lib/api/auth')
+        const apiUrl = getApiUrl()
+        const token = getAuthToken()
+
+        if (token) {
+          await fetch(`${apiUrl}/api/tenants`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              logo: logoUrl,
+            }),
+          })
+        }
+      } catch (error) {
+        console.error('Erro ao salvar logo no backend:', error)
+        // Continua mesmo se falhar no backend
       }
       
       saveTenant(updatedTenant)
@@ -88,17 +116,14 @@ export default function MenuSettingsPage() {
         title: 'Sucesso',
         description: 'Logo atualizado com sucesso',
       })
-    }
-    
-    reader.onerror = () => {
+    } catch (error) {
+      console.error('Erro ao fazer upload do logo:', error)
       toast({
         title: 'Erro',
-        description: 'Erro ao carregar a imagem',
+        description: error instanceof Error ? error.message : 'Erro ao fazer upload da imagem',
         variant: 'destructive',
       })
     }
-    
-    reader.readAsDataURL(file)
   }
 
   const handleRemoveLogo = () => {
