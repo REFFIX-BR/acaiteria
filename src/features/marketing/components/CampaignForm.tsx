@@ -498,26 +498,24 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
             </div>
           )}
 
-          {campaignType === 'whatsapp' && (
-            <div className="space-y-2">
-              <Label htmlFor="sendInterval">
-                Intervalo de Disparo (segundos)
-              </Label>
-              <Input
-                id="sendInterval"
-                type="number"
-                min="15"
-                placeholder="15"
-                {...register('sendInterval', { valueAsNumber: true })}
-              />
-              {errors.sendInterval && (
-                <p className="text-sm text-destructive">{errors.sendInterval.message}</p>
-              )}
-              <p className="text-xs text-muted-foreground">
-                Intervalo mínimo: 15 segundos. Tempo de espera entre cada envio de mensagem.
-              </p>
-            </div>
-          )}
+          <div className="space-y-2">
+            <Label htmlFor="sendInterval">
+              Intervalo de Disparo (segundos)
+            </Label>
+            <Input
+              id="sendInterval"
+              type="number"
+              min="15"
+              placeholder="15"
+              {...register('sendInterval', { valueAsNumber: true })}
+            />
+            {errors.sendInterval && (
+              <p className="text-sm text-destructive">{errors.sendInterval.message}</p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Intervalo mínimo: 15 segundos. Tempo de espera entre cada envio de mensagem para cada cliente.
+            </p>
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
