@@ -147,8 +147,12 @@ export default function OrdersPage() {
       })
 
       if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Erro ao atualizar status' }))
-        throw new Error(error.error || 'Erro ao atualizar status do pedido')
+        const errorData = await response.json().catch(() => ({ error: 'Erro ao atualizar status' }))
+        const errorMessage = errorData.error || errorData.message || 'Erro ao atualizar status do pedido'
+        const error = new Error(errorMessage)
+        ;(error as any).response = response
+        ;(error as any).errorData = errorData
+        throw error
       }
 
       // Atualizar localmente apenas se a API responder com sucesso
@@ -211,11 +215,29 @@ export default function OrdersPage() {
           })
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao atualizar pedido:', error)
+      
+      // Se o erro for de formato de ID inválido, informar que o pedido precisa ser recriado
+      const errorMessage = error?.message || error?.errorData?.error || ''
+      const errorDetails = error?.errorData?.details || ''
+      
+      if (
+        errorMessage.includes('Invalid order ID format') || 
+        errorMessage.includes('Order must be created') ||
+        error?.response?.status === 400
+      ) {
+        toast({
+          title: 'Pedido não encontrado no servidor',
+          description: 'Este pedido foi criado antes da atualização. Por favor, remova este pedido ou aguarde que novos pedidos sejam criados corretamente.',
+          variant: 'destructive',
+        })
+        return
+      }
+      
       toast({
         title: 'Erro',
-        description: 'Erro ao atualizar status do pedido',
+        description: errorMessage || errorDetails || 'Erro ao atualizar status do pedido',
         variant: 'destructive',
       })
     }
