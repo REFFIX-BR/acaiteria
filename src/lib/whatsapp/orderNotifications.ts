@@ -93,34 +93,70 @@ async function sendWhatsAppMessage(
 }
 
 /**
+ * Formata os itens do pedido para exibição na mensagem
+ */
+function formatOrderItems(order: Order): string {
+  if (!order.items || order.items.length === 0) {
+    return ''
+  }
+
+  const itemsText = order.items.map((item) => {
+    let itemText = `• ${item.quantity}x ${item.menuItemName}`
+    
+    if (item.size) {
+      itemText += ` (${item.size})`
+    }
+    
+    const extras: string[] = []
+    if (item.additions && item.additions.length > 0) {
+      extras.push(`Coberturas: ${item.additions.join(', ')}`)
+    }
+    if (item.complements && item.complements.length > 0) {
+      extras.push(`Complementos: ${item.complements.join(', ')}`)
+    }
+    if (item.fruits && item.fruits.length > 0) {
+      extras.push(`Frutas: ${item.fruits.join(', ')}`)
+    }
+    
+    if (extras.length > 0) {
+      itemText += `\n  ${extras.join(', ')}`
+    }
+    
+    return itemText
+  }).join('\n')
+
+  return `\n\n*Resumo do pedido:*\n${itemsText}\n\n*Total: R$ ${order.total.toFixed(2).replace('.', ',')}*`
+}
+
+/**
  * Gera mensagem personalizada baseada no status do pedido
  */
 function generateStatusMessage(order: Order, status: Order['status']): string {
-  const orderId = order.id.slice(-8)
   const customerName = order.customerName.split(' ')[0] // Primeiro nome apenas
+  const itemsSummary = formatOrderItems(order)
 
   switch (status) {
     case 'accepted':
-      return `✅ Olá ${customerName}! Seu pedido #${orderId} foi *aceito* e está sendo preparado com muito carinho! 🍇\n\nObrigado pela preferência! 😊`
+      return `✅ Olá ${customerName}! Seu pedido foi *aceito* e está sendo preparado com muito carinho! 🍇${itemsSummary}\n\nObrigado pela preferência! 😊`
 
     case 'preparing':
-      return `👨‍🍳 ${customerName}, seu pedido #${orderId} está *em preparo*! Logo mais estará pronto para você! ⏱️\n\nAguarde, por favor! 🙏`
+      return `👨‍🍳 ${customerName}, seu pedido está *em preparo*! Logo mais estará pronto para você! ⏱️${itemsSummary}\n\nAguarde, por favor! 🙏`
 
     case 'ready':
       if (order.deliveryType === 'delivery') {
-        return `🚀 ${customerName}, seu pedido #${orderId} está *pronto* e já saiu para entrega! 🚚\n\nEntraremos em contato em breve. Obrigado! 😊`
+        return `🚀 ${customerName}, seu pedido está *pronto* e já saiu para entrega! 🚚${itemsSummary}\n\nEntraremos em contato em breve. Obrigado! 😊`
       } else {
-        return `✨ ${customerName}, seu pedido #${orderId} está *pronto para retirada*! 🎉\n\nPode vir buscar quando quiser. Esperamos você! 😊`
+        return `✨ ${customerName}, seu pedido está *pronto para retirada*! 🎉${itemsSummary}\n\nPode vir buscar quando quiser. Esperamos você! 😊`
       }
 
     case 'delivered':
-      return `🎉 ${customerName}, seu pedido #${orderId} foi *entregue*! Esperamos que tenha gostado! ❤️\n\nObrigado pela preferência! Volte sempre! 😊`
+      return `🎉 ${customerName}, seu pedido foi *entregue*! Esperamos que tenha gostado! ❤️${itemsSummary}\n\nObrigado pela preferência! Volte sempre! 😊`
 
     case 'cancelled':
-      return `❌ ${customerName}, infelizmente seu pedido #${orderId} foi *cancelado*.\n\nSe tiver alguma dúvida, entre em contato conosco. 😔`
+      return `❌ ${customerName}, infelizmente seu pedido foi *cancelado*.${itemsSummary}\n\nSe tiver alguma dúvida, entre em contato conosco. 😔`
 
     default:
-      return `Olá ${customerName}! Seu pedido #${orderId} teve uma atualização.`
+      return `Olá ${customerName}! Seu pedido teve uma atualização.${itemsSummary}`
   }
 }
 
