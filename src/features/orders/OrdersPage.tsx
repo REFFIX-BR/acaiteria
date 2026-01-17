@@ -2,6 +2,8 @@ import { useState, useMemo, useEffect } from 'react'
 import { useTenantStore } from '@/stores/tenantStore'
 import { getTenantData, setTenantData } from '@/lib/storage/storage'
 import type { Transaction } from '@/types'
+import { getApiUrl } from '@/lib/api/config'
+import { authenticatedFetch } from '@/lib/api/auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -133,28 +135,41 @@ export default function OrdersPage() {
     return orders.filter((o) => o.status === 'pending')
   }, [orders])
 
-  const updateOrderStatus = (orderId: string, newStatus: Order['status']) => {
+  const updateOrderStatus = async (orderId: string, newStatus: Order['status']) => {
     if (!currentTenant) return
 
     try {
+      // Primeiro, atualizar no backend via API
+      const apiUrl = getApiUrl()
+      const response = await authenticatedFetch(`${apiUrl}/api/orders/${orderId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: newStatus }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Erro ao atualizar status' }))
+        throw new Error(error.error || 'Erro ao atualizar status do pedido')
+      }
+
+      // Atualizar localmente apenas se a API responder com sucesso
       const allOrders = getTenantData<Order[]>(currentTenant.id, 'orders') || []
       const orderIndex = allOrders.findIndex((o) => o.id === orderId)
       
-      if (orderIndex === -1) return
+      if (orderIndex !== -1) {
+        const order = allOrders[orderIndex]
+        const updatedOrder: Order = {
+          ...order,
+          status: newStatus,
+          updatedAt: new Date(),
+          acceptedAt: newStatus === 'accepted' ? new Date() : order.acceptedAt,
+          readyAt: newStatus === 'ready' ? new Date() : order.readyAt,
+          deliveredAt: newStatus === 'delivered' ? new Date() : order.deliveredAt,
+        }
 
-      const order = allOrders[orderIndex]
-      const updatedOrder: Order = {
-        ...order,
-        status: newStatus,
-        updatedAt: new Date(),
-        acceptedAt: newStatus === 'accepted' ? new Date() : order.acceptedAt,
-        readyAt: newStatus === 'ready' ? new Date() : order.readyAt,
-        deliveredAt: newStatus === 'delivered' ? new Date() : order.deliveredAt,
+        allOrders[orderIndex] = updatedOrder
+        setTenantData(currentTenant.id, 'orders', allOrders)
+        setRefreshTrigger((prev) => prev + 1)
       }
-
-      allOrders[orderIndex] = updatedOrder
-      setTenantData(currentTenant.id, 'orders', allOrders)
-      setRefreshTrigger((prev) => prev + 1)
 
       // Se o pedido foi marcado como entregue, cria uma transação de entrada
       if (newStatus === 'delivered' && order.status !== 'delivered') {
