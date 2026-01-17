@@ -494,9 +494,6 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
             console.error('[CampaignForm] Erro ao preparar envio automático:', error)
             // Não bloquear o salvamento da campanha se houver erro no envio
           }
-        } catch (error) {
-          console.error('[CampaignForm] Erro ao preparar envio automático:', error)
-          // Não bloquear o salvamento da campanha se houver erro no envio
         }
       }
 
