@@ -24,11 +24,31 @@ const campaignSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório'),
   type: z.enum(['promotion', 'whatsapp']),
   description: z.string().optional(),
-  discount: z.number().min(0).max(100).optional(),
+  discount: z.preprocess(
+    (val) => {
+      if (val === '' || val === null || val === undefined) return undefined
+      const num = typeof val === 'string' ? parseFloat(val) : val
+      return isNaN(num) ? undefined : num
+    },
+    z.number().min(0).max(100).optional()
+  ),
   startDate: z.string().min(1, 'Data de início é obrigatória'),
-  endDate: z.string().optional(),
-  image: z.string().optional(),
-  sendInterval: z.number().min(15, 'O intervalo mínimo é de 15 segundos').optional(),
+  endDate: z.preprocess(
+    (val) => val === '' ? undefined : val,
+    z.string().optional()
+  ),
+  image: z.preprocess(
+    (val) => val === '' ? undefined : val,
+    z.string().optional()
+  ),
+  sendInterval: z.preprocess(
+    (val) => {
+      if (val === '' || val === null || val === undefined) return 15
+      const num = typeof val === 'string' ? parseInt(val, 10) : val
+      return isNaN(num) ? 15 : Math.max(15, num)
+    },
+    z.number().min(15, 'O intervalo mínimo é de 15 segundos').default(15)
+  ),
 })
 
 type CampaignFormData = z.infer<typeof campaignSchema>
@@ -192,6 +212,8 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
   }, [campaign, setValue])
 
   const onSubmit = async (data: CampaignFormData) => {
+    console.log('[CampaignForm] onSubmit chamado:', data)
+    
     if (!currentTenant) {
       toast({
         title: 'Erro',
@@ -202,6 +224,7 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
     }
 
     try {
+      console.log('[CampaignForm] Iniciando salvamento da campanha...')
       // Se há um arquivo selecionado mas ainda não foi feito upload, fazer agora
       let finalImageUrl = data.image
       if (selectedImageFile && imagePreview && imagePreview.startsWith('data:')) {
@@ -238,9 +261,11 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
             description: data.description,
             discount: data.discount,
             startDate: new Date(data.startDate),
-            endDate: data.endDate ? new Date(data.endDate) : undefined,
+            endDate: data.endDate && data.endDate !== '' ? new Date(data.endDate) : undefined,
             image: finalImageUrl || undefined,
-            sendInterval: data.sendInterval || 15,
+            sendInterval: typeof data.sendInterval === 'string' 
+              ? (data.sendInterval === '' ? 15 : parseInt(data.sendInterval, 10) || 15)
+              : (data.sendInterval || 15),
           }
         }
       } else {
@@ -254,9 +279,11 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
           description: data.description,
           discount: data.discount,
           startDate: new Date(data.startDate),
-          endDate: data.endDate ? new Date(data.endDate) : undefined,
+          endDate: data.endDate && data.endDate !== '' ? new Date(data.endDate) : undefined,
           image: finalImageUrl || undefined,
-          sendInterval: data.sendInterval || 15,
+          sendInterval: typeof data.sendInterval === 'string' 
+            ? (data.sendInterval === '' ? 15 : parseInt(data.sendInterval, 10) || 15)
+            : (data.sendInterval || 15),
           metrics: {
             sent: 0,
             delivered: 0,
@@ -277,16 +304,23 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
         const token = getAuthToken()
 
         if (token) {
+          // Normalizar sendInterval para número
+          const sendInterval = typeof data.sendInterval === 'string' 
+            ? (data.sendInterval === '' ? 15 : parseInt(data.sendInterval, 10) || 15)
+            : (data.sendInterval || 15)
+
           const payload = {
             name: data.name,
             type: data.type,
-            description: data.description,
-            discount: data.discount,
+            description: data.description || undefined,
+            discount: data.discount === '' ? undefined : data.discount,
             startDate: data.startDate,
-            endDate: data.endDate || undefined,
+            endDate: data.endDate === '' ? undefined : data.endDate,
             image: finalImageUrl || undefined,
-            sendInterval: data.sendInterval || 15,
+            sendInterval: sendInterval >= 15 ? sendInterval : 15,
           }
+
+          console.log('[CampaignForm] Payload para backend:', payload)
 
           if (campaign) {
             // Atualizar campanha existente
@@ -336,6 +370,8 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
 
       setTenantData(currentTenant.id, 'campaigns', campaigns)
 
+      console.log('[CampaignForm] Campanha salva com sucesso')
+
       toast({
         title: 'Sucesso',
         description: campaign ? 'Campanha atualizada com sucesso' : 'Campanha criada com sucesso',
@@ -347,10 +383,10 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
       setOpen(false)
       onSuccess?.()
     } catch (error) {
-      console.error('Erro ao salvar campanha:', error)
+      console.error('[CampaignForm] Erro ao salvar campanha:', error)
       toast({
         title: 'Erro',
-        description: 'Erro ao salvar campanha',
+        description: error instanceof Error ? error.message : 'Erro ao salvar campanha',
         variant: 'destructive',
       })
     }
@@ -379,7 +415,20 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
             {campaign ? 'Atualize as informações da campanha' : 'Crie uma nova campanha promocional'}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form 
+          onSubmit={handleSubmit(
+            onSubmit,
+            (errors) => {
+              console.error('[CampaignForm] Erros de validação:', errors)
+              toast({
+                title: 'Erro de validação',
+                description: 'Por favor, verifique os campos do formulário',
+                variant: 'destructive',
+              })
+            }
+          )} 
+          className="space-y-4"
+        >
           <div className="space-y-2">
             <Label htmlFor="name">Nome da Campanha</Label>
             <Input
@@ -507,7 +556,14 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
               type="number"
               min="15"
               placeholder="15"
-              {...register('sendInterval', { valueAsNumber: true })}
+              {...register('sendInterval', { 
+                valueAsNumber: false,
+                setValueAs: (value) => {
+                  if (value === '' || value === undefined || value === null) return 15
+                  const num = typeof value === 'string' ? parseInt(value, 10) : value
+                  return isNaN(num) ? 15 : Math.max(15, num)
+                }
+              })}
             />
             {errors.sendInterval && (
               <p className="text-sm text-destructive">{errors.sendInterval.message}</p>
