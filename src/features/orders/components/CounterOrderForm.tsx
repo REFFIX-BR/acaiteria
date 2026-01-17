@@ -87,7 +87,7 @@ export function CounterOrderForm({ onSuccess }: CounterOrderFormProps) {
     }, 0)
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!currentTenant) {
       toast({
         title: 'Erro',

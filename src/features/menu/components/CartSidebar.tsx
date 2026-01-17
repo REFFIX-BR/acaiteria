@@ -242,7 +242,7 @@ export function CartSidebar({
     if (allowWhatsAppOrder && whatsAppNumber) {
       handleWhatsAppOrderWithCustomer(name, phone)
     } else {
-      handleCreateOrderWithCustomer(name, phone)
+      void handleCreateOrderWithCustomer(name, phone)
     }
   }
 
@@ -309,7 +309,7 @@ export function CartSidebar({
     if (allowWhatsAppOrder && whatsAppNumber) {
       handleWhatsAppOrderWithCustomer(customerName, customerPhone)
     } else {
-      handleCreateOrderWithCustomer(customerName, customerPhone)
+      void handleCreateOrderWithCustomer(customerName, customerPhone)
     }
   }
 
@@ -394,7 +394,7 @@ export function CartSidebar({
     setShowChangeModal(false)
   }
 
-  const handleCreateOrderWithCustomer = (name: string, phone: string) => {
+  const handleCreateOrderWithCustomer = async (name: string, phone: string) => {
     if (!tenantId) {
       toast({
         title: 'Erro',
@@ -462,15 +462,15 @@ export function CartSidebar({
           customerName: name,
           customerPhone: phone,
           items: orderItems.map(item => ({
-            menuItemId: item.item.id,
-            menuItemName: item.item.name,
-            size: item.size?.name,
-            additions: item.additions.map(a => a.name),
-            complements: item.complements.map(c => c.name),
-            fruits: item.fruits?.map(f => f.name) || [],
+            menuItemId: item.menuItemId,
+            menuItemName: item.menuItemName,
+            size: item.size,
+            additions: item.additions,
+            complements: item.complements,
+            fruits: item.fruits,
             quantity: item.quantity,
-            unitPrice: item.size ? item.size.price : item.item.basePrice,
-            totalPrice: calculateItemTotal(item),
+            unitPrice: item.unitPrice,
+            totalPrice: item.totalPrice,
           })),
           subtotal: total,
           total,
