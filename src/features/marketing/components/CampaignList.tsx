@@ -91,8 +91,11 @@ export function CampaignList({ refreshTrigger, onRefresh }: CampaignListProps) {
 
     // Ordena por data de criação (mais recente primeiro)
     return filtered.sort((a, b) => {
-      const dateA = a.created_at ? new Date(a.created_at).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0)
-      const dateB = b.created_at ? new Date(b.created_at).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0)
+      // Backend retorna created_at, frontend pode usar createdAt
+      const campaignA = a as Campaign & { created_at?: string }
+      const campaignB = b as Campaign & { created_at?: string }
+      const dateA = campaignA.created_at ? new Date(campaignA.created_at).getTime() : (campaignA.createdAt ? new Date(campaignA.createdAt).getTime() : 0)
+      const dateB = campaignB.created_at ? new Date(campaignB.created_at).getTime() : (campaignB.createdAt ? new Date(campaignB.createdAt).getTime() : 0)
       return dateB - dateA
     })
   }, [campaigns, statusFilter, typeFilter])
