@@ -937,6 +937,146 @@ export class WhatsAppInstanceManager {
       }
     }
   }
+
+  /**
+   * Envia mensagem com imagem via Evolution API
+   * @param instanceName Nome da instância
+   * @param instanceToken Token específico da instância (API Key)
+   * @param phoneNumber Número do destinatário (com ou sem DDI)
+   * @param imageUrl URL da imagem a ser enviada
+   * @param caption Texto legenda (opcional)
+   */
+  async sendImageMessage(
+    instanceName: string,
+    instanceToken: string,
+    phoneNumber: string,
+    imageUrl: string,
+    caption?: string
+  ): Promise<{ success: boolean; error?: string; messageId?: string }> {
+    // Tentar múltiplos endpoints possíveis
+    const baseUrl = this.config.managerUrl.replace(/\/api\/?$/, '').replace(/manager\./, 'api.')
+    const endpoints = [
+      `${baseUrl}/message/sendMedia/${instanceName}`,
+      `${baseUrl}/message/sendImage/${instanceName}`,
+    ]
+
+    try {
+      // Formatar número: remover caracteres não numéricos e garantir que tenha DDI
+      let cleanedNumber = phoneNumber.replace(/\D/g, '')
+      
+      if (!cleanedNumber.startsWith('55')) {
+        cleanedNumber = `55${cleanedNumber}`
+      }
+      
+      if (cleanedNumber.length > 13 && cleanedNumber.startsWith('550')) {
+        cleanedNumber = cleanedNumber.replace(/^550/, '55')
+      }
+      
+      const formattedNumber = cleanedNumber
+      
+      // Tentar cada endpoint até um funcionar
+      for (const endpoint of endpoints) {
+        try {
+          console.log(`[WhatsApp Manager] Tentando enviar imagem via: ${endpoint}`, {
+            number: formattedNumber,
+            imageUrl,
+            hasCaption: !!caption,
+          })
+
+          // Tentar formato 1: mediatype + media
+          let body: any = {
+            number: formattedNumber,
+            mediatype: 'image',
+            media: imageUrl,
+          }
+
+          if (caption) {
+            body.caption = caption
+          }
+
+          const headers: any = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'apikey': instanceToken,
+          }
+
+          let response = await fetch(endpoint, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body),
+          })
+
+          // Se falhar, tentar formato alternativo
+          if (!response.ok && endpoint.includes('sendMedia')) {
+            console.log(`[WhatsApp Manager] Tentando formato alternativo para sendMedia...`)
+            body = {
+              number: formattedNumber,
+              url: imageUrl,
+              caption: caption || '',
+            }
+            
+            response = await fetch(endpoint, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify(body),
+            })
+          }
+
+          console.log(`[WhatsApp Manager] Resposta do envio de imagem (${endpoint}):`, {
+            status: response.status,
+            statusText: response.statusText,
+            ok: response.ok,
+          })
+
+          if (response.ok) {
+            const data = await response.json().catch(() => ({}))
+            console.log(`[WhatsApp Manager] ✅ Imagem enviada com sucesso via ${endpoint}`)
+            return {
+              success: true,
+              messageId: data.key?.id || data.messageId || data.id || undefined,
+            }
+          } else {
+            // Se não for o último endpoint, continuar tentando
+            if (endpoint !== endpoints[endpoints.length - 1]) {
+              const errorText = await response.text().catch(() => '')
+              console.warn(`[WhatsApp Manager] Endpoint ${endpoint} falhou (${response.status}), tentando próximo...`)
+              continue
+            }
+            
+            // Se for o último endpoint, retornar erro
+            const errorText = await response.text().catch(() => 'Erro desconhecido')
+            let errorMessage = `Erro ao enviar imagem: ${response.status} ${response.statusText}`
+            
+            try {
+              const errorData = JSON.parse(errorText)
+              errorMessage = errorData.error || errorData.message || errorMessage
+            } catch {
+              if (errorText) {
+                errorMessage = errorText.substring(0, 200)
+              }
+            }
+            
+            console.error(`[WhatsApp Manager] ❌ Erro ao enviar imagem:`, errorMessage)
+            return { success: false, error: errorMessage }
+          }
+        } catch (endpointError: any) {
+          // Se não for o último endpoint, continuar tentando
+          if (endpoint !== endpoints[endpoints.length - 1]) {
+            console.warn(`[WhatsApp Manager] Erro ao tentar ${endpoint}, tentando próximo:`, endpointError.message)
+            continue
+          }
+          throw endpointError
+        }
+      }
+
+      // Se chegou aqui, nenhum endpoint funcionou
+      return { success: false, error: 'Nenhum endpoint de envio de imagem funcionou' }
+    } catch (error: any) {
+      const errorMessage = error.message || 'Erro desconhecido ao enviar imagem'
+      console.error(`[WhatsApp Manager] ❌ Exceção ao enviar imagem:`, errorMessage)
+      return { success: false, error: errorMessage }
+    }
+  }
 }
 
 // Instância singleton

@@ -656,16 +656,29 @@ router.post(
         }
 
         try {
-          const result = await manager.sendTextMessage(
-            whatsappInstance.instanceName,
-            whatsappInstance.instanceToken!,
-            customer.phone,
-            message
-          )
+          let result
+          
+          // Se houver imagem, enviar imagem com legenda, senão enviar apenas texto
+          if (imageUrl) {
+            result = await manager.sendImageMessage(
+              whatsappInstance.instanceName,
+              whatsappInstance.instanceToken!,
+              customer.phone,
+              imageUrl,
+              message // Usar a mensagem como legenda da imagem
+            )
+          } else {
+            result = await manager.sendTextMessage(
+              whatsappInstance.instanceName,
+              whatsappInstance.instanceToken!,
+              customer.phone,
+              message
+            )
+          }
 
           if (result.success) {
             sent++
-            console.log(`[WhatsApp Campaign] Mensagem enviada para ${customer.name} (${customer.phone})`)
+            console.log(`[WhatsApp Campaign] ${imageUrl ? 'Imagem' : 'Mensagem'} enviada para ${customer.name} (${customer.phone})`)
           } else {
             failed++
             console.error(`[WhatsApp Campaign] Erro ao enviar para ${customer.name}:`, result.error)
