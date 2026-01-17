@@ -37,8 +37,10 @@ router.post('/public/:tenantSlug', upload.single('image'), async (req, res, next
     })
 
     if (!isS3Enabled()) {
-      console.error('[Upload] S3 não está habilitado')
-      return res.status(503).json({ error: 'Upload de imagens não está disponível' })
+      console.error('[Upload] S3 não está habilitado. Verifique as variáveis de ambiente: S3_ENABLED, S3_ENDPOINT, S3_ACCESS_KEY, S3_SECRET_KEY')
+      return res.status(503).json({ 
+        error: 'Upload de imagens não está disponível. O serviço de armazenamento (S3) não está configurado. Entre em contato com o administrador do sistema.' 
+      })
     }
 
     if (!req.file) {
@@ -110,8 +112,10 @@ router.post('/', authenticate, tenantGuard, upload.single('image'), async (req: 
     })
 
     if (!isS3Enabled()) {
-      console.error('[Upload] S3 não está habilitado')
-      return res.status(503).json({ error: 'Upload de imagens não está disponível' })
+      console.error('[Upload] S3 não está habilitado. Verifique as variáveis de ambiente: S3_ENABLED, S3_ENDPOINT, S3_ACCESS_KEY, S3_SECRET_KEY')
+      return res.status(503).json({ 
+        error: 'Upload de imagens não está disponível. O serviço de armazenamento (S3) não está configurado. Entre em contato com o administrador do sistema.' 
+      })
     }
 
     if (!req.file) {
