@@ -1,8 +1,6 @@
 import { useState } from 'react'
 import { useTenantStore } from '@/stores/tenantStore'
 import { getTenantData, setTenantData } from '@/lib/storage/storage'
-import { getApiUrl } from '@/lib/api/config'
-import { authenticatedFetch } from '@/lib/api/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -87,7 +85,7 @@ export function CounterOrderForm({ onSuccess }: CounterOrderFormProps) {
     }, 0)
   }
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!currentTenant) {
       toast({
         title: 'Erro',
@@ -132,43 +130,8 @@ export function CounterOrderForm({ onSuccess }: CounterOrderFormProps) {
 
       const total = calculateTotal()
 
-      // Criar pedido no backend primeiro
-      const apiUrl = getApiUrl()
-      const response = await authenticatedFetch(`${apiUrl}/api/orders`, {
-        method: 'POST',
-        body: JSON.stringify({
-          customerName: customerName.trim(),
-          customerPhone: 'Balcão',
-          items: orderItems.map(item => ({
-            menuItemId: item.menuItemId,
-            menuItemName: item.menuItemName,
-            size: undefined,
-            additions: item.additions || [],
-            complements: item.complements || [],
-            fruits: item.fruits || [],
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            totalPrice: item.totalPrice,
-          })),
-          subtotal: total,
-          total,
-          paymentMethod,
-          deliveryType: 'pickup',
-          source: 'counter',
-        }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Erro ao criar pedido' }))
-        throw new Error(error.error || 'Erro ao criar pedido no servidor')
-      }
-
-      const result = await response.json()
-      const backendOrderId = result.id
-
-      // Criar pedido local com o ID do backend
       const newOrder: Order = {
-        id: backendOrderId,
+        id: `order-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         tenantId: currentTenant.id,
         customerName: customerName.trim(),
         customerPhone: 'Balcão',
@@ -178,7 +141,7 @@ export function CounterOrderForm({ onSuccess }: CounterOrderFormProps) {
         status: 'pending',
         paymentMethod,
         deliveryType: 'pickup',
-        source: 'counter',
+        source: 'counter', // Pedido de balcão
         createdAt: new Date(),
         updatedAt: new Date(),
       }

@@ -2,8 +2,6 @@ import { useState, useMemo, useEffect } from 'react'
 import { useTenantStore } from '@/stores/tenantStore'
 import { getTenantData, setTenantData } from '@/lib/storage/storage'
 import type { Transaction } from '@/types'
-import { getApiUrl } from '@/lib/api/config'
-import { authenticatedFetch } from '@/lib/api/auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -35,6 +33,7 @@ import { cn } from '@/lib/utils'
 import { OrderDetailsModal } from './components/OrderDetailsModal'
 import type { Order } from '@/types'
 import { motion, AnimatePresence } from 'framer-motion'
+import { notifyOrderStatusChange } from '@/lib/whatsapp/orderNotifications'
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('pt-BR', {
@@ -139,105 +138,75 @@ export default function OrdersPage() {
     if (!currentTenant) return
 
     try {
-      // Primeiro, atualizar no backend via API
-      const apiUrl = getApiUrl()
-      const response = await authenticatedFetch(`${apiUrl}/api/orders/${orderId}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status: newStatus }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Erro ao atualizar status' }))
-        const errorMessage = errorData.error || errorData.message || 'Erro ao atualizar status do pedido'
-        const error = new Error(errorMessage)
-        ;(error as any).response = response
-        ;(error as any).errorData = errorData
-        throw error
-      }
-
-      // Atualizar localmente apenas se a API responder com sucesso
       const allOrders = getTenantData<Order[]>(currentTenant.id, 'orders') || []
       const orderIndex = allOrders.findIndex((o) => o.id === orderId)
       
-      if (orderIndex !== -1) {
-        const order = allOrders[orderIndex]
-        const oldStatus = order.status
-        const updatedOrder: Order = {
-          ...order,
-          status: newStatus,
-          updatedAt: new Date(),
-          acceptedAt: newStatus === 'accepted' ? new Date() : order.acceptedAt,
-          readyAt: newStatus === 'ready' ? new Date() : order.readyAt,
-          deliveredAt: newStatus === 'delivered' ? new Date() : order.deliveredAt,
-        }
+      if (orderIndex === -1) return
 
-        allOrders[orderIndex] = updatedOrder
-        setTenantData(currentTenant.id, 'orders', allOrders)
-        setRefreshTrigger((prev) => prev + 1)
+      const order = allOrders[orderIndex]
+      const updatedOrder: Order = {
+        ...order,
+        status: newStatus,
+        updatedAt: new Date(),
+        acceptedAt: newStatus === 'accepted' ? new Date() : order.acceptedAt,
+        readyAt: newStatus === 'ready' ? new Date() : order.readyAt,
+        deliveredAt: newStatus === 'delivered' ? new Date() : order.deliveredAt,
+      }
 
-        // Se o pedido foi marcado como entregue, cria uma transação de entrada
-        if (newStatus === 'delivered' && oldStatus !== 'delivered') {
-          const transactions = getTenantData<Transaction[]>(currentTenant.id, 'transactions') || []
-          
-          // Verifica se já existe uma transação para este pedido (evita duplicatas)
-          const existingTransaction = transactions.find(
-            (t) => t.type === 'income' && t.description.includes(`Pedido #${order.id}`)
-          )
+      allOrders[orderIndex] = updatedOrder
+      setTenantData(currentTenant.id, 'orders', allOrders)
+      setRefreshTrigger((prev) => prev + 1)
 
-          if (!existingTransaction) {
-            const newTransaction: Transaction = {
-              id: `transaction-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              type: 'income',
-              category: 'Vendas',
-              amount: order.total,
-              description: `Pedido #${order.id} - ${order.customerName}${order.deliveryType === 'delivery' ? ' (Entrega)' : ' (Retirada)'}`,
-              date: new Date(),
-              createdAt: new Date(),
-            }
+      // Envia notificação via WhatsApp (não bloqueia a atualização)
+      notifyOrderStatusChange(currentTenant.id, updatedOrder, newStatus).catch((error) => {
+        console.error('Erro ao enviar notificação WhatsApp:', error)
+        // Não mostra erro ao usuário, apenas loga no console
+      })
 
-            transactions.push(newTransaction)
-            setTenantData(currentTenant.id, 'transactions', transactions)
+      // Se o pedido foi marcado como entregue, cria uma transação de entrada
+      if (newStatus === 'delivered' && order.status !== 'delivered') {
+        const transactions = getTenantData<Transaction[]>(currentTenant.id, 'transactions') || []
+        
+        // Verifica se já existe uma transação para este pedido (evita duplicatas)
+        const existingTransaction = transactions.find(
+          (t) => t.type === 'income' && t.description.includes(`Pedido #${order.id}`)
+        )
 
-            toast({
-              title: 'Status atualizado',
-              description: `Pedido ${statusConfig[newStatus].label.toLowerCase()} e adicionado ao fluxo de caixa`,
-            })
-          } else {
-            toast({
-              title: 'Status atualizado',
-              description: `Pedido ${statusConfig[newStatus].label.toLowerCase()}`,
-            })
+        if (!existingTransaction) {
+          const newTransaction: Transaction = {
+            id: `transaction-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            type: 'income',
+            category: 'Vendas',
+            amount: order.total,
+            description: `Pedido #${order.id} - ${order.customerName}${order.deliveryType === 'delivery' ? ' (Entrega)' : ' (Retirada)'}`,
+            date: new Date(),
+            createdAt: new Date(),
           }
+
+          transactions.push(newTransaction)
+          setTenantData(currentTenant.id, 'transactions', transactions)
+
+          toast({
+            title: 'Status atualizado',
+            description: `Pedido ${statusConfig[newStatus].label.toLowerCase()} e adicionado ao fluxo de caixa`,
+          })
         } else {
           toast({
             title: 'Status atualizado',
             description: `Pedido ${statusConfig[newStatus].label.toLowerCase()}`,
           })
         }
-      }
-    } catch (error: any) {
-      console.error('Erro ao atualizar pedido:', error)
-      
-      // Se o erro for de formato de ID inválido, informar que o pedido precisa ser recriado
-      const errorMessage = error?.message || error?.errorData?.error || ''
-      const errorDetails = error?.errorData?.details || ''
-      
-      if (
-        errorMessage.includes('Invalid order ID format') || 
-        errorMessage.includes('Order must be created') ||
-        error?.response?.status === 400
-      ) {
+      } else {
         toast({
-          title: 'Pedido não encontrado no servidor',
-          description: 'Este pedido foi criado antes da atualização. Por favor, remova este pedido ou aguarde que novos pedidos sejam criados corretamente.',
-          variant: 'destructive',
+          title: 'Status atualizado',
+          description: `Pedido ${statusConfig[newStatus].label.toLowerCase()}`,
         })
-        return
       }
-      
+    } catch (error) {
+      console.error('Erro ao atualizar pedido:', error)
       toast({
         title: 'Erro',
-        description: errorMessage || errorDetails || 'Erro ao atualizar status do pedido',
+        description: 'Erro ao atualizar status do pedido',
         variant: 'destructive',
       })
     }

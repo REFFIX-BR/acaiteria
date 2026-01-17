@@ -11,8 +11,6 @@ import type { Order, Customer } from '@/types'
 import { useToast } from '@/hooks/use-toast'
 import { CustomerIdentificationModal } from './CustomerIdentificationModal'
 import { getOrderSourceFromUrl } from '@/lib/menu/menuUrl'
-import { getApiUrl } from '@/lib/api/config'
-import { authenticatedFetch } from '@/lib/api/auth'
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('pt-BR', {
@@ -242,7 +240,7 @@ export function CartSidebar({
     if (allowWhatsAppOrder && whatsAppNumber) {
       handleWhatsAppOrderWithCustomer(name, phone)
     } else {
-      void handleCreateOrderWithCustomer(name, phone)
+      handleCreateOrderWithCustomer(name, phone)
     }
   }
 
@@ -309,7 +307,7 @@ export function CartSidebar({
     if (allowWhatsAppOrder && whatsAppNumber) {
       handleWhatsAppOrderWithCustomer(customerName, customerPhone)
     } else {
-      void handleCreateOrderWithCustomer(customerName, customerPhone)
+      handleCreateOrderWithCustomer(customerName, customerPhone)
     }
   }
 
@@ -394,7 +392,7 @@ export function CartSidebar({
     setShowChangeModal(false)
   }
 
-  const handleCreateOrderWithCustomer = async (name: string, phone: string) => {
+  const handleCreateOrderWithCustomer = (name: string, phone: string) => {
     if (!tenantId) {
       toast({
         title: 'Erro',
@@ -454,59 +452,8 @@ export function CartSidebar({
         }
       }
 
-      // Criar pedido no backend primeiro
-      const apiUrl = getApiUrl()
-      console.log('[CartSidebar] Criando pedido no backend:', { customerName: name, customerPhone: phone, itemCount: orderItems.length })
-      
-      const response = await authenticatedFetch(`${apiUrl}/api/orders`, {
-        method: 'POST',
-        body: JSON.stringify({
-          customerName: name,
-          customerPhone: phone,
-          items: orderItems.map(item => ({
-            menuItemId: item.menuItemId,
-            menuItemName: item.menuItemName,
-            size: item.size,
-            additions: item.additions,
-            complements: item.complements,
-            fruits: item.fruits,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            totalPrice: item.totalPrice,
-          })),
-          subtotal: total,
-          total,
-          paymentMethod: orderPaymentMethod,
-          deliveryType,
-          deliveryAddress: fullAddress,
-          notes: paymentMethod === 'cash' && needsChange && cashReceived
-            ? `Pagamento em dinheiro. Valor recebido: ${formatCurrency(parseFloat(cashReceived.replace(',', '.')) || 0)}. Troco: ${formatCurrency(change)}`
-            : undefined,
-          source: getOrderSourceFromUrl(),
-        }),
-      })
-
-      console.log('[CartSidebar] Resposta do backend:', { status: response.status, ok: response.ok })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Erro ao criar pedido' }))
-        console.error('[CartSidebar] Erro ao criar pedido no backend:', errorData)
-        throw new Error(errorData.error || 'Erro ao criar pedido no servidor')
-      }
-
-      const result = await response.json()
-      const backendOrderId = result.id
-      
-      console.log('[CartSidebar] Pedido criado no backend com ID:', backendOrderId)
-      
-      if (!backendOrderId || typeof backendOrderId !== 'string' || !backendOrderId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
-        console.error('[CartSidebar] ID do backend não é um UUID válido:', backendOrderId)
-        throw new Error('ID do pedido retornado pelo servidor é inválido')
-      }
-
-      // Criar pedido local com o ID do backend
       const newOrder: Order = {
-        id: backendOrderId,
+        id: `order-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         tenantId,
         customerName: name,
         customerPhone: phone,
@@ -520,7 +467,7 @@ export function CartSidebar({
         notes: paymentMethod === 'cash' && needsChange && cashReceived
           ? `Pagamento em dinheiro. Valor recebido: ${formatCurrency(parseFloat(cashReceived.replace(',', '.')) || 0)}. Troco: ${formatCurrency(change)}`
           : undefined,
-        source: getOrderSourceFromUrl(),
+        source: getOrderSourceFromUrl(), // Identifica se veio do balcão (QR code) ou digital (link direto)
         createdAt: new Date(),
         updatedAt: new Date(),
       }
@@ -535,13 +482,11 @@ export function CartSidebar({
 
       onCreateOrder?.()
       onClose()
-    } catch (error: any) {
-      console.error('[CartSidebar] Erro completo ao criar pedido:', error)
-      
-      const errorMessage = error?.message || 'Erro desconhecido ao criar pedido'
+    } catch (error) {
+      console.error('Erro ao criar pedido:', error)
       toast({
-        title: 'Erro ao criar pedido',
-        description: errorMessage,
+        title: 'Erro',
+        description: 'Erro ao criar pedido',
         variant: 'destructive',
       })
     }

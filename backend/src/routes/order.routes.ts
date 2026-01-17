@@ -2,8 +2,6 @@ import express from 'express'
 import { z } from 'zod'
 import { query } from '../db/connection.js'
 import { authenticate, tenantGuard, AuthRequest } from '../middleware/auth.js'
-import { getWhatsAppInstanceByTenant } from '../db/storage.js'
-import { getWhatsAppInstanceManager } from '../lib/whatsapp/whatsappInstanceManager.js'
 
 const router = express.Router()
 
@@ -114,16 +112,12 @@ router.post('/', async (req: AuthRequest, res, next) => {
 
     // Criar itens do pedido
     for (const item of data.items) {
-      // Se menuItemId não for UUID válido, usar NULL (itens podem não estar no banco ainda)
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-      const menuItemId = uuidRegex.test(item.menuItemId) ? item.menuItemId : null
-      
       await query(
         `INSERT INTO order_items (order_id, menu_item_id, menu_item_name, size, additions, complements, fruits, quantity, unit_price, total_price)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
         [
           orderId,
-          menuItemId,
+          item.menuItemId,
           item.menuItemName,
           item.size || null,
           item.additions,
@@ -161,15 +155,6 @@ router.patch('/:id/status', async (req: AuthRequest, res, next) => {
       return res.status(400).json({ error: 'Invalid status' })
     }
 
-    // Validar se o ID é um UUID válido
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(req.params.id)) {
-      return res.status(400).json({ 
-        error: 'Invalid order ID format. Order must be created in the backend first.',
-        details: 'The provided ID is not a valid UUID. Please ensure the order was created via the API.'
-      })
-    }
-
     const updates: string[] = ['status = $1', 'updated_at = NOW()']
     const params: any[] = [status]
 
@@ -202,34 +187,6 @@ router.patch('/:id/status', async (req: AuthRequest, res, next) => {
 
     params.push(req.params.id, req.user!.tenantId)
 
-    // Buscar dados do pedido antes de atualizar (para obter número do cliente)
-    const orderQueryResult = await query(
-      `SELECT customer_name, customer_phone, total, delivery_type, status as old_status 
-       FROM orders 
-       WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
-      [req.params.id, req.user!.tenantId]
-    )
-
-    if (orderQueryResult.rows.length === 0) {
-      return res.status(404).json({ 
-        error: 'Order not found',
-        details: 'The order does not exist in the database. Please ensure the order was created via the API first.',
-        orderId: req.params.id
-      })
-    }
-
-    const orderData = orderQueryResult.rows[0]
-    const oldStatus = orderData.old_status
-
-    console.log(`[Order] Atualizando status do pedido #${req.params.id}:`, {
-      oldStatus,
-      newStatus: status,
-      statusChanged: oldStatus !== status,
-      hasCustomerPhone: !!orderData.customer_phone,
-      customerPhone: orderData.customer_phone,
-    })
-
-    // Atualizar status do pedido
     const result = await query(
       `UPDATE orders SET ${updates.join(', ')} WHERE id = $${params.length - 1} AND tenant_id = $${params.length} AND deleted_at IS NULL RETURNING id`,
       params
@@ -237,73 +194,6 @@ router.patch('/:id/status', async (req: AuthRequest, res, next) => {
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Order not found' })
-    }
-
-    // Enviar notificação via WhatsApp se o status mudou e há número do cliente
-    if (oldStatus !== status && orderData.customer_phone) {
-      console.log(`[Order] Tentando enviar notificação WhatsApp para pedido #${req.params.id}`)
-      try {
-        // Buscar instância WhatsApp do tenant
-        const whatsappInstance = await getWhatsAppInstanceByTenant(req.user!.tenantId)
-        
-        console.log(`[Order] Instância WhatsApp encontrada:`, {
-          hasInstance: !!whatsappInstance,
-          instanceName: whatsappInstance?.instanceName,
-          status: whatsappInstance?.status,
-          hasInstanceToken: !!whatsappInstance?.instanceToken,
-          instanceTokenPreview: whatsappInstance?.instanceToken?.substring(0, 20),
-        })
-        
-        // Aceitar instância se estiver 'connected' ou 'created' (pode estar conectada mas status não atualizado)
-        const isValidStatus = whatsappInstance?.status === 'connected' || whatsappInstance?.status === 'created'
-        
-        if (whatsappInstance && isValidStatus && whatsappInstance.instanceToken) {
-          // Criar mensagem baseada no status
-          const statusMessages: Record<string, string> = {
-            accepted: `✅ Pedido #${req.params.id.substring(0, 8)} aceito!\n\nOlá ${orderData.customer_name}, seu pedido foi aceito e está em preparação. Entraremos em contato em breve.`,
-            preparing: `👨‍🍳 Pedido #${req.params.id.substring(0, 8)} em preparação!\n\nOlá ${orderData.customer_name}, seu pedido está sendo preparado. Em breve estará pronto!`,
-            ready: `🚀 Pedido #${req.params.id.substring(0, 8)} pronto!\n\nOlá ${orderData.customer_name}, seu pedido está pronto para ${orderData.delivery_type === 'delivery' ? 'entrega' : 'retirada'}!`,
-            delivered: `✅ Pedido #${req.params.id.substring(0, 8)} entregue!\n\nOlá ${orderData.customer_name}, seu pedido foi entregue. Obrigado pela preferência!`,
-            cancelled: `❌ Pedido #${req.params.id.substring(0, 8)} cancelado\n\nOlá ${orderData.customer_name}, lamentamos informar que seu pedido foi cancelado. Entre em contato conosco para mais informações.`,
-          }
-
-          const message = statusMessages[status] || `📦 Atualização do Pedido #${req.params.id.substring(0, 8)}\n\nOlá ${orderData.customer_name}, o status do seu pedido foi atualizado para: ${status}`
-
-          console.log(`[Order] Enviando mensagem WhatsApp:`, {
-            instanceName: whatsappInstance.instanceName,
-            customerPhone: orderData.customer_phone,
-            messagePreview: message.substring(0, 100),
-            status,
-          })
-
-          // Enviar mensagem via WhatsApp (não bloquear se falhar)
-          const manager = getWhatsAppInstanceManager()
-          const sendResult = await manager.sendTextMessage(
-            whatsappInstance.instanceName,
-            whatsappInstance.instanceToken,
-            orderData.customer_phone,
-            message
-          )
-          
-          console.log(`[Order] Resultado do envio:`, sendResult)
-
-          if (sendResult.success) {
-            console.log(`[Order] ✅ Notificação WhatsApp enviada para pedido #${req.params.id}`)
-          } else {
-            console.warn(`[Order] ⚠️  Erro ao enviar notificação WhatsApp:`, sendResult.error)
-          }
-        } else {
-          console.log(`[Order] ⚠️  WhatsApp não configurado ou não conectado para o tenant:`, {
-            hasInstance: !!whatsappInstance,
-            instanceStatus: whatsappInstance?.status,
-            hasToken: !!whatsappInstance?.instanceToken,
-            tenantId: req.user!.tenantId,
-          })
-        }
-      } catch (whatsappError) {
-        // Não bloquear a atualização do pedido se houver erro no WhatsApp
-        console.error(`[Order] ❌ Erro ao enviar notificação WhatsApp:`, whatsappError)
-      }
     }
 
     res.json({ message: 'Order status updated successfully' })
