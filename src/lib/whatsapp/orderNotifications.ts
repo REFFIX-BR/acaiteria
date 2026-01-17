@@ -184,7 +184,7 @@ export async function notifyOrderStatusChange(
       instance.instanceName, 
       order.customerPhone, 
       message,
-      config.apiKey
+      config?.apiKey
     )
     
     if (result.success) {
