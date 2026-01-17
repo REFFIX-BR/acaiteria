@@ -258,65 +258,70 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
       }
 
       // Salvar no backend (não mais no localStorage)
+      let savedCampaignId: string | undefined
       try {
         const { getApiUrl } = await import('@/lib/api/config')
         const { getAuthToken } = await import('@/lib/api/auth')
         const apiUrl = getApiUrl()
         const token = getAuthToken()
 
-        if (token) {
-          // Normalizar sendInterval para número
-          const sendInterval = typeof data.sendInterval === 'string' 
-            ? (data.sendInterval === '' ? 15 : parseInt(data.sendInterval, 10) || 15)
-            : (data.sendInterval || 15)
+        if (!token) {
+          throw new Error('Token de autenticação não encontrado')
+        }
 
-          const payload = {
-            name: data.name,
-            type: data.type,
-            description: data.description || undefined,
-            discount: data.discount,
-            startDate: data.startDate,
-            endDate: data.endDate || undefined,
-            image: finalImageUrl || undefined,
-            sendInterval: sendInterval >= 15 ? sendInterval : 15,
+        // Normalizar sendInterval para número
+        const sendInterval = typeof data.sendInterval === 'string' 
+          ? (data.sendInterval === '' ? 15 : parseInt(data.sendInterval, 10) || 15)
+          : (data.sendInterval || 15)
+
+        const payload = {
+          name: data.name,
+          type: data.type,
+          description: data.description || undefined,
+          discount: data.discount,
+          startDate: data.startDate,
+          endDate: data.endDate || undefined,
+          image: finalImageUrl || undefined,
+          sendInterval: sendInterval >= 15 ? sendInterval : 15,
+        }
+
+        console.log('[CampaignForm] Payload para backend:', payload)
+
+        if (campaign) {
+          // Atualizar campanha existente
+          const response = await fetch(`${apiUrl}/api/campaigns/${campaign.id}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(payload),
+          })
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}))
+            throw new Error(errorData.error || `Erro ao atualizar campanha: ${response.status}`)
           }
 
-          console.log('[CampaignForm] Payload para backend:', payload)
+          savedCampaignId = campaign.id
+        } else {
+          // Criar nova campanha
+          const response = await fetch(`${apiUrl}/api/campaigns`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(payload),
+          })
 
-          if (campaign) {
-            // Atualizar campanha existente
-            const response = await fetch(`${apiUrl}/api/campaigns/${campaign.id}`, {
-              method: 'PUT',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
-              },
-              body: JSON.stringify(payload),
-            })
-
-            if (!response.ok) {
-              const errorData = await response.json().catch(() => ({}))
-              throw new Error(errorData.error || `Erro ao atualizar campanha: ${response.status}`)
-            }
-          } else {
-            // Criar nova campanha
-            const response = await fetch(`${apiUrl}/api/campaigns`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
-              },
-              body: JSON.stringify(payload),
-            })
-
-            if (!response.ok) {
-              const errorData = await response.json().catch(() => ({}))
-              throw new Error(errorData.error || `Erro ao criar campanha: ${response.status}`)
-            }
-
-            const result = await response.json()
-            // ID retornado pelo backend será usado automaticamente
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}))
+            throw new Error(errorData.error || `Erro ao criar campanha: ${response.status}`)
           }
+
+          const result = await response.json()
+          savedCampaignId = result.id || result.campaign?.id
         }
       } catch (error) {
         console.error('[CampaignForm] Erro ao salvar campanha no backend:', error)
@@ -355,7 +360,12 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
             }
             
             const imageUrl = finalImageUrl || undefined
-            const campaignId = campaign?.id || tempId
+            const campaignId = savedCampaignId || campaign?.id
+            
+            if (!campaignId) {
+              console.warn('[CampaignForm] ID da campanha não disponível para envio')
+              return
+            }
             
             // Chamar backend para enviar (backend usa suas próprias credenciais e busca clientes do banco)
             const { getApiUrl } = await import('@/lib/api/config')

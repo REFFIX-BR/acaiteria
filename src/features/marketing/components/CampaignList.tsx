@@ -90,7 +90,11 @@ export function CampaignList({ refreshTrigger, onRefresh }: CampaignListProps) {
     }
 
     // Ordena por data de criação (mais recente primeiro)
-    return filtered.sort((a, b) => new Date(b.created_at || b.createdAt).getTime() - new Date(a.created_at || a.createdAt).getTime())
+    return filtered.sort((a, b) => {
+      const dateA = a.created_at ? new Date(a.created_at).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0)
+      const dateB = b.created_at ? new Date(b.created_at).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0)
+      return dateB - dateA
+    })
   }, [campaigns, statusFilter, typeFilter])
 
   const handleDelete = async (id: string) => {
