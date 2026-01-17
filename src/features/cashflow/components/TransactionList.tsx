@@ -99,7 +99,7 @@ export function TransactionList({ refreshTrigger, onDelete }: TransactionListPro
           // Aplicar filtro de busca localmente (não suportado pelo backend ainda)
           let filtered = normalizedTransactions
           if (debouncedSearchTerm) {
-            filtered = filtered.filter((t) =>
+            filtered = filtered.filter((t: Transaction) =>
               t.description?.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
             )
           }

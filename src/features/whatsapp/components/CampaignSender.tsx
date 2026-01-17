@@ -192,10 +192,11 @@ export function CampaignSender() {
           allCampaigns[campaignIndex] = {
             ...allCampaigns[campaignIndex],
             metrics: {
-              ...allCampaigns[campaignIndex].metrics,
-              sent: allCampaigns[campaignIndex].metrics.sent + results.sent,
-              delivered: allCampaigns[campaignIndex].metrics.delivered + results.sent,
-              failed: allCampaigns[campaignIndex].metrics.failed + results.failed,
+              sent: (allCampaigns[campaignIndex].metrics?.sent || 0) + results.sent,
+              delivered: (allCampaigns[campaignIndex].metrics?.delivered || 0) + results.sent,
+              failed: (allCampaigns[campaignIndex].metrics?.failed || 0) + results.failed,
+              clicks: allCampaigns[campaignIndex].metrics?.clicks || 0,
+              conversions: allCampaigns[campaignIndex].metrics?.conversions || 0,
             },
           }
           setTenantData(currentTenant.id, 'campaigns', allCampaigns)
