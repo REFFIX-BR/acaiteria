@@ -43,6 +43,7 @@ interface CartSidebarProps {
   whatsAppNumber?: string
   customMessage?: string
   tenantId?: string
+  tenantSlug?: string
   onCreateOrder?: () => void
   tenantName?: string
 }
@@ -60,6 +61,7 @@ export function CartSidebar({
   whatsAppNumber = '',
   customMessage = 'Olá! Gostaria de fazer um pedido.',
   tenantId,
+  tenantSlug,
   onCreateOrder,
   tenantName = 'Restaurante',
 }: CartSidebarProps) {
@@ -420,7 +422,7 @@ export function CartSidebar({
     setShowChangeModal(false)
   }
 
-  const handleCreateOrderWithCustomer = (name: string, phone: string) => {
+  const handleCreateOrderWithCustomer = async (name: string, phone: string) => {
     if (!tenantId) {
       toast({
         title: 'Erro',
@@ -431,10 +433,7 @@ export function CartSidebar({
     }
 
     try {
-      const allOrders = getTenantData<Order[]>(tenantId, 'orders') || []
-
       const orderItems = items.map((item) => ({
-        id: `order-item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         menuItemId: item.item.id,
         menuItemName: item.item.name,
         size: item.size?.name,
@@ -480,22 +479,76 @@ export function CartSidebar({
         }
       }
 
-      const newOrder: Order = {
-        id: `order-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        tenantId,
+      // Busca o tenant slug para fazer a requisição pública
+      const { getApiUrl } = await import('@/lib/api/config')
+      const apiUrl = getApiUrl()
+      
+      // Usa o tenantSlug passado como prop, ou tenta buscar do localStorage
+      let slug = tenantSlug
+      if (!slug && tenantId) {
+        const { getTenantById } = await import('@/lib/storage/storage')
+        const tenant = getTenantById(tenantId)
+        if (tenant) {
+          slug = tenant.slug
+        }
+      }
+      
+      if (!slug) {
+        throw new Error('Tenant slug não encontrado')
+      }
+
+      const payload = {
         customerName: name,
         customerPhone: phone,
         items: orderItems,
         subtotal: total,
         total,
-        status: 'pending',
         paymentMethod: orderPaymentMethod,
         deliveryType,
         deliveryAddress: fullAddress,
         notes: paymentMethod === 'cash' && needsChange && cashReceived
           ? `Pagamento em dinheiro. Valor recebido: ${formatCurrency(parseFloat(cashReceived.replace(',', '.')) || 0)}. Troco: ${formatCurrency(change)}`
           : undefined,
-        source: getOrderSourceFromUrl(), // Identifica se veio do balcão (QR code) ou digital (link direto)
+        source: getOrderSourceFromUrl(),
+      }
+
+      // Salva no backend primeiro
+      const response = await fetch(`${apiUrl}/api/orders/public/${slug}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || `Erro ao criar pedido no backend: ${response.status}`)
+      }
+
+      const result = await response.json()
+      const backendOrderId = result.id
+
+      // Converte os dados para o formato local e salva no localStorage como cache
+      const allOrders = getTenantData<Order[]>(tenantId, 'orders') || []
+      
+      const newOrder: Order = {
+        id: backendOrderId,
+        tenantId,
+        customerName: name,
+        customerPhone: phone,
+        items: orderItems.map(item => ({
+          id: `order-item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          ...item,
+        })),
+        subtotal: total,
+        total,
+        status: 'pending',
+        paymentMethod: orderPaymentMethod,
+        deliveryType,
+        deliveryAddress: fullAddress,
+        notes: payload.notes,
+        source: getOrderSourceFromUrl(),
         createdAt: new Date(),
         updatedAt: new Date(),
       }
@@ -514,7 +567,7 @@ export function CartSidebar({
       console.error('Erro ao criar pedido:', error)
       toast({
         title: 'Erro',
-        description: 'Erro ao criar pedido',
+        description: error instanceof Error ? error.message : 'Erro ao criar pedido',
         variant: 'destructive',
       })
     }

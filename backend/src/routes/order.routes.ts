@@ -5,9 +5,6 @@ import { authenticate, tenantGuard, AuthRequest } from '../middleware/auth.js'
 
 const router = express.Router()
 
-router.use(authenticate)
-router.use(tenantGuard)
-
 const createOrderSchema = z.object({
   customerName: z.string().min(1),
   customerPhone: z.string().min(1),
@@ -31,6 +28,83 @@ const createOrderSchema = z.object({
   notes: z.string().optional(),
   source: z.enum(['digital', 'counter']).default('digital'),
 })
+
+// Rota pública: criar pedido por tenant slug
+router.post('/public/:tenantSlug', async (req, res, next) => {
+  try {
+    // Busca o tenant pelo slug
+    const tenantResult = await query(
+      'SELECT id FROM tenants WHERE slug = $1 AND deleted_at IS NULL',
+      [req.params.tenantSlug]
+    )
+
+    if (tenantResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Tenant not found' })
+    }
+
+    const tenantId = tenantResult.rows[0].id
+    const data = createOrderSchema.parse(req.body)
+
+    // Criar pedido
+    const orderResult = await query(
+      `INSERT INTO orders (tenant_id, customer_name, customer_phone, customer_email, subtotal, total, status, payment_method, delivery_type, delivery_address, notes, source, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8, $9, $10, $11, NOW(), NOW())
+       RETURNING id`,
+      [
+        tenantId,
+        data.customerName,
+        data.customerPhone,
+        data.customerEmail || null,
+        data.subtotal,
+        data.total,
+        data.paymentMethod || null,
+        data.deliveryType,
+        data.deliveryAddress || null,
+        data.notes || null,
+        data.source,
+      ]
+    )
+
+    const orderId = orderResult.rows[0].id
+
+    // Criar itens do pedido
+    for (const item of data.items) {
+      await query(
+        `INSERT INTO order_items (order_id, menu_item_id, menu_item_name, size, additions, complements, fruits, quantity, unit_price, total_price)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        [
+          orderId,
+          item.menuItemId,
+          item.menuItemName,
+          item.size || null,
+          item.additions,
+          item.complements,
+          item.fruits,
+          item.quantity,
+          item.unitPrice,
+          item.totalPrice,
+        ]
+      )
+    }
+
+    // Criar ou atualizar cliente
+    await query(
+      `INSERT INTO customers (tenant_id, name, phone, email, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, NOW(), NOW())
+       ON CONFLICT (tenant_id, phone) DO UPDATE
+       SET name = EXCLUDED.name, email = COALESCE(EXCLUDED.email, customers.email), updated_at = NOW()`,
+      [tenantId, data.customerName, data.customerPhone, data.customerEmail || null]
+    )
+
+    res.status(201).json({ id: orderId, message: 'Order created successfully' })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// Aplicar autenticação nas rotas protegidas
+router.use(authenticate)
+router.use(tenantGuard)
 
 // Listar pedidos
 router.get('/', async (req: AuthRequest, res, next) => {

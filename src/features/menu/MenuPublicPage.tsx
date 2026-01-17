@@ -613,6 +613,7 @@ export default function MenuPublicPage() {
         whatsAppNumber={menuSettings?.whatsAppNumber}
         customMessage={menuSettings?.customMessage}
         tenantId={tenant?.id}
+        tenantSlug={tenantSlug}
         tenantName={tenant?.name}
         onCreateOrder={() => {
           setSelectedItems(new Map())

@@ -94,6 +94,72 @@ export default function OrdersPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [lastPendingCount, setLastPendingCount] = useState(0)
   const [isPageVisible, setIsPageVisible] = useState(true)
+  const [isLoadingOrders, setIsLoadingOrders] = useState(false)
+
+  // Busca pedidos do backend
+  useEffect(() => {
+    const fetchOrders = async () => {
+      if (!currentTenant) return
+
+      setIsLoadingOrders(true)
+      try {
+        const { getApiUrl } = await import('@/lib/api/config')
+        const { getAuthToken } = await import('@/lib/api/auth')
+        const apiUrl = getApiUrl()
+        const token = getAuthToken()
+
+        if (!token) {
+          // Se não tem token, usa apenas localStorage
+          setIsLoadingOrders(false)
+          return
+        }
+
+        const response = await fetch(`${apiUrl}/api/orders`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          if (data.orders && Array.isArray(data.orders)) {
+            // Converte os pedidos do backend para o formato local
+            const formattedOrders: Order[] = data.orders.map((order: any) => ({
+              id: order.id,
+              tenantId: order.tenant_id,
+              customerName: order.customer_name,
+              customerPhone: order.customer_phone,
+              items: order.items || [],
+              subtotal: parseFloat(order.subtotal) || 0,
+              total: parseFloat(order.total) || 0,
+              status: order.status || 'pending',
+              paymentMethod: order.payment_method,
+              deliveryType: order.delivery_type,
+              deliveryAddress: order.delivery_address,
+              notes: order.notes,
+              source: order.source || 'digital',
+              createdAt: new Date(order.created_at),
+              updatedAt: new Date(order.updated_at),
+              acceptedAt: order.accepted_at ? new Date(order.accepted_at) : undefined,
+              readyAt: order.ready_at ? new Date(order.ready_at) : undefined,
+              deliveredAt: order.delivered_at ? new Date(order.delivered_at) : undefined,
+            }))
+
+            // Salva no localStorage como cache
+            setTenantData(currentTenant.id, 'orders', formattedOrders)
+          }
+        } else {
+          console.error('[OrdersPage] Erro ao buscar pedidos do backend:', response.status)
+        }
+      } catch (error) {
+        console.error('[OrdersPage] Erro ao buscar pedidos do backend:', error)
+      } finally {
+        setIsLoadingOrders(false)
+      }
+    }
+
+    fetchOrders()
+  }, [currentTenant, refreshTrigger])
 
   const orders = useMemo(() => {
     if (!currentTenant) return []
@@ -138,6 +204,38 @@ export default function OrdersPage() {
     if (!currentTenant) return
 
     try {
+      // Atualiza no backend primeiro
+      try {
+        const { getApiUrl } = await import('@/lib/api/config')
+        const { getAuthToken } = await import('@/lib/api/auth')
+        const apiUrl = getApiUrl()
+        const token = getAuthToken()
+
+        if (token) {
+          const response = await fetch(`${apiUrl}/api/orders/${orderId}/status`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ 
+              status: newStatus,
+              customerName: undefined, // Não necessário para atualização de status
+              deliveryType: undefined, // Não necessário para atualização de status
+            }),
+          })
+
+          if (!response.ok) {
+            console.error('[OrdersPage] Erro ao atualizar status no backend:', response.status)
+            // Continua para atualizar no localStorage mesmo se o backend falhar
+          }
+        }
+      } catch (error) {
+        console.error('[OrdersPage] Erro ao atualizar status no backend:', error)
+        // Continua para atualizar no localStorage mesmo se o backend falhar
+      }
+
+      // Atualiza no localStorage
       const allOrders = getTenantData<Order[]>(currentTenant.id, 'orders') || []
       const orderIndex = allOrders.findIndex((o) => o.id === orderId)
       
