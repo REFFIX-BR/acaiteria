@@ -390,11 +390,20 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
           // Buscar configuração do WhatsApp
           const whatsappConfig = getTenantData<WhatsAppConfig>(currentTenant.id, 'whatsapp_config')
           
-          if (!whatsappConfig || !whatsappConfig.connected || !whatsappConfig.instanceName) {
-            console.warn('[CampaignForm] WhatsApp não configurado ou desconectado')
+          console.log('[CampaignForm] Verificando configuração WhatsApp:', {
+            hasConfig: !!whatsappConfig,
+            apiUrl: whatsappConfig?.apiUrl,
+            hasApiKey: !!whatsappConfig?.apiKey,
+            instanceName: whatsappConfig?.instanceName,
+            connected: whatsappConfig?.connected,
+          })
+          
+          // Verificar se tem configuração mínima necessária (apiUrl, apiKey, instanceName)
+          if (!whatsappConfig || !whatsappConfig.apiUrl || !whatsappConfig.apiKey || !whatsappConfig.instanceName) {
+            console.warn('[CampaignForm] WhatsApp não configurado completamente')
             toast({
               title: 'Aviso',
-              description: 'Campanha salva, mas WhatsApp não está configurado. Configure o WhatsApp para enviar automaticamente.',
+              description: 'Campanha salva, mas WhatsApp não está configurado completamente. Configure o WhatsApp para enviar automaticamente.',
               variant: 'default',
             })
           } else {
