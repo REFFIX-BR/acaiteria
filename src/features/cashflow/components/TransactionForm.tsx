@@ -3,7 +3,6 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useTenantStore } from '@/stores/tenantStore'
-import { getTenantData, setTenantData } from '@/lib/storage/storage'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -76,20 +75,35 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
     }
 
     try {
-      const transactions = getTenantData<Transaction[]>(currentTenant.id, 'transactions') || []
-      
-      const newTransaction: Transaction = {
-        id: `transaction-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        type: data.type,
-        category: data.category,
-        amount: data.amount,
-        description: data.description,
-        date: new Date(data.date),
-        createdAt: new Date(),
+      const { getApiUrl } = await import('@/lib/api/config')
+      const { getAuthToken } = await import('@/lib/api/auth')
+      const apiUrl = getApiUrl()
+      const token = getAuthToken()
+
+      if (!token) {
+        throw new Error('Token de autenticação não encontrado')
       }
 
-      transactions.push(newTransaction)
-      setTenantData(currentTenant.id, 'transactions', transactions)
+      // Criar transação no backend
+      const response = await fetch(`${apiUrl}/api/transactions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          type: data.type,
+          category: data.category,
+          amount: data.amount,
+          description: data.description,
+          date: data.date,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Erro ao criar transação')
+      }
 
       toast({
         title: 'Sucesso',
@@ -103,7 +117,7 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
       console.error('Erro ao salvar transação:', error)
       toast({
         title: 'Erro',
-        description: 'Erro ao salvar transação',
+        description: error instanceof Error ? error.message : 'Erro ao salvar transação',
         variant: 'destructive',
       })
     }

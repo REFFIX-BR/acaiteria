@@ -419,10 +419,11 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
                     updatedCampaigns[campaignIndex] = {
                       ...updatedCampaigns[campaignIndex],
                       metrics: {
-                        ...updatedCampaigns[campaignIndex].metrics,
-                        sent: updatedCampaigns[campaignIndex].metrics.sent + result.sent,
-                        delivered: updatedCampaigns[campaignIndex].metrics.delivered + result.sent,
-                        failed: updatedCampaigns[campaignIndex].metrics.failed + result.failed,
+                        sent: (updatedCampaigns[campaignIndex].metrics?.sent || 0) + result.sent,
+                        delivered: (updatedCampaigns[campaignIndex].metrics?.delivered || 0) + result.sent,
+                        failed: (updatedCampaigns[campaignIndex].metrics?.failed || 0) + result.failed,
+                        clicks: updatedCampaigns[campaignIndex].metrics?.clicks || 0,
+                        conversions: updatedCampaigns[campaignIndex].metrics?.conversions || 0,
                       },
                     }
                     setTenantData(currentTenant.id, 'campaigns', updatedCampaigns)

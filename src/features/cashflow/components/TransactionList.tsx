@@ -1,6 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useTenantStore } from '@/stores/tenantStore'
-import { getTenantData, setTenantData } from '@/lib/storage/storage'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -52,48 +51,104 @@ export function TransactionList({ refreshTrigger, onDelete }: TransactionListPro
   // Debounce na busca
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
 
-  const transactions = useMemo(() => {
-    if (!currentTenant) return []
-    
-    let filtered = getTenantData<Transaction[]>(currentTenant.id, 'transactions') || []
+  const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-    // Aplica filtros
-    if (typeFilter !== 'all') {
-      filtered = filtered.filter((t) => t.type === typeFilter)
+  // Buscar transações do backend
+  useEffect(() => {
+    const loadTransactions = async () => {
+      if (!currentTenant) {
+        setTransactions([])
+        setIsLoading(false)
+        return
+      }
+
+      try {
+        setIsLoading(true)
+        const { getApiUrl } = await import('@/lib/api/config')
+        const { getAuthToken } = await import('@/lib/api/auth')
+        const apiUrl = getApiUrl()
+        const token = getAuthToken()
+
+        if (!token) {
+          setTransactions([])
+          setIsLoading(false)
+          return
+        }
+
+        const params = new URLSearchParams()
+        if (typeFilter !== 'all') params.append('type', typeFilter)
+        if (categoryFilter !== 'all') params.append('category', categoryFilter)
+        if (startDate) params.append('startDate', startDate)
+        if (endDate) params.append('endDate', endDate)
+
+        const response = await fetch(`${apiUrl}/api/transactions?${params.toString()}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          const normalizedTransactions = (data.transactions || []).map((t: any) => ({
+            ...t,
+            date: t.date ? new Date(t.date) : new Date(),
+            createdAt: t.created_at ? new Date(t.created_at) : (t.createdAt ? new Date(t.createdAt) : new Date()),
+          }))
+          
+          // Aplicar filtro de busca localmente (não suportado pelo backend ainda)
+          let filtered = normalizedTransactions
+          if (debouncedSearchTerm) {
+            filtered = filtered.filter((t) =>
+              t.description?.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
+            )
+          }
+          
+          setTransactions(filtered)
+        } else {
+          console.error('[TransactionList] Erro ao buscar transações:', response.status)
+          setTransactions([])
+        }
+      } catch (error) {
+        console.error('[TransactionList] Erro ao buscar transações:', error)
+        setTransactions([])
+      } finally {
+        setIsLoading(false)
+      }
     }
 
-    if (categoryFilter !== 'all') {
-      filtered = filtered.filter((t) => t.category === categoryFilter)
-    }
+    loadTransactions()
+  }, [currentTenant, typeFilter, categoryFilter, startDate, endDate, debouncedSearchTerm, refreshTrigger])
 
-    if (debouncedSearchTerm) {
-      filtered = filtered.filter((t) =>
-        t.description.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
-      )
-    }
-
-    if (startDate) {
-      filtered = filtered.filter((t) => new Date(t.date) >= new Date(startDate))
-    }
-
-    if (endDate) {
-      filtered = filtered.filter((t) => new Date(t.date) <= new Date(endDate))
-    }
-
-    // Ordena por data (mais recente primeiro)
-    return filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-  }, [currentTenant, typeFilter, categoryFilter, debouncedSearchTerm, startDate, endDate, refreshTrigger])
-
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!currentTenant) return
 
     confirm(
       'Tem certeza que deseja excluir esta transação? Esta ação não pode ser desfeita.',
-      () => {
+      async () => {
         try {
-          const allTransactions = getTenantData<Transaction[]>(currentTenant.id, 'transactions') || []
-          const updated = allTransactions.filter((t) => t.id !== id)
-          setTenantData(currentTenant.id, 'transactions', updated)
+          const { getApiUrl } = await import('@/lib/api/config')
+          const { getAuthToken } = await import('@/lib/api/auth')
+          const apiUrl = getApiUrl()
+          const token = getAuthToken()
+
+          if (!token) {
+            throw new Error('Token de autenticação não encontrado')
+          }
+
+          const response = await fetch(`${apiUrl}/api/transactions/${id}`, {
+            method: 'DELETE',
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          })
+
+          if (!response.ok) {
+            throw new Error('Erro ao excluir transação')
+          }
+
+          // Atualizar lista local removendo a transação deletada
+          setTransactions(prev => prev.filter(t => t.id !== id))
           
           // Notifica o componente pai para atualizar
           onDelete?.()

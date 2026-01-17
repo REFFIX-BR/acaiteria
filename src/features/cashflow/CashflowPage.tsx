@@ -1,12 +1,10 @@
-import { useState } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { TransactionForm } from './components/TransactionForm'
 import { TransactionList } from './components/TransactionList'
 import { CashflowChart } from './components/CashflowChart'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useTenantStore } from '@/stores/tenantStore'
-import { getTenantData, setTenantData } from '@/lib/storage/storage'
-import { useMemo, useEffect } from 'react'
-import type { Transaction, Order } from '@/types'
+import type { Transaction } from '@/types'
 import { DollarSign, TrendingUp, TrendingDown } from 'lucide-react'
 
 function formatCurrency(value: number) {
@@ -19,65 +17,71 @@ function formatCurrency(value: number) {
 export default function CashflowPage() {
   const currentTenant = useTenantStore((state) => state.currentTenant)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const [transactions, setTransactions] = useState<Transaction[]>([])
 
-  // Sincroniza pedidos entregues com transações de entrada
+  // Buscar transações do backend
   useEffect(() => {
-    if (!currentTenant) return
-
-    const orders = getTenantData<Order[]>(currentTenant.id, 'orders') || []
-    const transactions = getTenantData<Transaction[]>(currentTenant.id, 'transactions') || []
-    
-    // Encontra pedidos entregues que ainda não têm transação
-    const deliveredOrders = orders.filter((order) => order.status === 'delivered')
-    const newTransactions: Transaction[] = []
-
-    deliveredOrders.forEach((order) => {
-      // Verifica se já existe uma transação para este pedido
-      const existingTransaction = transactions.find(
-        (t) => t.type === 'income' && t.description.includes(`Pedido #${order.id}`)
-      )
-
-      if (!existingTransaction) {
-        const newTransaction: Transaction = {
-          id: `transaction-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          type: 'income',
-          category: 'Vendas',
-          amount: order.total,
-          description: `Pedido #${order.id} - ${order.customerName}${order.deliveryType === 'delivery' ? ' (Entrega)' : ' (Retirada)'}`,
-          date: order.deliveredAt || order.updatedAt || order.createdAt,
-          createdAt: new Date(),
-        }
-        newTransactions.push(newTransaction)
+    const loadTransactions = async () => {
+      if (!currentTenant) {
+        setTransactions([])
+        return
       }
-    })
 
-    // Adiciona novas transações se houver
-    if (newTransactions.length > 0) {
-      const updatedTransactions = [...transactions, ...newTransactions]
-      setTenantData(currentTenant.id, 'transactions', updatedTransactions)
-      setRefreshTrigger((prev) => prev + 1)
+      try {
+        const { getApiUrl } = await import('@/lib/api/config')
+        const { getAuthToken } = await import('@/lib/api/auth')
+        const apiUrl = getApiUrl()
+        const token = getAuthToken()
+
+        if (!token) {
+          setTransactions([])
+          return
+        }
+
+        const response = await fetch(`${apiUrl}/api/transactions`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          const normalizedTransactions = (data.transactions || []).map((t: any) => ({
+            ...t,
+            date: t.date ? new Date(t.date) : new Date(),
+            createdAt: t.created_at ? new Date(t.created_at) : (t.createdAt ? new Date(t.createdAt) : new Date()),
+          }))
+          setTransactions(normalizedTransactions)
+        } else {
+          console.error('[CashflowPage] Erro ao buscar transações:', response.status)
+          setTransactions([])
+        }
+      } catch (error) {
+        console.error('[CashflowPage] Erro ao buscar transações:', error)
+        setTransactions([])
+      }
     }
-  }, [currentTenant])
+
+    loadTransactions()
+  }, [currentTenant, refreshTrigger])
 
   const summary = useMemo(() => {
-    if (!currentTenant) return null
-    
-    const transactions = getTenantData<Transaction[]>(currentTenant.id, 'transactions') || []
+    if (!currentTenant || transactions.length === 0) return null
     
     const income = transactions
       .filter((t) => t.type === 'income')
-      .reduce((sum, t) => sum + t.amount, 0)
+      .reduce((sum, t) => sum + Number(t.amount), 0)
 
     const expenses = transactions
       .filter((t) => t.type === 'expense')
-      .reduce((sum, t) => sum + t.amount, 0)
+      .reduce((sum, t) => sum + Number(t.amount), 0)
 
     return {
       income,
       expenses,
       profit: income - expenses,
     }
-  }, [currentTenant, refreshTrigger])
+  }, [currentTenant, transactions])
 
   const handleTransactionSuccess = () => {
     setRefreshTrigger((prev) => prev + 1)

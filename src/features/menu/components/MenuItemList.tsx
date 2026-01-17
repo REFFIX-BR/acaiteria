@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useTenantStore } from '@/stores/tenantStore'
-import { getTenantData, setTenantData } from '@/lib/storage/storage'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -60,9 +59,7 @@ export function MenuItemList({ refreshTrigger, onRefresh }: MenuItemListProps) {
         const token = getAuthToken()
 
         if (!token) {
-          // Se não tem token, tenta do localStorage como fallback
-          const localItems = getTenantData<MenuItem[]>(currentTenant.id, 'menu') || []
-          setMenuItems(localItems)
+          setMenuItems([])
           setIsLoadingMenu(false)
           return
         }
@@ -96,20 +93,17 @@ export function MenuItemList({ refreshTrigger, onRefresh }: MenuItemListProps) {
             }))
             setMenuItems(formattedItems)
             // Atualiza localStorage como cache
-            setTenantData(currentTenant.id, 'menu', formattedItems)
+            // Itens salvos no estado, não precisa localStorage
           } else {
             setMenuItems([])
           }
         } else {
-          // Se falhar, tenta do localStorage como fallback
-          const localItems = getTenantData<MenuItem[]>(currentTenant.id, 'menu') || []
-          setMenuItems(localItems)
+          console.error('[MenuItemList] Erro ao buscar itens:', response.status)
+          setMenuItems([])
         }
       } catch (error) {
         console.error('[MenuItemList] Erro ao buscar itens:', error)
-        // Se falhar, tenta do localStorage como fallback
-        const localItems = getTenantData<MenuItem[]>(currentTenant.id, 'menu') || []
-        setMenuItems(localItems)
+        setMenuItems([])
       } finally {
         setIsLoadingMenu(false)
       }
@@ -169,13 +163,8 @@ export function MenuItemList({ refreshTrigger, onRefresh }: MenuItemListProps) {
             // Continua para deletar do localStorage mesmo se o backend falhar
           }
 
-          // Atualiza o estado local removendo o item
-          setMenuItems((prev) => prev.filter((item) => item.id !== id))
-          
-          // Atualiza localStorage como cache
-          const allItems = getTenantData<MenuItem[]>(currentTenant.id, 'menu') || []
-          const updated = allItems.filter((item) => item.id !== id)
-          setTenantData(currentTenant.id, 'menu', updated)
+          // Atualizar lista local removendo o item deletado
+          setMenuItems(prev => prev.filter(item => item.id !== id))
 
           toast({
             title: 'Sucesso',
@@ -206,70 +195,54 @@ export function MenuItemList({ refreshTrigger, onRefresh }: MenuItemListProps) {
 
     try {
       const newAvailable = !item.available
-      const allItems = getTenantData<MenuItem[]>(currentTenant.id, 'menu') || []
-      const index = allItems.findIndex((i) => i.id === item.id)
       
-      if (index !== -1) {
-        // Atualiza no backend primeiro
-        try {
-          const { getApiUrl } = await import('@/lib/api/config')
-          const { getAuthToken } = await import('@/lib/api/auth')
-          const apiUrl = getApiUrl()
-          const token = getAuthToken()
+      const { getApiUrl } = await import('@/lib/api/config')
+      const { getAuthToken } = await import('@/lib/api/auth')
+      const apiUrl = getApiUrl()
+      const token = getAuthToken()
 
-          const response = await fetch(`${apiUrl}/api/menu/items/${item.id}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify({
-              available: newAvailable,
-            }),
-          })
+      if (!token) {
+        throw new Error('Token de autenticação não encontrado')
+      }
 
-          if (!response.ok) {
-            console.error('[MenuItemList] Erro ao atualizar no backend:', response.status)
-          }
-        } catch (error) {
-          console.error('[MenuItemList] Erro ao atualizar no backend:', error)
-          // Continua para atualizar no localStorage mesmo se o backend falhar
-        }
+      // Atualiza no backend
+      const response = await fetch(`${apiUrl}/api/menu/items/${item.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          available: newAvailable,
+        }),
+      })
 
-        // Atualiza o estado local
-        setMenuItems((prev) => {
-          const updated = [...prev]
-          const itemIndex = updated.findIndex((i) => i.id === item.id)
-          if (itemIndex !== -1) {
-            updated[itemIndex] = {
-              ...item,
-              available: newAvailable,
-              updatedAt: new Date(),
-            }
-          }
-          return updated
-        })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Erro ao atualizar no backend')
+      }
 
-        // Atualiza localStorage como cache
-        const allItems = getTenantData<MenuItem[]>(currentTenant.id, 'menu') || []
-        const index = allItems.findIndex((i) => i.id === item.id)
-        if (index !== -1) {
-          allItems[index] = {
+      // Atualiza o estado local
+      setMenuItems((prev) => {
+        const updated = [...prev]
+        const itemIndex = updated.findIndex((i) => i.id === item.id)
+        if (itemIndex !== -1) {
+          updated[itemIndex] = {
             ...item,
             available: newAvailable,
             updatedAt: new Date(),
           }
-          setTenantData(currentTenant.id, 'menu', allItems)
         }
+        return updated
+      })
 
-        toast({
-          title: 'Sucesso',
-          description: item.available ? 'Item ocultado' : 'Item disponibilizado',
-        })
-        
-        // Atualiza a lista em tempo real
-        onRefresh?.()
-      }
+      toast({
+        title: 'Sucesso',
+        description: item.available ? 'Item ocultado' : 'Item disponibilizado',
+      })
+      
+      // Atualiza a lista em tempo real
+      onRefresh?.()
     } catch (error) {
       console.error('Erro ao atualizar item:', error)
       toast({

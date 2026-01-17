@@ -163,12 +163,13 @@ export interface Campaign {
   status: 'active' | 'paused' | 'completed'
   startDate: Date
   endDate?: Date
-  metrics: CampaignMetrics
+  metrics?: CampaignMetrics // Opcional para compatibilidade com backend
   description?: string
   discount?: number
   image?: string
   sendInterval?: number // Intervalo de disparo em segundos (mínimo 15)
   createdAt: Date
+  created_at?: string // Para compatibilidade com backend
 }
 
 // Cliente/Lead

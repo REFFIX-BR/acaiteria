@@ -110,30 +110,60 @@ export function ProductForm({ product, onSuccess, trigger }: ProductFormProps) {
     }
 
     try {
-      const products = getTenantData<Product[]>(currentTenant.id, 'products') || []
+      const { getApiUrl } = await import('@/lib/api/config')
+      const { getAuthToken } = await import('@/lib/api/auth')
+      const apiUrl = getApiUrl()
+      const token = getAuthToken()
+
+      if (!token) {
+        throw new Error('Token de autenticação não encontrado')
+      }
 
       if (product) {
-        // Editar produto existente
-        const index = products.findIndex((p) => p.id === product.id)
-        if (index !== -1) {
-          products[index] = {
-            ...product,
-            ...data,
-            updatedAt: new Date(),
-          }
+        // Atualizar produto existente
+        const response = await fetch(`${apiUrl}/api/products/${product.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            name: data.name,
+            category: data.category,
+            currentStock: data.currentStock,
+            minStock: data.minStock,
+            unit: data.unit,
+            price: data.price,
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.error || 'Erro ao atualizar produto')
         }
       } else {
         // Criar novo produto
-        const newProduct: Product = {
-          id: `product-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          ...data,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        }
-        products.push(newProduct)
-      }
+        const response = await fetch(`${apiUrl}/api/products`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            name: data.name,
+            category: data.category,
+            currentStock: data.currentStock,
+            minStock: data.minStock,
+            unit: data.unit,
+            price: data.price,
+          }),
+        })
 
-      setTenantData(currentTenant.id, 'products', products)
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.error || 'Erro ao criar produto')
+        }
+      }
 
       toast({
         title: 'Sucesso',
@@ -147,7 +177,7 @@ export function ProductForm({ product, onSuccess, trigger }: ProductFormProps) {
       console.error('Erro ao salvar produto:', error)
       toast({
         title: 'Erro',
-        description: 'Erro ao salvar produto',
+        description: error instanceof Error ? error.message : 'Erro ao salvar produto',
         variant: 'destructive',
       })
     }

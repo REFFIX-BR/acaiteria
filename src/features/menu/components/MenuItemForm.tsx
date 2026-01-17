@@ -391,15 +391,7 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
           updatedAt: new Date(backendItem.updated_at),
         }
 
-        // Atualiza no localStorage apenas como cache
-        const menuItems = getTenantData<MenuItem[]>(currentTenant.id, 'menu') || []
-        const index = menuItems.findIndex((m) => m.id === menuItem.id)
-        if (index !== -1) {
-          menuItems[index] = savedItem
-        } else {
-          menuItems.push(savedItem)
-        }
-        setTenantData(currentTenant.id, 'menu', menuItems)
+        // Item atualizado no backend, não precisa salvar localmente
       } else {
         // Criar novo item - SALVA PRIMEIRO NO BACKEND
         const response = await fetch(`${apiUrl}/api/menu/items`, {
@@ -444,9 +436,7 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
         }
 
         // Salva no localStorage apenas como cache
-        const menuItems = getTenantData<MenuItem[]>(currentTenant.id, 'menu') || []
-        menuItems.push(savedItem)
-        setTenantData(currentTenant.id, 'menu', menuItems)
+        // Item criado no backend, não precisa salvar localmente
       }
 
       toast({

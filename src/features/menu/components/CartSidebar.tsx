@@ -525,8 +525,7 @@ export function CartSidebar({
         updatedAt: new Date(),
       }
 
-      allOrders.push(newOrder)
-      setTenantData(tenantId, 'orders', allOrders)
+      // Pedido já foi criado no backend, não precisa salvar localmente
 
       toast({
         title: 'Pedido criado!',

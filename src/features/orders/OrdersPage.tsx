@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useTenantStore } from '@/stores/tenantStore'
-import { getTenantData, setTenantData } from '@/lib/storage/storage'
 import type { Transaction } from '@/types'
 import { getApiUrl } from '@/lib/api/config'
 import { authenticatedFetch } from '@/lib/api/auth'
@@ -96,19 +95,59 @@ export default function OrdersPage() {
   const [lastPendingCount, setLastPendingCount] = useState(0)
   const [isPageVisible, setIsPageVisible] = useState(true)
 
-  const orders = useMemo(() => {
-    if (!currentTenant) return []
-    const allOrders = getTenantData<Order[]>(currentTenant.id, 'orders') || []
-    // Garante que pedidos antigos sem source tenham um valor padrão
-    const ordersWithSource = allOrders.map(order => ({
-      ...order,
-      source: order.source || 'digital' // Padrão para pedidos antigos
-    }))
-    return ordersWithSource.sort((a, b) => {
-      const dateA = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt)
-      const dateB = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt)
-      return dateB.getTime() - dateA.getTime()
-    })
+  const [orders, setOrders] = useState<Order[]>([])
+  const [isLoadingOrders, setIsLoadingOrders] = useState(true)
+
+  // Buscar pedidos do backend
+  useEffect(() => {
+    const loadOrders = async () => {
+      if (!currentTenant) {
+        setOrders([])
+        setIsLoadingOrders(false)
+        return
+      }
+
+      try {
+        setIsLoadingOrders(true)
+        const { getApiUrl } = await import('@/lib/api/config')
+        const { getAuthToken } = await import('@/lib/api/auth')
+        const apiUrl = getApiUrl()
+        const token = getAuthToken()
+
+        if (!token) {
+          setOrders([])
+          setIsLoadingOrders(false)
+          return
+        }
+
+        const response = await fetch(`${apiUrl}/api/orders`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          const normalizedOrders = (data.orders || []).map((order: any) => ({
+            ...order,
+            source: order.source || 'digital',
+            createdAt: order.created_at ? new Date(order.created_at) : (order.createdAt ? new Date(order.createdAt) : new Date()),
+            updatedAt: order.updated_at ? new Date(order.updated_at) : (order.updatedAt ? new Date(order.updatedAt) : new Date()),
+          }))
+          setOrders(normalizedOrders)
+        } else {
+          console.error('[OrdersPage] Erro ao buscar pedidos:', response.status)
+          setOrders([])
+        }
+      } catch (error) {
+        console.error('[OrdersPage] Erro ao buscar pedidos:', error)
+        setOrders([])
+      } finally {
+        setIsLoadingOrders(false)
+      }
+    }
+
+    loadOrders()
   }, [currentTenant, refreshTrigger])
 
   const filteredOrders = useMemo(() => {
@@ -155,12 +194,9 @@ export default function OrdersPage() {
         throw error
       }
 
-      // Atualizar localmente apenas se a API responder com sucesso
-      const allOrders = getTenantData<Order[]>(currentTenant.id, 'orders') || []
-      const orderIndex = allOrders.findIndex((o) => o.id === orderId)
-      
-      if (orderIndex !== -1) {
-        const order = allOrders[orderIndex]
+      // Atualizar lista local com o novo status
+      const order = orders.find(o => o.id === orderId)
+      if (order) {
         const oldStatus = order.status
         const updatedOrder: Order = {
           ...order,
@@ -171,49 +207,14 @@ export default function OrdersPage() {
           deliveredAt: newStatus === 'delivered' ? new Date() : order.deliveredAt,
         }
 
-        allOrders[orderIndex] = updatedOrder
-        setTenantData(currentTenant.id, 'orders', allOrders)
+        setOrders(prev => prev.map(o => o.id === orderId ? updatedOrder : o))
         setRefreshTrigger((prev) => prev + 1)
 
-        // Se o pedido foi marcado como entregue, cria uma transação de entrada
-        if (newStatus === 'delivered' && oldStatus !== 'delivered') {
-          const transactions = getTenantData<Transaction[]>(currentTenant.id, 'transactions') || []
-          
-          // Verifica se já existe uma transação para este pedido (evita duplicatas)
-          const existingTransaction = transactions.find(
-            (t) => t.type === 'income' && t.description.includes(`Pedido #${order.id}`)
-          )
-
-          if (!existingTransaction) {
-            const newTransaction: Transaction = {
-              id: `transaction-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              type: 'income',
-              category: 'Vendas',
-              amount: order.total,
-              description: `Pedido #${order.id} - ${order.customerName}${order.deliveryType === 'delivery' ? ' (Entrega)' : ' (Retirada)'}`,
-              date: new Date(),
-              createdAt: new Date(),
-            }
-
-            transactions.push(newTransaction)
-            setTenantData(currentTenant.id, 'transactions', transactions)
-
-            toast({
-              title: 'Status atualizado',
-              description: `Pedido ${statusConfig[newStatus].label.toLowerCase()} e adicionado ao fluxo de caixa`,
-            })
-          } else {
-            toast({
-              title: 'Status atualizado',
-              description: `Pedido ${statusConfig[newStatus].label.toLowerCase()}`,
-            })
-          }
-        } else {
-          toast({
-            title: 'Status atualizado',
-            description: `Pedido ${statusConfig[newStatus].label.toLowerCase()}`,
-          })
-        }
+        // Backend já cria transação quando pedido é entregue, não precisa fazer aqui
+        toast({
+          title: 'Status atualizado',
+          description: `Pedido ${statusConfig[newStatus].label.toLowerCase()}`,
+        })
       }
     } catch (error: any) {
       console.error('Erro ao atualizar pedido:', error)

@@ -183,8 +183,7 @@ export function CounterOrderForm({ onSuccess }: CounterOrderFormProps) {
         updatedAt: new Date(),
       }
 
-      allOrders.push(newOrder)
-      setTenantData(currentTenant.id, 'orders', allOrders)
+      // Pedido já foi criado no backend, não precisa salvar localmente
 
       toast({
         title: 'Pedido criado!',

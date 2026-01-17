@@ -1,6 +1,5 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useTenantStore } from '@/stores/tenantStore'
-import { getTenantData, setTenantData } from '@/lib/storage/storage'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -29,7 +28,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { format } from 'date-fns'
 import type { Customer } from '@/types'
-import { getCustomers, createCustomer } from '@/lib/api/customers'
 
 const customerSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório'),
@@ -44,48 +42,57 @@ export function LeadCapture() {
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
-  const [isLoading, setIsLoading] = useState(false)
+  const [customers, setCustomers] = useState<Customer[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-  // Buscar clientes do backend ao montar o componente
+  // Buscar clientes do backend (sem usar localStorage)
   useEffect(() => {
-    if (!currentTenant) return
-
     const loadCustomers = async () => {
+      if (!currentTenant) {
+        setCustomers([])
+        setIsLoading(false)
+        return
+      }
+
       try {
         setIsLoading(true)
-        const customersFromApi = await getCustomers()
-        
-        // Converter datas de string para Date
-        const customers = customersFromApi.map((c) => ({
-          ...c,
-          createdAt: typeof c.createdAt === 'string' ? new Date(c.createdAt) : c.createdAt,
-        }))
-        
-        // Salvar no localStorage como cache
-        setTenantData(currentTenant.id, 'customers', customers)
-        setRefreshTrigger((prev) => prev + 1)
-      } catch (error) {
-        console.error('Erro ao carregar clientes:', error)
-        // Se falhar, tenta usar cache do localStorage
-        const cachedCustomers = getTenantData<Customer[]>(currentTenant.id, 'customers') || []
-        if (cachedCustomers.length > 0) {
-          toast({
-            title: 'Aviso',
-            description: 'Usando dados em cache. Alguns clientes podem não estar atualizados.',
-            variant: 'default',
-          })
+        const { getApiUrl } = await import('@/lib/api/config')
+        const { getAuthToken } = await import('@/lib/api/auth')
+        const apiUrl = getApiUrl()
+        const token = getAuthToken()
+
+        if (!token) {
+          setCustomers([])
+          setIsLoading(false)
+          return
         }
+
+        const response = await fetch(`${apiUrl}/api/customers`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          const normalizedCustomers = (data.customers || []).map((c: any) => ({
+            ...c,
+            createdAt: c.created_at ? new Date(c.created_at) : (c.createdAt ? new Date(c.createdAt) : new Date()),
+          }))
+          setCustomers(normalizedCustomers)
+        } else {
+          console.error('[LeadCapture] Erro ao buscar clientes:', response.status)
+          setCustomers([])
+        }
+      } catch (error) {
+        console.error('[LeadCapture] Erro ao buscar clientes:', error)
+        setCustomers([])
       } finally {
         setIsLoading(false)
       }
     }
 
     loadCustomers()
-  }, [currentTenant])
-
-  const customers = useMemo(() => {
-    if (!currentTenant) return []
-    return getTenantData<Customer[]>(currentTenant.id, 'customers') || []
   }, [currentTenant, refreshTrigger])
 
   const {
@@ -108,23 +115,56 @@ export function LeadCapture() {
     }
 
     try {
+      const { getApiUrl } = await import('@/lib/api/config')
+      const { getAuthToken } = await import('@/lib/api/auth')
+      const apiUrl = getApiUrl()
+      const token = getAuthToken()
+
+      if (!token) {
+        throw new Error('Token de autenticação não encontrado')
+      }
+
+      // Verificar se já existe cliente com mesmo telefone
+      const existing = customers.find((c) => c.phone === data.phone)
+      if (existing) {
+        toast({
+          title: 'Aviso',
+          description: 'Cliente com este telefone já está cadastrado',
+          variant: 'destructive',
+        })
+        return
+      }
+
       // Criar cliente no backend
-      const newCustomer = await createCustomer({
+      const response = await fetch(`${apiUrl}/api/customers`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: data.name,
+          phone: data.phone,
+          email: data.email || undefined,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Erro ao criar cliente')
+      }
+
+      const result = await response.json()
+      
+      // Atualizar lista local com o novo cliente
+      const newCustomer: Customer = {
+        id: result.id || result.customer?.id,
         name: data.name,
         phone: data.phone,
         email: data.email || undefined,
-      })
-
-      // Converter data de string para Date se necessário
-      const customer: Customer = {
-        ...newCustomer,
-        createdAt: typeof newCustomer.createdAt === 'string' ? new Date(newCustomer.createdAt) : newCustomer.createdAt,
+        createdAt: result.created_at ? new Date(result.created_at) : new Date(),
       }
-
-      // Atualizar lista local
-      const allCustomers = getTenantData<Customer[]>(currentTenant.id, 'customers') || []
-      allCustomers.push(customer)
-      setTenantData(currentTenant.id, 'customers', allCustomers)
+      setCustomers(prev => [...prev, newCustomer])
 
       // Força atualização da lista
       setRefreshTrigger((prev) => prev + 1)

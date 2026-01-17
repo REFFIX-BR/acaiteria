@@ -68,6 +68,14 @@ export function CampaignList({ refreshTrigger, onRefresh }: CampaignListProps) {
             startDate: campaign.start_date ? new Date(campaign.start_date) : (campaign.startDate ? new Date(campaign.startDate) : new Date()),
             endDate: campaign.end_date ? (campaign.end_date ? new Date(campaign.end_date) : undefined) : (campaign.endDate ? new Date(campaign.endDate) : undefined),
             createdAt: campaign.created_at ? new Date(campaign.created_at) : (campaign.createdAt ? new Date(campaign.createdAt) : new Date()),
+            // Garantir que metrics sempre exista com valores padrão
+            metrics: campaign.metrics || {
+              sent: 0,
+              delivered: 0,
+              failed: 0,
+              clicks: 0,
+              conversions: 0,
+            },
           }))
           setCampaigns(normalizedCampaigns)
         } else {

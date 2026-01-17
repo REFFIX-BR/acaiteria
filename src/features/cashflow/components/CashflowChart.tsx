@@ -10,8 +10,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import { useTenantStore } from '@/stores/tenantStore'
-import { getTenantData } from '@/lib/storage/storage'
-import { useMemo } from 'react'
+import { useMemo, useEffect, useState } from 'react'
 import { format, subDays, startOfDay, endOfDay } from 'date-fns'
 import type { Transaction } from '@/types'
 
@@ -28,11 +27,57 @@ interface CashflowChartProps {
 
 export function CashflowChart({ refreshTrigger }: CashflowChartProps) {
   const currentTenant = useTenantStore((state) => state.currentTenant)
+  const [transactions, setTransactions] = useState<Transaction[]>([])
+
+  // Buscar transações do backend
+  useEffect(() => {
+    const loadTransactions = async () => {
+      if (!currentTenant) {
+        setTransactions([])
+        return
+      }
+
+      try {
+        const { getApiUrl } = await import('@/lib/api/config')
+        const { getAuthToken } = await import('@/lib/api/auth')
+        const apiUrl = getApiUrl()
+        const token = getAuthToken()
+
+        if (!token) {
+          setTransactions([])
+          return
+        }
+
+        const response = await fetch(`${apiUrl}/api/transactions`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          const normalizedTransactions = (data.transactions || []).map((t: any) => ({
+            ...t,
+            date: t.date ? new Date(t.date) : new Date(),
+            createdAt: t.created_at ? new Date(t.created_at) : (t.createdAt ? new Date(t.createdAt) : new Date()),
+          }))
+          setTransactions(normalizedTransactions)
+        } else {
+          console.error('[CashflowChart] Erro ao buscar transações:', response.status)
+          setTransactions([])
+        }
+      } catch (error) {
+        console.error('[CashflowChart] Erro ao buscar transações:', error)
+        setTransactions([])
+      }
+    }
+
+    loadTransactions()
+  }, [currentTenant, refreshTrigger])
 
   const data = useMemo(() => {
-    if (!currentTenant) return []
+    if (!currentTenant || transactions.length === 0) return []
     
-    const transactions = getTenantData<Transaction[]>(currentTenant.id, 'transactions') || []
     const chartData: { date: string; Entradas: number; Saídas: number; Saldo: number }[] = []
     
     for (let i = 29; i >= 0; i--) {
@@ -47,7 +92,7 @@ export function CashflowChart({ refreshTrigger }: CashflowChartProps) {
             new Date(t.date) >= dayStart &&
             new Date(t.date) <= dayEnd
         )
-        .reduce((sum, t) => sum + t.amount, 0)
+        .reduce((sum, t) => sum + Number(t.amount), 0)
 
       const dayExpenses = transactions
         .filter(
@@ -56,7 +101,7 @@ export function CashflowChart({ refreshTrigger }: CashflowChartProps) {
             new Date(t.date) >= dayStart &&
             new Date(t.date) <= dayEnd
         )
-        .reduce((sum, t) => sum + t.amount, 0)
+        .reduce((sum, t) => sum + Number(t.amount), 0)
 
       chartData.push({
         date: format(date, 'dd/MM'),
@@ -67,7 +112,7 @@ export function CashflowChart({ refreshTrigger }: CashflowChartProps) {
     }
 
     return chartData
-  }, [currentTenant, refreshTrigger])
+  }, [currentTenant, transactions])
 
   if (!currentTenant) {
     return null

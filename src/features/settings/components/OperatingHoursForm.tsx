@@ -1,6 +1,5 @@
 import { useState, useEffect, useImperativeHandle, forwardRef } from 'react'
 import { useTenantStore } from '@/stores/tenantStore'
-import { getTenantData, setTenantData } from '@/lib/storage/storage'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -33,86 +32,81 @@ export const OperatingHoursForm = forwardRef<OperatingHoursFormRef, OperatingHou
     const [hasChanges, setHasChanges] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
 
-    // Carrega dados salvos
+    // Carrega dados salvos do backend
     useEffect(() => {
-      if (currentTenant) {
-        const settings = getTenantData<{ operatingHours: OperatingHours[] }>(currentTenant.id, 'settings')
-        if (settings?.operatingHours && settings.operatingHours.length > 0) {
-          const savedDays = settings.operatingHours
-          
-          // Verifica se já está no formato novo (tem 7 dias)
-          const hasAllDays = savedDays.length === 7 && savedDays.every(s => 
-            ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
-              .some(day => s.day === day)
-          )
-          
-          if (hasAllDays) {
-            // Já está no formato novo, apenas ordena
-            const orderedDays = defaultDays.map(defaultDay => {
-              const savedDay = savedDays.find(s => s.day === defaultDay.day)
-              return savedDay || {
-                day: defaultDay.day,
-                enabled: defaultDay.enabled,
-                startTime: defaultDay.startTime,
-                endTime: defaultDay.endTime,
-              }
-            })
-            setHours(orderedDays)
-          } else {
-            // Migra dados antigos para o novo formato com todos os dias
-            // Primeiro, verifica se tem entrada "Segunda a Sexta"
-            const weekdaysEntry = savedDays.find(s => {
-              const dayLower = s.day.toLowerCase()
-              return dayLower.includes('segunda') && dayLower.includes('sexta')
-            })
+      const loadSettings = async () => {
+        if (!currentTenant) return
+
+        try {
+          const { getApiUrl } = await import('@/lib/api/config')
+          const { getAuthToken } = await import('@/lib/api/auth')
+          const apiUrl = getApiUrl()
+          const token = getAuthToken()
+
+          if (!token) {
+            setHours(defaultDays.map(d => ({
+              day: d.day,
+              enabled: d.enabled,
+              startTime: d.startTime,
+              endTime: d.endTime,
+            })))
+            return
+          }
+
+          const response = await fetch(`${apiUrl}/api/settings/operating-hours`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          })
+
+          if (response.ok) {
+            const data = await response.json()
+            const savedHours = data.hours || []
             
-            const allDays = defaultDays.map(defaultDay => {
-              // Se é um dia útil e existe entrada "Segunda a Sexta", usa ela
-              if (weekdaysEntry && ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'].includes(defaultDay.dayKey)) {
-                return {
+            if (savedHours.length > 0) {
+              // Mapeia os horários do backend para o formato esperado
+              const mappedHours = defaultDays.map(defaultDay => {
+                const savedDay = savedHours.find((s: any) => {
+                  const savedDayLower = (s.day || '').toLowerCase().trim()
+                  const defaultDayLower = defaultDay.day.toLowerCase()
+                  return savedDayLower.includes(defaultDayLower.split('-')[0]) || 
+                         defaultDayLower.includes(savedDayLower.split(' ')[0])
+                })
+                
+                return savedDay ? {
                   day: defaultDay.day,
-                  enabled: weekdaysEntry.enabled,
-                  startTime: weekdaysEntry.startTime,
-                  endTime: weekdaysEntry.endTime,
+                  enabled: savedDay.enabled ?? defaultDay.enabled,
+                  startTime: savedDay.start_time || savedDay.startTime || defaultDay.startTime,
+                  endTime: savedDay.end_time || savedDay.endTime || defaultDay.endTime,
+                } : {
+                  day: defaultDay.day,
+                  enabled: defaultDay.enabled,
+                  startTime: defaultDay.startTime,
+                  endTime: defaultDay.endTime,
                 }
-              }
-              
-              // Tenta encontrar dia específico salvo (Sábado, Domingo, etc)
-              const savedDay = savedDays.find(s => {
-                const savedDayLower = s.day.toLowerCase().trim()
-                if (savedDayLower.includes('sábado') || savedDayLower.includes('sabado')) {
-                  return defaultDay.dayKey === 'saturday'
-                }
-                if (savedDayLower.includes('domingo')) {
-                  return defaultDay.dayKey === 'sunday'
-                }
-                // Verifica correspondência direta
-                return savedDayLower.includes(defaultDay.dayKey) ||
-                  defaultDay.day.toLowerCase().includes(savedDayLower.split(' ')[0])
               })
               
-              if (savedDay) {
-                return {
-                  day: defaultDay.day,
-                  enabled: savedDay.enabled,
-                  startTime: savedDay.startTime,
-                  endTime: savedDay.endTime,
-                }
-              }
-              
+              setHours(mappedHours)
+            } else {
               // Usa valores padrão
-              return {
-                day: defaultDay.day,
-                enabled: defaultDay.enabled,
-                startTime: defaultDay.startTime,
-                endTime: defaultDay.endTime,
-              }
-            })
-            
-            setHours(allDays)
+              setHours(defaultDays.map(d => ({
+                day: d.day,
+                enabled: d.enabled,
+                startTime: d.startTime,
+                endTime: d.endTime,
+              })))
+            }
+          } else {
+            // Usa valores padrão se não conseguir carregar
+            setHours(defaultDays.map(d => ({
+              day: d.day,
+              enabled: d.enabled,
+              startTime: d.startTime,
+              endTime: d.endTime,
+            })))
           }
-        } else {
-          // Usa valores padrão
+        } catch (error) {
+          console.error('[OperatingHoursForm] Erro ao carregar horários:', error)
           setHours(defaultDays.map(d => ({
             day: d.day,
             enabled: d.enabled,
@@ -121,6 +115,8 @@ export const OperatingHoursForm = forwardRef<OperatingHoursFormRef, OperatingHou
           })))
         }
       }
+
+      loadSettings()
     }, [currentTenant])
 
     // Notifica mudanças
@@ -157,11 +153,29 @@ export const OperatingHoursForm = forwardRef<OperatingHoursFormRef, OperatingHou
 
       setIsSaving(true)
       try {
-        const settings: any = getTenantData(currentTenant.id, 'settings') || {}
-        settings.operatingHours = hours
-        settings.timezone = 'America/Sao_Paulo' // Fuso horário de Brasília
-        setTenantData(currentTenant.id, 'settings', settings)
-        
+        const { getApiUrl } = await import('@/lib/api/config')
+        const { getAuthToken } = await import('@/lib/api/auth')
+        const apiUrl = getApiUrl()
+        const token = getAuthToken()
+
+        if (!token) {
+          throw new Error('Token de autenticação não encontrado')
+        }
+
+        const response = await fetch(`${apiUrl}/api/settings/operating-hours`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(hours),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.error || 'Erro ao salvar horários')
+        }
+
         setHasChanges(false)
       } catch (error) {
         console.error('Erro ao salvar horários:', error)

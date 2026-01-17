@@ -3,7 +3,6 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useTenantStore } from '@/stores/tenantStore'
-import { getTenantData, setTenantData } from '@/lib/storage/storage'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -57,14 +56,42 @@ export const CompanyDataForm = forwardRef<CompanyDataFormRef, CompanyDataFormPro
     },
   })
 
-  // Carrega dados salvos
+  // Carrega dados salvos do backend
   useEffect(() => {
-    if (currentTenant) {
-      const settings = getTenantData<{ company: CompanySettings }>(currentTenant.id, 'settings')
-      if (settings?.company) {
-        reset(settings.company)
+    const loadSettings = async () => {
+      if (!currentTenant) return
+
+      try {
+        const { getApiUrl } = await import('@/lib/api/config')
+        const { getAuthToken } = await import('@/lib/api/auth')
+        const apiUrl = getApiUrl()
+        const token = getAuthToken()
+
+        if (!token) return
+
+        const response = await fetch(`${apiUrl}/api/settings/company`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          if (data.settings) {
+            reset({
+              tradeName: data.settings.trade_name || '',
+              contactPhone: data.settings.contact_phone || '',
+              cnpj: data.settings.cnpj || '',
+              adminEmail: data.settings.admin_email || '',
+            })
+          }
+        }
+      } catch (error) {
+        console.error('[CompanyDataForm] Erro ao carregar configurações:', error)
       }
     }
+
+    loadSettings()
   }, [currentTenant, reset])
 
   // Notifica mudanças
@@ -84,10 +111,34 @@ export const CompanyDataForm = forwardRef<CompanyDataFormRef, CompanyDataFormPro
 
     setIsSaving(true)
     try {
-      const settings: any = getTenantData(currentTenant.id, 'settings') || {}
-      settings.company = data
-      setTenantData(currentTenant.id, 'settings', settings)
-      
+      const { getApiUrl } = await import('@/lib/api/config')
+      const { getAuthToken } = await import('@/lib/api/auth')
+      const apiUrl = getApiUrl()
+      const token = getAuthToken()
+
+      if (!token) {
+        throw new Error('Token de autenticação não encontrado')
+      }
+
+      const response = await fetch(`${apiUrl}/api/settings/company`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          tradeName: data.tradeName,
+          contactPhone: data.contactPhone,
+          cnpj: data.cnpj,
+          adminEmail: data.adminEmail,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Erro ao salvar configurações')
+      }
+
       reset(data, { keepValues: true })
       onChanges?.(false)
     } catch (error) {
