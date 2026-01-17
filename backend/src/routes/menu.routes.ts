@@ -185,7 +185,7 @@ router.post('/items', async (req: AuthRequest, res, next) => {
     const data = createItemSchema.parse(req.body)
 
     // Criar item
-    const itemResult = await query(
+    const insertResult = await query(
       `INSERT INTO menu_items (tenant_id, name, description, base_price, image, category, available, max_additions, max_complements, max_fruits, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
        RETURNING id`,
@@ -203,7 +203,7 @@ router.post('/items', async (req: AuthRequest, res, next) => {
       ]
     )
 
-    const itemId = itemResult.rows[0].id
+    const itemId = insertResult.rows[0].id
 
     // Criar tamanhos
     if (data.sizes && data.sizes.length > 0) {
@@ -246,7 +246,7 @@ router.post('/items', async (req: AuthRequest, res, next) => {
     }
 
     // Busca o item completo criado para retornar
-    const itemResult = await query(
+    const fullItemResult = await query(
       `SELECT mi.*,
        COALESCE(
          json_agg(DISTINCT jsonb_build_object('id', mis.id, 'name', mis.name, 'price', mis.price))
@@ -278,7 +278,7 @@ router.post('/items', async (req: AuthRequest, res, next) => {
       [itemId]
     )
 
-    res.status(201).json({ item: itemResult.rows[0], message: 'Item created successfully' })
+    res.status(201).json({ item: fullItemResult.rows[0], message: 'Item created successfully' })
   } catch (error) {
     next(error)
   }
