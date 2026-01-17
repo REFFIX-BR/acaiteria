@@ -456,6 +456,8 @@ export function CartSidebar({
 
       // Criar pedido no backend primeiro
       const apiUrl = getApiUrl()
+      console.log('[CartSidebar] Criando pedido no backend:', { customerName: name, customerPhone: phone, itemCount: orderItems.length })
+      
       const response = await authenticatedFetch(`${apiUrl}/api/orders`, {
         method: 'POST',
         body: JSON.stringify({
@@ -484,13 +486,23 @@ export function CartSidebar({
         }),
       })
 
+      console.log('[CartSidebar] Resposta do backend:', { status: response.status, ok: response.ok })
+
       if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Erro ao criar pedido' }))
-        throw new Error(error.error || 'Erro ao criar pedido no servidor')
+        const errorData = await response.json().catch(() => ({ error: 'Erro ao criar pedido' }))
+        console.error('[CartSidebar] Erro ao criar pedido no backend:', errorData)
+        throw new Error(errorData.error || 'Erro ao criar pedido no servidor')
       }
 
       const result = await response.json()
       const backendOrderId = result.id
+      
+      console.log('[CartSidebar] Pedido criado no backend com ID:', backendOrderId)
+      
+      if (!backendOrderId || typeof backendOrderId !== 'string' || !backendOrderId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+        console.error('[CartSidebar] ID do backend não é um UUID válido:', backendOrderId)
+        throw new Error('ID do pedido retornado pelo servidor é inválido')
+      }
 
       // Criar pedido local com o ID do backend
       const newOrder: Order = {
@@ -523,11 +535,13 @@ export function CartSidebar({
 
       onCreateOrder?.()
       onClose()
-    } catch (error) {
-      console.error('Erro ao criar pedido:', error)
+    } catch (error: any) {
+      console.error('[CartSidebar] Erro completo ao criar pedido:', error)
+      
+      const errorMessage = error?.message || 'Erro desconhecido ao criar pedido'
       toast({
-        title: 'Erro',
-        description: 'Erro ao criar pedido',
+        title: 'Erro ao criar pedido',
+        description: errorMessage,
         variant: 'destructive',
       })
     }
