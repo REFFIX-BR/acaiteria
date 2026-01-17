@@ -574,5 +574,108 @@ router.delete(
   }
 )
 
+/**
+ * POST /api/whatsapp/messages/send
+ * Envia mensagem via WhatsApp usando o endpoint api.reffix.com.br
+ */
+router.post(
+  '/messages/send',
+  authenticate,
+  tenantGuard,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ success: false, error: 'Não autenticado' })
+      }
+
+      const { instanceName, phone, text } = req.body
+
+      if (!instanceName || !phone || !text) {
+        return res.status(400).json({
+          success: false,
+          error: 'Campos obrigatórios: instanceName, phone, text',
+        })
+      }
+
+      const tenantId = req.user.tenantId
+
+      // Verificar se a instância pertence ao tenant
+      const dbInstance = await getWhatsAppInstanceByName(instanceName)
+      if (!dbInstance || dbInstance.tenantId !== tenantId) {
+        return res.status(404).json({
+          success: false,
+          error: 'Instância não encontrada ou não pertence ao tenant',
+        })
+      }
+
+      // Verificar se a instância está conectada
+      if (dbInstance.status !== 'connected') {
+        return res.status(400).json({
+          success: false,
+          error: 'Instância não está conectada',
+        })
+      }
+
+      // Formatar número de telefone (remove caracteres não numéricos, adiciona código do país se necessário)
+      let formattedPhone = phone.replace(/\D/g, '')
+      if (formattedPhone.length === 11 && !formattedPhone.startsWith('55')) {
+        formattedPhone = '55' + formattedPhone
+      } else if (formattedPhone.length === 10 && !formattedPhone.startsWith('55')) {
+        formattedPhone = '55' + formattedPhone
+      }
+
+      // Obter API key do ambiente
+      const apiKey = process.env.EVOLUTION_API_KEY || process.env.EVOLUTION_API_GLOBAL_KEY
+      if (!apiKey) {
+        return res.status(500).json({
+          success: false,
+          error: 'API Key não configurada no servidor',
+        })
+      }
+
+      // Enviar mensagem via api.reffix.com.br
+      const response = await fetch(`https://api.reffix.com.br/message/sendText/${instanceName}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': apiKey,
+        },
+        body: JSON.stringify({
+          number: formattedPhone,
+          text: text,
+        }),
+      })
+
+      let responseData: any = {}
+      try {
+        const textResponse = await response.text()
+        if (textResponse) {
+          responseData = JSON.parse(textResponse)
+        }
+      } catch (parseError) {
+        // Se não conseguir parsear, usar a resposta como está
+        responseData = { message: textResponse }
+      }
+
+      if (response.ok) {
+        res.json({
+          success: true,
+          message: 'Mensagem enviada com sucesso',
+          data: responseData,
+        })
+      } else {
+        res.status(response.status).json({
+          success: false,
+          error: responseData.error || responseData.message || `Erro HTTP ${response.status}`,
+          details: responseData,
+        })
+      }
+    } catch (error) {
+      console.error('[WhatsApp Send Message] Erro:', error)
+      return errorHandler(error as Error, req, res, () => {})
+    }
+  }
+)
+
 export default router
 

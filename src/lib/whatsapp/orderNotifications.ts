@@ -1,60 +1,39 @@
 import type { Order } from '@/types'
 import { getTenantData } from '@/lib/storage/storage'
-import type { WhatsAppConfig, WhatsAppInstance } from '@/types'
+import type { WhatsAppInstance } from '@/types'
 
 /**
- * Formata número de telefone para o formato esperado pela API
+ * Envia mensagem via WhatsApp usando o endpoint do backend
  */
-function formatPhone(phone: string): string {
-  // Remove caracteres não numéricos
-  let cleaned = phone.replace(/\D/g, '')
-
-  // Se não começar com código do país, assume Brasil (55)
-  if (cleaned.length === 11 && !cleaned.startsWith('55')) {
-    cleaned = '55' + cleaned
-  } else if (cleaned.length === 10 && !cleaned.startsWith('55')) {
-    // Se for número de 10 dígitos (sem 9 antes do número)
-    cleaned = '55' + cleaned
-  }
-
-  return cleaned
-}
-
-/**
- * Envia mensagem via WhatsApp usando o endpoint api.reffix.com.br
- */
-export async function sendWhatsAppMessage(
+async function sendWhatsAppMessage(
   instance: string,
   phone: string,
   text: string,
-  apiKey?: string
+  tenantId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const formattedPhone = formatPhone(phone)
-    const url = `https://api.reffix.com.br/message/sendText/${instance}`
+    // Importa dinamicamente para evitar dependência circular
+    const { getApiUrl } = await import('@/lib/api/config')
+    const { authenticatedFetch } = await import('@/lib/auth/auth')
     
-    console.log('[WhatsApp] Enviando mensagem:', {
+    const apiUrl = getApiUrl()
+    const url = `${apiUrl}/api/whatsapp/messages/send`
+    
+    console.log('[WhatsApp] Enviando mensagem via backend:', {
       url,
       instance,
-      phone: formattedPhone,
+      phone,
       textLength: text.length,
-      hasApiKey: !!apiKey,
     })
 
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    }
-
-    // Adiciona API key se disponível
-    if (apiKey) {
-      headers['apikey'] = apiKey
-    }
-
-    const response = await fetch(url, {
+    const response = await authenticatedFetch(url, {
       method: 'POST',
-      headers,
+      headers: {
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
-        number: formattedPhone,
+        instanceName: instance,
+        phone: phone,
         text: text,
       }),
     })
@@ -63,25 +42,15 @@ export async function sendWhatsAppMessage(
       status: response.status,
       statusText: response.statusText,
       ok: response.ok,
-      headers: Object.fromEntries(response.headers.entries()),
     })
 
-    let data: any = {}
-    try {
-      const textResponse = await response.text()
-      console.log('[WhatsApp] Resposta texto:', textResponse.substring(0, 200))
-      if (textResponse) {
-        data = JSON.parse(textResponse)
-      }
-    } catch (parseError) {
-      console.warn('[WhatsApp] Erro ao parsear resposta JSON:', parseError)
-    }
+    const data = await response.json()
 
     if (response.ok) {
       console.log('[WhatsApp] Mensagem enviada com sucesso!', data)
       return { success: true }
     } else {
-      const errorMsg = data.message || data.error || `Erro HTTP ${response.status}`
+      const errorMsg = data.error || data.message || `Erro HTTP ${response.status}`
       console.error('[WhatsApp] Erro ao enviar mensagem:', errorMsg, data)
       return {
         success: false,
@@ -158,12 +127,6 @@ export async function notifyOrderStatusChange(
       }
     }
 
-    // Busca a configuração do WhatsApp (para obter a API key se necessário)
-    const config = getTenantData<WhatsAppConfig>(tenantId, 'whatsapp_config')
-    console.log('[WhatsApp Notificação] Configuração:', config)
-    
-    // Se não houver configuração mas a instância estiver conectada, ainda tentamos enviar
-    // (a API pode funcionar sem config ou a API key pode estar no backend)
 
     // Verifica se o pedido tem número de telefone
     if (!order.customerPhone) {
@@ -179,12 +142,12 @@ export async function notifyOrderStatusChange(
     const message = generateStatusMessage(order, newStatus)
     console.log('[WhatsApp Notificação] Mensagem gerada:', message.substring(0, 100) + '...')
 
-    // Envia a mensagem (passa a API key se disponível)
+    // Envia a mensagem via backend (que tem a API key configurada)
     const result = await sendWhatsAppMessage(
       instance.instanceName, 
       order.customerPhone, 
       message,
-      config?.apiKey
+      tenantId
     )
     
     if (result.success) {
