@@ -11,6 +11,8 @@ import type { Order, Customer } from '@/types'
 import { useToast } from '@/hooks/use-toast'
 import { CustomerIdentificationModal } from './CustomerIdentificationModal'
 import { getOrderSourceFromUrl } from '@/lib/menu/menuUrl'
+import { getApiUrl } from '@/lib/api/config'
+import { authenticatedFetch } from '@/lib/api/auth'
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('pt-BR', {
@@ -452,8 +454,47 @@ export function CartSidebar({
         }
       }
 
+      // Criar pedido no backend primeiro
+      const apiUrl = getApiUrl()
+      const response = await authenticatedFetch(`${apiUrl}/api/orders`, {
+        method: 'POST',
+        body: JSON.stringify({
+          customerName: name,
+          customerPhone: phone,
+          items: orderItems.map(item => ({
+            menuItemId: item.item.id,
+            menuItemName: item.item.name,
+            size: item.size?.name,
+            additions: item.additions.map(a => a.name),
+            complements: item.complements.map(c => c.name),
+            fruits: item.fruits?.map(f => f.name) || [],
+            quantity: item.quantity,
+            unitPrice: item.size ? item.size.price : item.item.basePrice,
+            totalPrice: calculateItemTotal(item),
+          })),
+          subtotal: total,
+          total,
+          paymentMethod: orderPaymentMethod,
+          deliveryType,
+          deliveryAddress: fullAddress,
+          notes: paymentMethod === 'cash' && needsChange && cashReceived
+            ? `Pagamento em dinheiro. Valor recebido: ${formatCurrency(parseFloat(cashReceived.replace(',', '.')) || 0)}. Troco: ${formatCurrency(change)}`
+            : undefined,
+          source: getOrderSourceFromUrl(),
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Erro ao criar pedido' }))
+        throw new Error(error.error || 'Erro ao criar pedido no servidor')
+      }
+
+      const result = await response.json()
+      const backendOrderId = result.id
+
+      // Criar pedido local com o ID do backend
       const newOrder: Order = {
-        id: `order-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: backendOrderId,
         tenantId,
         customerName: name,
         customerPhone: phone,
@@ -467,7 +508,7 @@ export function CartSidebar({
         notes: paymentMethod === 'cash' && needsChange && cashReceived
           ? `Pagamento em dinheiro. Valor recebido: ${formatCurrency(parseFloat(cashReceived.replace(',', '.')) || 0)}. Troco: ${formatCurrency(change)}`
           : undefined,
-        source: getOrderSourceFromUrl(), // Identifica se veio do balcão (QR code) ou digital (link direto)
+        source: getOrderSourceFromUrl(),
         createdAt: new Date(),
         updatedAt: new Date(),
       }

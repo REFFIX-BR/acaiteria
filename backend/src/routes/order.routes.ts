@@ -157,6 +157,15 @@ router.patch('/:id/status', async (req: AuthRequest, res, next) => {
       return res.status(400).json({ error: 'Invalid status' })
     }
 
+    // Validar se o ID é um UUID válido
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(req.params.id)) {
+      return res.status(400).json({ 
+        error: 'Invalid order ID format. Order must be created in the backend first.',
+        details: 'The provided ID is not a valid UUID. Please ensure the order was created via the API.'
+      })
+    }
+
     const updates: string[] = ['status = $1', 'updated_at = NOW()']
     const params: any[] = [status]
 
@@ -198,7 +207,11 @@ router.patch('/:id/status', async (req: AuthRequest, res, next) => {
     )
 
     if (orderQueryResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Order not found' })
+      return res.status(404).json({ 
+        error: 'Order not found',
+        details: 'The order does not exist in the database. Please ensure the order was created via the API first.',
+        orderId: req.params.id
+      })
     }
 
     const orderData = orderQueryResult.rows[0]
