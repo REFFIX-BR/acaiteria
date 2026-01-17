@@ -27,8 +27,12 @@ const campaignSchema = z.object({
   discount: z.preprocess(
     (val) => {
       if (val === '' || val === null || val === undefined) return undefined
-      const num = typeof val === 'string' ? parseFloat(val) : val
-      return isNaN(num) ? undefined : num
+      if (typeof val === 'number') return isNaN(val) ? undefined : val
+      if (typeof val === 'string') {
+        const num = parseFloat(val)
+        return isNaN(num) ? undefined : num
+      }
+      return undefined
     },
     z.number().min(0).max(100).optional()
   ),
@@ -44,8 +48,14 @@ const campaignSchema = z.object({
   sendInterval: z.preprocess(
     (val) => {
       if (val === '' || val === null || val === undefined) return 15
-      const num = typeof val === 'string' ? parseInt(val, 10) : val
-      return isNaN(num) ? 15 : Math.max(15, num)
+      if (typeof val === 'number') {
+        return isNaN(val) ? 15 : Math.max(15, val)
+      }
+      if (typeof val === 'string') {
+        const num = parseInt(val, 10)
+        return isNaN(num) ? 15 : Math.max(15, num)
+      }
+      return 15
     },
     z.number().min(15, 'O intervalo mínimo é de 15 segundos').default(15)
   ),
@@ -313,9 +323,9 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
             name: data.name,
             type: data.type,
             description: data.description || undefined,
-            discount: data.discount === '' ? undefined : data.discount,
+            discount: data.discount,
             startDate: data.startDate,
-            endDate: data.endDate === '' ? undefined : data.endDate,
+            endDate: data.endDate || undefined,
             image: finalImageUrl || undefined,
             sendInterval: sendInterval >= 15 ? sendInterval : 15,
           }
