@@ -67,13 +67,36 @@ export function MenuItemList({ refreshTrigger, onRefresh }: MenuItemListProps) {
     return Array.from(new Set(allCategories)).sort()
   }, [currentTenant])
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!currentTenant) return
 
     confirm(
       'Tem certeza que deseja excluir este item do cardápio? Esta ação não pode ser desfeita.',
-      () => {
+      async () => {
         try {
+          // Tenta deletar no backend primeiro
+          try {
+            const { getApiUrl } = await import('@/lib/api/config')
+            const { getAuthToken } = await import('@/lib/api/auth')
+            const apiUrl = getApiUrl()
+            const token = getAuthToken()
+
+            const response = await fetch(`${apiUrl}/api/menu/items/${id}`, {
+              method: 'DELETE',
+              headers: {
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+            })
+
+            if (!response.ok && response.status !== 404) {
+              console.error('[MenuItemList] Erro ao deletar no backend:', response.status)
+            }
+          } catch (error) {
+            console.error('[MenuItemList] Erro ao deletar no backend:', error)
+            // Continua para deletar do localStorage mesmo se o backend falhar
+          }
+
+          // Deleta do localStorage
           const allItems = getTenantData<MenuItem[]>(currentTenant.id, 'menu') || []
           const updated = allItems.filter((item) => item.id !== id)
           setTenantData(currentTenant.id, 'menu', updated)
@@ -102,16 +125,45 @@ export function MenuItemList({ refreshTrigger, onRefresh }: MenuItemListProps) {
     )
   }
 
-  const handleToggleAvailable = (item: MenuItem) => {
+  const handleToggleAvailable = async (item: MenuItem) => {
     if (!currentTenant) return
 
     try {
+      const newAvailable = !item.available
       const allItems = getTenantData<MenuItem[]>(currentTenant.id, 'menu') || []
       const index = allItems.findIndex((i) => i.id === item.id)
+      
       if (index !== -1) {
+        // Atualiza no backend primeiro
+        try {
+          const { getApiUrl } = await import('@/lib/api/config')
+          const { getAuthToken } = await import('@/lib/api/auth')
+          const apiUrl = getApiUrl()
+          const token = getAuthToken()
+
+          const response = await fetch(`${apiUrl}/api/menu/items/${item.id}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              available: newAvailable,
+            }),
+          })
+
+          if (!response.ok) {
+            console.error('[MenuItemList] Erro ao atualizar no backend:', response.status)
+          }
+        } catch (error) {
+          console.error('[MenuItemList] Erro ao atualizar no backend:', error)
+          // Continua para atualizar no localStorage mesmo se o backend falhar
+        }
+
+        // Atualiza no localStorage
         allItems[index] = {
           ...item,
-          available: !item.available,
+          available: newAvailable,
           updatedAt: new Date(),
         }
         setTenantData(currentTenant.id, 'menu', allItems)

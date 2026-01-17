@@ -292,12 +292,19 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
 
     try {
       const menuItems = getTenantData<MenuItem[]>(currentTenant.id, 'menu') || []
+      let savedItem: MenuItem
+
+      // Prepara o payload para o backend
+      const { getApiUrl } = await import('@/lib/api/config')
+      const { getAuthToken } = await import('@/lib/api/auth')
+      const apiUrl = getApiUrl()
+      const token = getAuthToken()
 
       if (menuItem) {
         // Editar item existente
         const index = menuItems.findIndex((m) => m.id === menuItem.id)
         if (index !== -1) {
-          menuItems[index] = {
+          savedItem = {
             ...menuItem,
             ...data,
             maxAdditions: data.maxAdditions || undefined,
@@ -306,10 +313,39 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
             image: data.image || undefined,
             updatedAt: new Date(),
           }
+          menuItems[index] = savedItem
+
+          // Atualiza no backend
+          const response = await fetch(`${apiUrl}/api/menu/items/${menuItem.id}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              name: data.name,
+              description: data.description,
+              basePrice: data.basePrice,
+              image: data.image || null,
+              category: data.category,
+              available: data.available,
+              maxAdditions: data.maxAdditions || null,
+              maxComplements: data.maxComplements || null,
+              maxFruits: data.maxFruits || null,
+              sizes: data.sizes || [],
+              additions: data.additions || [],
+              complements: data.complements || [],
+              fruits: data.fruits || [],
+            }),
+          })
+
+          if (!response.ok) {
+            console.error('[MenuItemForm] Erro ao atualizar no backend:', response.status)
+          }
         }
       } else {
         // Criar novo item
-        const newItem: MenuItem = {
+        savedItem = {
           id: `menu-item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           ...data,
           maxAdditions: data.maxAdditions || undefined,
@@ -318,9 +354,45 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
           createdAt: new Date(),
           updatedAt: new Date(),
         }
-        menuItems.push(newItem)
+        menuItems.push(savedItem)
+
+        // Salva no backend
+        const response = await fetch(`${apiUrl}/api/menu/items`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            name: data.name,
+            description: data.description,
+            basePrice: data.basePrice,
+            image: data.image || null,
+            category: data.category,
+            available: data.available,
+            maxAdditions: data.maxAdditions || null,
+            maxComplements: data.maxComplements || null,
+            maxFruits: data.maxFruits || null,
+            sizes: data.sizes || [],
+            additions: data.additions || [],
+            complements: data.complements || [],
+            fruits: data.fruits || [],
+          }),
+        })
+
+        if (response.ok) {
+          const result = await response.json()
+          if (result.item && result.item.id) {
+            // Atualiza o ID com o retornado do backend
+            savedItem.id = result.item.id
+            menuItems[menuItems.length - 1] = savedItem
+          }
+        } else {
+          console.error('[MenuItemForm] Erro ao criar no backend:', response.status)
+        }
       }
 
+      // Salva no localStorage
       setTenantData(currentTenant.id, 'menu', menuItems)
 
       toast({
