@@ -204,6 +204,14 @@ router.patch('/:id/status', async (req: AuthRequest, res, next) => {
     const orderData = orderQueryResult.rows[0]
     const oldStatus = orderData.old_status
 
+    console.log(`[Order] Atualizando status do pedido #${req.params.id}:`, {
+      oldStatus,
+      newStatus: status,
+      statusChanged: oldStatus !== status,
+      hasCustomerPhone: !!orderData.customer_phone,
+      customerPhone: orderData.customer_phone,
+    })
+
     // Atualizar status do pedido
     const result = await query(
       `UPDATE orders SET ${updates.join(', ')} WHERE id = $${params.length - 1} AND tenant_id = $${params.length} AND deleted_at IS NULL RETURNING id`,
@@ -216,11 +224,23 @@ router.patch('/:id/status', async (req: AuthRequest, res, next) => {
 
     // Enviar notificação via WhatsApp se o status mudou e há número do cliente
     if (oldStatus !== status && orderData.customer_phone) {
+      console.log(`[Order] Tentando enviar notificação WhatsApp para pedido #${req.params.id}`)
       try {
         // Buscar instância WhatsApp do tenant
         const whatsappInstance = await getWhatsAppInstanceByTenant(req.user!.tenantId)
         
-        if (whatsappInstance && whatsappInstance.status === 'connected' && whatsappInstance.instanceToken) {
+        console.log(`[Order] Instância WhatsApp encontrada:`, {
+          hasInstance: !!whatsappInstance,
+          instanceName: whatsappInstance?.instanceName,
+          status: whatsappInstance?.status,
+          hasInstanceToken: !!whatsappInstance?.instanceToken,
+          instanceTokenPreview: whatsappInstance?.instanceToken?.substring(0, 20),
+        })
+        
+        // Aceitar instância se estiver 'connected' ou 'created' (pode estar conectada mas status não atualizado)
+        const isValidStatus = whatsappInstance?.status === 'connected' || whatsappInstance?.status === 'created'
+        
+        if (whatsappInstance && isValidStatus && whatsappInstance.instanceToken) {
           // Criar mensagem baseada no status
           const statusMessages: Record<string, string> = {
             accepted: `✅ Pedido #${req.params.id.substring(0, 8)} aceito!\n\nOlá ${orderData.customer_name}, seu pedido foi aceito e está em preparação. Entraremos em contato em breve.`,
@@ -232,6 +252,13 @@ router.patch('/:id/status', async (req: AuthRequest, res, next) => {
 
           const message = statusMessages[status] || `📦 Atualização do Pedido #${req.params.id.substring(0, 8)}\n\nOlá ${orderData.customer_name}, o status do seu pedido foi atualizado para: ${status}`
 
+          console.log(`[Order] Enviando mensagem WhatsApp:`, {
+            instanceName: whatsappInstance.instanceName,
+            customerPhone: orderData.customer_phone,
+            messagePreview: message.substring(0, 100),
+            status,
+          })
+
           // Enviar mensagem via WhatsApp (não bloquear se falhar)
           const manager = getWhatsAppInstanceManager()
           const sendResult = await manager.sendTextMessage(
@@ -240,6 +267,8 @@ router.patch('/:id/status', async (req: AuthRequest, res, next) => {
             orderData.customer_phone,
             message
           )
+          
+          console.log(`[Order] Resultado do envio:`, sendResult)
 
           if (sendResult.success) {
             console.log(`[Order] ✅ Notificação WhatsApp enviada para pedido #${req.params.id}`)
@@ -247,7 +276,12 @@ router.patch('/:id/status', async (req: AuthRequest, res, next) => {
             console.warn(`[Order] ⚠️  Erro ao enviar notificação WhatsApp:`, sendResult.error)
           }
         } else {
-          console.log(`[Order] ⚠️  WhatsApp não configurado ou não conectado para o tenant`)
+          console.log(`[Order] ⚠️  WhatsApp não configurado ou não conectado para o tenant:`, {
+            hasInstance: !!whatsappInstance,
+            instanceStatus: whatsappInstance?.status,
+            hasToken: !!whatsappInstance?.instanceToken,
+            tenantId: req.user!.tenantId,
+          })
         }
       } catch (whatsappError) {
         // Não bloquear a atualização do pedido se houver erro no WhatsApp

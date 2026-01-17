@@ -837,8 +837,29 @@ export class WhatsAppInstanceManager {
 
     try {
       // Formatar número: remover caracteres não numéricos e garantir que tenha DDI
-      const cleanedNumber = phoneNumber.replace(/\D/g, '')
-      const formattedNumber = cleanedNumber.startsWith('55') ? cleanedNumber : `55${cleanedNumber}`
+      // O número deve ter formato: 55 + DDD (2 dígitos) + número (8 ou 9 dígitos)
+      // Exemplo: 5524999999999 (55 + 24 + 999999999)
+      let cleanedNumber = phoneNumber.replace(/\D/g, '')
+      
+      // Se o número não começar com 55, adicionar
+      if (!cleanedNumber.startsWith('55')) {
+        cleanedNumber = `55${cleanedNumber}`
+      }
+      
+      // Remover zeros à esquerda que podem ter sido adicionados (exceto o 55)
+      // Exemplo: 55024999999999 -> 5524999999999
+      if (cleanedNumber.length > 13 && cleanedNumber.startsWith('550')) {
+        cleanedNumber = cleanedNumber.replace(/^550/, '55')
+      }
+      
+      const formattedNumber = cleanedNumber
+      
+      console.log(`[WhatsApp Manager] Formatação do número:`, {
+        original: phoneNumber,
+        cleaned: cleanedNumber,
+        formatted: formattedNumber,
+        length: formattedNumber.length,
+      })
 
       const body: any = {
         number: formattedNumber,
