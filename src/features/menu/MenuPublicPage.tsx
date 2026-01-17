@@ -122,11 +122,9 @@ export default function MenuPublicPage() {
           const menuData = await menuResponse.json()
           if (menuData.items && Array.isArray(menuData.items)) {
             // Converte os dados do backend para o formato esperado
-            const formattedItems: MenuItem[] = menuData.items.map((item: any) => ({
-              id: item.id,
-              menuItemId: item.id,
-              menuItemName: item.name,
-              name: item.name,
+                const formattedItems: MenuItem[] = menuData.items.map((item: any) => ({
+                  id: item.id,
+                  name: item.name,
               description: item.description || '',
               basePrice: parseFloat(item.base_price) || 0,
               image: item.image || '',

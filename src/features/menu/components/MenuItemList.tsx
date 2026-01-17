@@ -78,8 +78,6 @@ export function MenuItemList({ refreshTrigger, onRefresh }: MenuItemListProps) {
           if (data.items && Array.isArray(data.items)) {
             const formattedItems: MenuItem[] = data.items.map((item: any) => ({
               id: item.id,
-              menuItemId: item.id,
-              menuItemName: item.name,
               name: item.name,
               description: item.description || '',
               basePrice: parseFloat(item.base_price) || 0,

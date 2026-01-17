@@ -346,8 +346,6 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
         // Converte o item do backend para o formato local
         savedItem = {
           id: backendItem.id,
-          menuItemId: backendItem.id,
-          menuItemName: backendItem.name,
           name: backendItem.name,
           description: backendItem.description || '',
           basePrice: parseFloat(backendItem.base_price) || 0,
@@ -400,8 +398,6 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
         // Converte o item do backend para o formato local
         savedItem = {
           id: backendItem.id,
-          menuItemId: backendItem.id,
-          menuItemName: backendItem.name,
           name: backendItem.name,
           description: backendItem.description || '',
           basePrice: parseFloat(backendItem.base_price) || 0,
