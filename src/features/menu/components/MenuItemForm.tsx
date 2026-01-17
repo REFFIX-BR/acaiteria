@@ -291,109 +291,139 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
     }
 
     try {
-      const menuItems = getTenantData<MenuItem[]>(currentTenant.id, 'menu') || []
-      let savedItem: MenuItem
-
       // Prepara o payload para o backend
       const { getApiUrl } = await import('@/lib/api/config')
       const { getAuthToken } = await import('@/lib/api/auth')
       const apiUrl = getApiUrl()
       const token = getAuthToken()
 
+      if (!token) {
+        throw new Error('Token de autenticação não encontrado. Faça login novamente.')
+      }
+
+      const payload = {
+        name: data.name,
+        description: data.description,
+        basePrice: data.basePrice,
+        image: data.image || null,
+        category: data.category,
+        available: data.available,
+        maxAdditions: data.maxAdditions || null,
+        maxComplements: data.maxComplements || null,
+        maxFruits: data.maxFruits || null,
+        sizes: data.sizes || [],
+        additions: data.additions || [],
+        complements: data.complements || [],
+        fruits: data.fruits || [],
+      }
+
+      let savedItem: MenuItem
+      let backendItemId: string | undefined
+
       if (menuItem) {
-        // Editar item existente
+        // Editar item existente - SALVA PRIMEIRO NO BACKEND
+        const response = await fetch(`${apiUrl}/api/menu/items/${menuItem.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.error || `Erro ao atualizar no backend: ${response.status}`)
+        }
+
+        const result = await response.json()
+        const backendItem = result.item
+
+        if (!backendItem || !backendItem.id) {
+          throw new Error('Item não retornado pelo backend')
+        }
+
+        // Converte o item do backend para o formato local
+        savedItem = {
+          id: backendItem.id,
+          menuItemId: backendItem.id,
+          menuItemName: backendItem.name,
+          name: backendItem.name,
+          description: backendItem.description || '',
+          basePrice: parseFloat(backendItem.base_price) || 0,
+          image: backendItem.image || '',
+          category: backendItem.category || '',
+          available: backendItem.available ?? true,
+          maxAdditions: backendItem.max_additions || undefined,
+          maxComplements: backendItem.max_complements || undefined,
+          maxFruits: backendItem.max_fruits || undefined,
+          sizes: backendItem.sizes || [],
+          additions: backendItem.additions || [],
+          complements: backendItem.complements || [],
+          fruits: backendItem.fruits || [],
+          createdAt: new Date(backendItem.created_at),
+          updatedAt: new Date(backendItem.updated_at),
+        }
+
+        // Atualiza no localStorage apenas como cache
+        const menuItems = getTenantData<MenuItem[]>(currentTenant.id, 'menu') || []
         const index = menuItems.findIndex((m) => m.id === menuItem.id)
         if (index !== -1) {
-          savedItem = {
-            ...menuItem,
-            ...data,
-            maxAdditions: data.maxAdditions || undefined,
-            maxComplements: data.maxComplements || undefined,
-            maxFruits: data.maxFruits || undefined,
-            image: data.image || undefined,
-            updatedAt: new Date(),
-          }
           menuItems[index] = savedItem
-
-          // Atualiza no backend
-          const response = await fetch(`${apiUrl}/api/menu/items/${menuItem.id}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify({
-              name: data.name,
-              description: data.description,
-              basePrice: data.basePrice,
-              image: data.image || null,
-              category: data.category,
-              available: data.available,
-              maxAdditions: data.maxAdditions || null,
-              maxComplements: data.maxComplements || null,
-              maxFruits: data.maxFruits || null,
-              sizes: data.sizes || [],
-              additions: data.additions || [],
-              complements: data.complements || [],
-              fruits: data.fruits || [],
-            }),
-          })
-
-          if (!response.ok) {
-            console.error('[MenuItemForm] Erro ao atualizar no backend:', response.status)
-          }
+        } else {
+          menuItems.push(savedItem)
         }
+        setTenantData(currentTenant.id, 'menu', menuItems)
       } else {
-        // Criar novo item
-        savedItem = {
-          id: `menu-item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          ...data,
-          maxAdditions: data.maxAdditions || undefined,
-          maxComplements: data.maxComplements || undefined,
-          image: data.image || undefined,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        }
-        menuItems.push(savedItem)
-
-        // Salva no backend
+        // Criar novo item - SALVA PRIMEIRO NO BACKEND
         const response = await fetch(`${apiUrl}/api/menu/items`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({
-            name: data.name,
-            description: data.description,
-            basePrice: data.basePrice,
-            image: data.image || null,
-            category: data.category,
-            available: data.available,
-            maxAdditions: data.maxAdditions || null,
-            maxComplements: data.maxComplements || null,
-            maxFruits: data.maxFruits || null,
-            sizes: data.sizes || [],
-            additions: data.additions || [],
-            complements: data.complements || [],
-            fruits: data.fruits || [],
-          }),
+          body: JSON.stringify(payload),
         })
 
-        if (response.ok) {
-          const result = await response.json()
-          if (result.item && result.item.id) {
-            // Atualiza o ID com o retornado do backend
-            savedItem.id = result.item.id
-            menuItems[menuItems.length - 1] = savedItem
-          }
-        } else {
-          console.error('[MenuItemForm] Erro ao criar no backend:', response.status)
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.error || `Erro ao criar no backend: ${response.status}`)
         }
-      }
 
-      // Salva no localStorage
-      setTenantData(currentTenant.id, 'menu', menuItems)
+        const result = await response.json()
+        const backendItem = result.item
+
+        if (!backendItem || !backendItem.id) {
+          throw new Error('Item não retornado pelo backend')
+        }
+
+        // Converte o item do backend para o formato local
+        savedItem = {
+          id: backendItem.id,
+          menuItemId: backendItem.id,
+          menuItemName: backendItem.name,
+          name: backendItem.name,
+          description: backendItem.description || '',
+          basePrice: parseFloat(backendItem.base_price) || 0,
+          image: backendItem.image || '',
+          category: backendItem.category || '',
+          available: backendItem.available ?? true,
+          maxAdditions: backendItem.max_additions || undefined,
+          maxComplements: backendItem.max_complements || undefined,
+          maxFruits: backendItem.max_fruits || undefined,
+          sizes: backendItem.sizes || [],
+          additions: backendItem.additions || [],
+          complements: backendItem.complements || [],
+          fruits: backendItem.fruits || [],
+          createdAt: new Date(backendItem.created_at),
+          updatedAt: new Date(backendItem.updated_at),
+        }
+
+        // Salva no localStorage apenas como cache
+        const menuItems = getTenantData<MenuItem[]>(currentTenant.id, 'menu') || []
+        menuItems.push(savedItem)
+        setTenantData(currentTenant.id, 'menu', menuItems)
+      }
 
       toast({
         title: 'Sucesso',

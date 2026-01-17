@@ -245,7 +245,40 @@ router.post('/items', async (req: AuthRequest, res, next) => {
       }
     }
 
-    res.status(201).json({ id: itemId, message: 'Item created successfully' })
+    // Busca o item completo criado para retornar
+    const itemResult = await query(
+      `SELECT mi.*,
+       COALESCE(
+         json_agg(DISTINCT jsonb_build_object('id', mis.id, 'name', mis.name, 'price', mis.price))
+         FILTER (WHERE mis.id IS NOT NULL),
+         '[]'
+       ) as sizes,
+       COALESCE(
+         json_agg(DISTINCT jsonb_build_object('id', mia.id, 'name', mia.name, 'price', mia.price))
+         FILTER (WHERE mia.id IS NOT NULL),
+         '[]'
+       ) as additions,
+       COALESCE(
+         json_agg(DISTINCT jsonb_build_object('id', mic.id, 'name', mic.name, 'price', mic.price))
+         FILTER (WHERE mic.id IS NOT NULL),
+         '[]'
+       ) as complements,
+       COALESCE(
+         json_agg(DISTINCT jsonb_build_object('id', mif.id, 'name', mif.name, 'price', mif.price))
+         FILTER (WHERE mif.id IS NOT NULL),
+         '[]'
+       ) as fruits
+       FROM menu_items mi
+       LEFT JOIN menu_item_sizes mis ON mi.id = mis.menu_item_id
+       LEFT JOIN menu_item_additions mia ON mi.id = mia.menu_item_id
+       LEFT JOIN menu_item_complements mic ON mi.id = mic.menu_item_id
+       LEFT JOIN menu_item_fruits mif ON mi.id = mif.menu_item_id
+       WHERE mi.id = $1
+       GROUP BY mi.id`,
+      [itemId]
+    )
+
+    res.status(201).json({ item: itemResult.rows[0], message: 'Item created successfully' })
   } catch (error) {
     next(error)
   }
@@ -316,6 +349,100 @@ router.put('/items/:id', async (req: AuthRequest, res, next) => {
         `UPDATE menu_items SET ${updates.join(', ')} WHERE id = $${paramCount++} AND tenant_id = $${paramCount++}`,
         values
       )
+
+      // Atualizar relacionamentos se fornecidos
+      if (data.sizes !== undefined) {
+        // Remove tamanhos existentes
+        await query('DELETE FROM menu_item_sizes WHERE menu_item_id = $1', [req.params.id])
+        // Adiciona novos tamanhos
+        if (data.sizes.length > 0) {
+          for (const size of data.sizes) {
+            await query(
+              'INSERT INTO menu_item_sizes (menu_item_id, name, price) VALUES ($1, $2, $3)',
+              [req.params.id, size.name, size.price]
+            )
+          }
+        }
+      }
+
+      if (data.additions !== undefined) {
+        // Remove coberturas existentes
+        await query('DELETE FROM menu_item_additions WHERE menu_item_id = $1', [req.params.id])
+        // Adiciona novas coberturas
+        if (data.additions.length > 0) {
+          for (const addition of data.additions) {
+            await query(
+              'INSERT INTO menu_item_additions (menu_item_id, name, price) VALUES ($1, $2, $3)',
+              [req.params.id, addition.name, addition.price]
+            )
+          }
+        }
+      }
+
+      if (data.complements !== undefined) {
+        // Remove complementos existentes
+        await query('DELETE FROM menu_item_complements WHERE menu_item_id = $1', [req.params.id])
+        // Adiciona novos complementos
+        if (data.complements.length > 0) {
+          for (const complement of data.complements) {
+            await query(
+              'INSERT INTO menu_item_complements (menu_item_id, name, price) VALUES ($1, $2, $3)',
+              [req.params.id, complement.name, complement.price]
+            )
+          }
+        }
+      }
+
+      if (data.fruits !== undefined) {
+        // Remove frutas existentes
+        await query('DELETE FROM menu_item_fruits WHERE menu_item_id = $1', [req.params.id])
+        // Adiciona novas frutas
+        if (data.fruits.length > 0) {
+          for (const fruit of data.fruits) {
+            await query(
+              'INSERT INTO menu_item_fruits (menu_item_id, name, price) VALUES ($1, $2, $3)',
+              [req.params.id, fruit.name, fruit.price]
+            )
+          }
+        }
+      }
+
+      // Busca o item completo atualizado para retornar
+      const itemResult = await query(
+        `SELECT mi.*,
+         COALESCE(
+           json_agg(DISTINCT jsonb_build_object('id', mis.id, 'name', mis.name, 'price', mis.price))
+           FILTER (WHERE mis.id IS NOT NULL),
+           '[]'
+         ) as sizes,
+         COALESCE(
+           json_agg(DISTINCT jsonb_build_object('id', mia.id, 'name', mia.name, 'price', mia.price))
+           FILTER (WHERE mia.id IS NOT NULL),
+           '[]'
+         ) as additions,
+         COALESCE(
+           json_agg(DISTINCT jsonb_build_object('id', mic.id, 'name', mic.name, 'price', mic.price))
+           FILTER (WHERE mic.id IS NOT NULL),
+           '[]'
+         ) as complements,
+         COALESCE(
+           json_agg(DISTINCT jsonb_build_object('id', mif.id, 'name', mif.name, 'price', mif.price))
+           FILTER (WHERE mif.id IS NOT NULL),
+           '[]'
+         ) as fruits
+         FROM menu_items mi
+         LEFT JOIN menu_item_sizes mis ON mi.id = mis.menu_item_id
+         LEFT JOIN menu_item_additions mia ON mi.id = mia.menu_item_id
+         LEFT JOIN menu_item_complements mic ON mi.id = mic.menu_item_id
+         LEFT JOIN menu_item_fruits mif ON mi.id = mif.menu_item_id
+         WHERE mi.id = $1 AND mi.tenant_id = $2
+         GROUP BY mi.id`,
+        [req.params.id, req.user!.tenantId]
+      )
+
+      if (itemResult.rows.length > 0) {
+        return res.json({ item: itemResult.rows[0], message: 'Item updated successfully' })
+      }
     }
 
     res.json({ message: 'Item updated successfully' })

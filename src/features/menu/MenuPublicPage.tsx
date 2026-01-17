@@ -113,28 +113,7 @@ export default function MenuPublicPage() {
 
       setIsLoadingMenu(true)
       try {
-        // Primeiro tenta buscar do localStorage (para casos onde o admin já está logado)
-        const localMenuItems = getTenantData<MenuItem[]>(tenant.id, 'menu')
-        const localMenuSettings = getTenantData<{
-          showPrices: boolean
-          showDescriptions: boolean
-          showImages: boolean
-          allowWhatsAppOrder: boolean
-          whatsAppNumber: string
-          customMessage: string
-          backgroundColor: string
-          textColor: string
-          accentColor: string
-        }>(tenant.id, 'menuSettings')
-
-        if (localMenuItems && localMenuItems.length > 0) {
-          setMenuItems(localMenuItems)
-          setMenuSettings(localMenuSettings)
-          setIsLoadingMenu(false)
-          return
-        }
-
-        // Se não encontrar no localStorage, busca do backend
+        // SEMPRE busca do backend - nunca do localStorage na página pública
         const { getApiUrl } = await import('@/lib/api/config')
         const apiUrl = getApiUrl()
         const menuResponse = await fetch(`${apiUrl}/api/menu/public/${tenantSlug}`)

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useTenantStore } from '@/stores/tenantStore'
 import { getTenantData, setTenantData } from '@/lib/storage/storage'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -41,10 +41,87 @@ export function MenuItemList({ refreshTrigger, onRefresh }: MenuItemListProps) {
   // Debounce na busca
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
 
-  const menuItems = useMemo(() => {
-    if (!currentTenant) return []
-    
-    let filtered = getTenantData<MenuItem[]>(currentTenant.id, 'menu') || []
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([])
+  const [isLoadingMenu, setIsLoadingMenu] = useState(false)
+
+  // Busca itens do menu do backend quando o tenant muda
+  useEffect(() => {
+    const fetchMenuItems = async () => {
+      if (!currentTenant) {
+        setMenuItems([])
+        return
+      }
+
+      setIsLoadingMenu(true)
+      try {
+        const { getApiUrl } = await import('@/lib/api/config')
+        const { getAuthToken } = await import('@/lib/api/auth')
+        const apiUrl = getApiUrl()
+        const token = getAuthToken()
+
+        if (!token) {
+          // Se não tem token, tenta do localStorage como fallback
+          const localItems = getTenantData<MenuItem[]>(currentTenant.id, 'menu') || []
+          setMenuItems(localItems)
+          setIsLoadingMenu(false)
+          return
+        }
+
+        const response = await fetch(`${apiUrl}/api/menu/items`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          if (data.items && Array.isArray(data.items)) {
+            const formattedItems: MenuItem[] = data.items.map((item: any) => ({
+              id: item.id,
+              menuItemId: item.id,
+              menuItemName: item.name,
+              name: item.name,
+              description: item.description || '',
+              basePrice: parseFloat(item.base_price) || 0,
+              image: item.image || '',
+              category: item.category || '',
+              available: item.available ?? true,
+              maxAdditions: item.max_additions || undefined,
+              maxComplements: item.max_complements || undefined,
+              maxFruits: item.max_fruits || undefined,
+              sizes: item.sizes || [],
+              additions: item.additions || [],
+              complements: item.complements || [],
+              fruits: item.fruits || [],
+              createdAt: new Date(item.created_at),
+              updatedAt: new Date(item.updated_at),
+            }))
+            setMenuItems(formattedItems)
+            // Atualiza localStorage como cache
+            setTenantData(currentTenant.id, 'menu', formattedItems)
+          } else {
+            setMenuItems([])
+          }
+        } else {
+          // Se falhar, tenta do localStorage como fallback
+          const localItems = getTenantData<MenuItem[]>(currentTenant.id, 'menu') || []
+          setMenuItems(localItems)
+        }
+      } catch (error) {
+        console.error('[MenuItemList] Erro ao buscar itens:', error)
+        // Se falhar, tenta do localStorage como fallback
+        const localItems = getTenantData<MenuItem[]>(currentTenant.id, 'menu') || []
+        setMenuItems(localItems)
+      } finally {
+        setIsLoadingMenu(false)
+      }
+    }
+
+    fetchMenuItems()
+  }, [currentTenant, refreshTrigger])
+
+  const filteredMenuItems = useMemo(() => {
+    let filtered = [...menuItems]
 
     if (debouncedSearchTerm) {
       filtered = filtered.filter((item) =>
@@ -58,14 +135,12 @@ export function MenuItemList({ refreshTrigger, onRefresh }: MenuItemListProps) {
     }
 
     return filtered.sort((a, b) => a.name.localeCompare(b.name))
-  }, [currentTenant, debouncedSearchTerm, categoryFilter, refreshTrigger])
+  }, [menuItems, debouncedSearchTerm, categoryFilter])
 
   const categories = useMemo(() => {
-    if (!currentTenant) return []
-    const items = getTenantData<MenuItem[]>(currentTenant.id, 'menu') || []
-    const allCategories = items.map((item) => item.category)
+    const allCategories = menuItems.map((item) => item.category)
     return Array.from(new Set(allCategories)).sort()
-  }, [currentTenant])
+  }, [menuItems])
 
   const handleDelete = async (id: string) => {
     if (!currentTenant) return
@@ -96,7 +171,10 @@ export function MenuItemList({ refreshTrigger, onRefresh }: MenuItemListProps) {
             // Continua para deletar do localStorage mesmo se o backend falhar
           }
 
-          // Deleta do localStorage
+          // Atualiza o estado local removendo o item
+          setMenuItems((prev) => prev.filter((item) => item.id !== id))
+          
+          // Atualiza localStorage como cache
           const allItems = getTenantData<MenuItem[]>(currentTenant.id, 'menu') || []
           const updated = allItems.filter((item) => item.id !== id)
           setTenantData(currentTenant.id, 'menu', updated)
@@ -160,13 +238,32 @@ export function MenuItemList({ refreshTrigger, onRefresh }: MenuItemListProps) {
           // Continua para atualizar no localStorage mesmo se o backend falhar
         }
 
-        // Atualiza no localStorage
-        allItems[index] = {
-          ...item,
-          available: newAvailable,
-          updatedAt: new Date(),
+        // Atualiza o estado local
+        setMenuItems((prev) => {
+          const updated = [...prev]
+          const itemIndex = updated.findIndex((i) => i.id === item.id)
+          if (itemIndex !== -1) {
+            updated[itemIndex] = {
+              ...item,
+              available: newAvailable,
+              updatedAt: new Date(),
+            }
+          }
+          return updated
+        })
+
+        // Atualiza localStorage como cache
+        const allItems = getTenantData<MenuItem[]>(currentTenant.id, 'menu') || []
+        const index = allItems.findIndex((i) => i.id === item.id)
+        if (index !== -1) {
+          allItems[index] = {
+            ...item,
+            available: newAvailable,
+            updatedAt: new Date(),
+          }
+          setTenantData(currentTenant.id, 'menu', allItems)
         }
-        setTenantData(currentTenant.id, 'menu', allItems)
+
         toast({
           title: 'Sucesso',
           description: item.available ? 'Item ocultado' : 'Item disponibilizado',
@@ -252,13 +349,17 @@ export function MenuItemList({ refreshTrigger, onRefresh }: MenuItemListProps) {
         </div>
 
         {/* Lista de itens */}
-        {menuItems.length === 0 ? (
+        {isLoadingMenu ? (
+          <div className="text-center py-12 text-muted-foreground">
+            Carregando itens...
+          </div>
+        ) : filteredMenuItems.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             Nenhum item cadastrado no cardápio
           </div>
         ) : (
           <div className="space-y-4">
-            {menuItems.map((item) => (
+            {filteredMenuItems.map((item) => (
               <div
                 key={item.id}
                 className={`p-4 border rounded-lg ${!item.available ? 'opacity-50' : ''}`}
