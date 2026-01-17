@@ -676,10 +676,42 @@ router.post(
         }
       })
 
-      // Aguardar todos os envios (mas retornar resposta imediata)
-      Promise.all(sendPromises).catch(error => {
-        console.error('[WhatsApp Campaign] Erro ao processar envios:', error)
-      })
+      // Aguardar todos os envios e atualizar status da campanha
+      Promise.all(sendPromises)
+        .then(async () => {
+          // Atualizar status da campanha para 'sent' e métricas
+          try {
+            await query(
+              `UPDATE campaigns 
+               SET status = 'sent', 
+                   sent = sent + $1, 
+                   delivered = delivered + $2, 
+                   failed = failed + $3,
+                   updated_at = NOW()
+               WHERE id = $4 AND tenant_id = $5`,
+              [sent, sent, failed, campaignId, tenantId]
+            )
+            console.log(`[WhatsApp Campaign] Campanha ${campaignId} atualizada: status=sent, sent=${sent}, failed=${failed}`)
+          } catch (error) {
+            console.error('[WhatsApp Campaign] Erro ao atualizar campanha:', error)
+          }
+        })
+        .catch(error => {
+          console.error('[WhatsApp Campaign] Erro ao processar envios:', error)
+        })
+
+      // Atualizar status da campanha para 'sent' imediatamente (antes dos envios terminarem)
+      try {
+        await query(
+          `UPDATE campaigns 
+           SET status = 'sent', updated_at = NOW()
+           WHERE id = $1 AND tenant_id = $2`,
+          [campaignId, tenantId]
+        )
+        console.log(`[WhatsApp Campaign] Status da campanha ${campaignId} atualizado para 'sent'`)
+      } catch (error) {
+        console.error('[WhatsApp Campaign] Erro ao atualizar status da campanha:', error)
+      }
 
       // Retornar resposta imediata com status inicial
       res.json({

@@ -27,7 +27,7 @@ export function CampaignList({ refreshTrigger, onRefresh }: CampaignListProps) {
   const currentTenant = useTenantStore((state) => state.currentTenant)
   const { toast } = useToast()
   const { confirm, ConfirmDialogComponent } = useConfirmDialog()
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'paused' | 'completed'>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'paused' | 'sent' | 'completed'>('all')
   const [typeFilter, setTypeFilter] = useState<'all' | 'promotion' | 'whatsapp'>('all')
 
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
@@ -211,6 +211,8 @@ export function CampaignList({ refreshTrigger, onRefresh }: CampaignListProps) {
         return <span className="text-xs font-medium text-green-600 bg-green-50 dark:bg-green-950/20 px-2 py-1 rounded">Ativa</span>
       case 'paused':
         return <span className="text-xs font-medium text-orange-600 bg-orange-50 dark:bg-orange-950/20 px-2 py-1 rounded">Pausada</span>
+      case 'sent':
+        return <span className="text-xs font-medium text-blue-600 bg-blue-50 dark:bg-blue-950/20 px-2 py-1 rounded">Enviada</span>
       case 'completed':
         return <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-1 rounded">Concluída</span>
       default:
@@ -238,6 +240,7 @@ export function CampaignList({ refreshTrigger, onRefresh }: CampaignListProps) {
               <SelectItem value="all">Todos os status</SelectItem>
               <SelectItem value="active">Ativas</SelectItem>
               <SelectItem value="paused">Pausadas</SelectItem>
+              <SelectItem value="sent">Enviadas</SelectItem>
               <SelectItem value="completed">Concluídas</SelectItem>
             </SelectContent>
           </Select>

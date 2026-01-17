@@ -433,6 +433,9 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
                     title: 'Campanha enviada!',
                     description: `${result.sent} mensagem(ns) enviada(s) para ${result.total} cliente(s)`,
                   })
+                  
+                  // Atualizar lista para mostrar novo status
+                  onSuccess?.()
                 } else {
                   throw new Error(result.error || 'Erro ao enviar campanha')
                 }

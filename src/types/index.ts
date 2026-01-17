@@ -160,7 +160,7 @@ export interface Campaign {
   id: string
   name: string
   type: 'promotion' | 'whatsapp'
-  status: 'active' | 'paused' | 'completed'
+  status: 'active' | 'paused' | 'completed' | 'sent'
   startDate: Date
   endDate?: Date
   metrics?: CampaignMetrics // Opcional para compatibilidade com backend
