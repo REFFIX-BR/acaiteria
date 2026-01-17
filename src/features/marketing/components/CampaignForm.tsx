@@ -257,56 +257,7 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
         }
       }
 
-      const campaigns = getTenantData<Campaign[]>(currentTenant.id, 'campaigns') || []
-      let tempId: string | undefined
-
-      if (campaign) {
-        // Editar campanha existente
-        const index = campaigns.findIndex((c) => c.id === campaign.id)
-        if (index !== -1) {
-          campaigns[index] = {
-            ...campaign,
-            name: data.name,
-            type: data.type,
-            description: data.description,
-            discount: data.discount,
-            startDate: new Date(data.startDate),
-            endDate: data.endDate && data.endDate !== '' ? new Date(data.endDate) : undefined,
-            image: finalImageUrl || undefined,
-            sendInterval: typeof data.sendInterval === 'string' 
-              ? (data.sendInterval === '' ? 15 : parseInt(data.sendInterval, 10) || 15)
-              : (data.sendInterval || 15),
-          }
-        }
-      } else {
-        // Criar nova campanha
-        tempId = `campaign-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-        const newCampaign: Campaign = {
-          id: tempId,
-          name: data.name,
-          type: data.type,
-          status: 'active',
-          description: data.description,
-          discount: data.discount,
-          startDate: new Date(data.startDate),
-          endDate: data.endDate && data.endDate !== '' ? new Date(data.endDate) : undefined,
-          image: finalImageUrl || undefined,
-          sendInterval: typeof data.sendInterval === 'string' 
-            ? (data.sendInterval === '' ? 15 : parseInt(data.sendInterval, 10) || 15)
-            : (data.sendInterval || 15),
-          metrics: {
-            sent: 0,
-            delivered: 0,
-            failed: 0,
-            clicks: 0,
-            conversions: 0,
-          },
-          createdAt: new Date(),
-        }
-        campaigns.push(newCampaign)
-      }
-
-      // Salvar no backend
+      // Salvar no backend (não mais no localStorage)
       try {
         const { getApiUrl } = await import('@/lib/api/config')
         const { getAuthToken } = await import('@/lib/api/auth')
@@ -364,21 +315,15 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
             }
 
             const result = await response.json()
-            // Atualizar o ID da campanha criada no localStorage com o ID do backend
-            if (result.id) {
-              const index = campaigns.findIndex((c) => c.id === tempId)
-              if (index !== -1) {
-                campaigns[index].id = result.id
-              }
-            }
+            // ID retornado pelo backend será usado automaticamente
           }
         }
       } catch (error) {
         console.error('[CampaignForm] Erro ao salvar campanha no backend:', error)
-        // Continua para salvar no localStorage mesmo se falhar no backend
+        throw error // Lança o erro para não continuar
       }
 
-      setTenantData(currentTenant.id, 'campaigns', campaigns)
+      // NÃO salvar mais no localStorage - dados vêm do backend
 
       console.log('[CampaignForm] Campanha salva com sucesso')
 

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useTenantStore } from '@/stores/tenantStore'
 import { getTenantData, setTenantData } from '@/lib/storage/storage'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -30,10 +30,56 @@ export function CampaignList({ refreshTrigger, onRefresh }: CampaignListProps) {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'paused' | 'completed'>('all')
   const [typeFilter, setTypeFilter] = useState<'all' | 'promotion' | 'whatsapp'>('all')
 
-  const campaigns = useMemo(() => {
-    if (!currentTenant) return []
-    
-    let filtered = getTenantData<Campaign[]>(currentTenant.id, 'campaigns') || []
+  const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Buscar campanhas do backend
+  useEffect(() => {
+    const fetchCampaigns = async () => {
+      if (!currentTenant) {
+        setCampaigns([])
+        setIsLoading(false)
+        return
+      }
+
+      try {
+        const { getApiUrl } = await import('@/lib/api/config')
+        const { getAuthToken } = await import('@/lib/api/auth')
+        const apiUrl = getApiUrl()
+        const token = getAuthToken()
+
+        if (!token) {
+          setCampaigns([])
+          setIsLoading(false)
+          return
+        }
+
+        const response = await fetch(`${apiUrl}/api/campaigns`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          setCampaigns(data.campaigns || [])
+        } else {
+          console.error('[CampaignList] Erro ao buscar campanhas:', response.status)
+          setCampaigns([])
+        }
+      } catch (error) {
+        console.error('[CampaignList] Erro ao buscar campanhas:', error)
+        setCampaigns([])
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchCampaigns()
+  }, [currentTenant, refreshTrigger])
+
+  const filteredCampaigns = useMemo(() => {
+    let filtered = [...campaigns]
 
     if (statusFilter !== 'all') {
       filtered = filtered.filter((c) => c.status === statusFilter)
@@ -44,19 +90,38 @@ export function CampaignList({ refreshTrigger, onRefresh }: CampaignListProps) {
     }
 
     // Ordena por data de criação (mais recente primeiro)
-    return filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-  }, [currentTenant, statusFilter, typeFilter, refreshTrigger])
+    return filtered.sort((a, b) => new Date(b.created_at || b.createdAt).getTime() - new Date(a.created_at || a.createdAt).getTime())
+  }, [campaigns, statusFilter, typeFilter])
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!currentTenant) return
 
     confirm(
       'Tem certeza que deseja excluir esta campanha? Esta ação não pode ser desfeita.',
-      () => {
+      async () => {
         try {
-          const allCampaigns = getTenantData<Campaign[]>(currentTenant.id, 'campaigns') || []
-          const updated = allCampaigns.filter((c) => c.id !== id)
-          setTenantData(currentTenant.id, 'campaigns', updated)
+          const { getApiUrl } = await import('@/lib/api/config')
+          const { getAuthToken } = await import('@/lib/api/auth')
+          const apiUrl = getApiUrl()
+          const token = getAuthToken()
+
+          if (!token) {
+            throw new Error('Não autenticado')
+          }
+
+          const response = await fetch(`${apiUrl}/api/campaigns/${id}`, {
+            method: 'DELETE',
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          })
+
+          if (!response.ok) {
+            throw new Error('Erro ao excluir campanha')
+          }
+
+          // Atualizar lista local removendo a campanha deletada
+          setCampaigns(prev => prev.filter(c => c.id !== id))
 
           toast({
             title: 'Sucesso',
@@ -167,13 +232,17 @@ export function CampaignList({ refreshTrigger, onRefresh }: CampaignListProps) {
         </div>
 
         {/* Lista de campanhas */}
-        {campaigns.length === 0 ? (
+        {isLoading ? (
+          <div className="text-center py-12 text-muted-foreground">
+            Carregando campanhas...
+          </div>
+        ) : filteredCampaigns.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             Nenhuma campanha cadastrada
           </div>
         ) : (
           <div className="space-y-4">
-            {campaigns.map((campaign) => (
+            {filteredCampaigns.map((campaign) => (
               <div
                 key={campaign.id}
                 className="p-4 border rounded-lg space-y-3"

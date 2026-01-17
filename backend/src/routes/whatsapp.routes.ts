@@ -12,6 +12,7 @@ import {
   deleteWhatsAppInstance,
 } from '../db/storage.js'
 import { query } from '../db/connection.js'
+import { z } from 'zod'
 
 const router = Router()
 
@@ -567,6 +568,128 @@ router.delete(
         success: true,
         message: 'Instância deletada com sucesso na Evolution API e no sistema',
         deletedInAPI: true,
+      })
+    } catch (error) {
+      return errorHandler(error as Error, req, res, () => {})
+    }
+  }
+)
+
+/**
+ * POST /api/whatsapp/campaigns/send
+ * Envia campanha WhatsApp para todos os clientes do banco
+ */
+const sendCampaignSchema = z.object({
+  campaignId: z.string(),
+  message: z.string().min(1),
+  imageUrl: z.string().url().optional(),
+  sendInterval: z.number().min(15).default(15),
+})
+
+router.post(
+  '/campaigns/send',
+  authenticate,
+  tenantGuard,
+  async (req: AuthRequest, res: ExpressResponse) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ success: false, error: 'Não autenticado' })
+      }
+
+      const validation = sendCampaignSchema.safeParse(req.body)
+      if (!validation.success) {
+        return res.status(400).json({
+          success: false,
+          error: 'Dados inválidos',
+          details: validation.error.errors,
+        })
+      }
+
+      const { campaignId, message, imageUrl, sendInterval } = validation.data
+      const tenantId = req.user.tenantId
+
+      // Buscar instância WhatsApp do tenant
+      const whatsappInstance = await getWhatsAppInstanceByTenant(tenantId)
+      
+      if (!whatsappInstance || !whatsappInstance.instanceToken) {
+        return res.status(400).json({
+          success: false,
+          error: 'Instância WhatsApp não configurada ou não conectada',
+        })
+      }
+
+      const isValidStatus = whatsappInstance.status === 'connected' || whatsappInstance.status === 'created'
+      if (!isValidStatus) {
+        return res.status(400).json({
+          success: false,
+          error: 'Instância WhatsApp não está conectada',
+        })
+      }
+
+      // Buscar todos os clientes do banco de dados
+      const customersResult = await query(
+        `SELECT id, name, phone FROM customers 
+         WHERE tenant_id = $1 AND deleted_at IS NULL AND phone IS NOT NULL AND phone != ''`,
+        [tenantId]
+      )
+
+      const customers = customersResult.rows
+      
+      if (customers.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Nenhum cliente encontrado no banco de dados',
+        })
+      }
+
+      console.log(`[WhatsApp Campaign] Enviando campanha para ${customers.length} clientes`)
+
+      // Enviar mensagens em background (não bloquear a resposta)
+      const manager = getWhatsAppInstanceManager()
+      let sent = 0
+      let failed = 0
+
+      // Processar envios em lote com intervalo
+      const sendPromises = customers.map(async (customer, index) => {
+        // Aguardar intervalo entre envios (exceto o primeiro)
+        if (index > 0) {
+          await new Promise(resolve => setTimeout(resolve, sendInterval * 1000))
+        }
+
+        try {
+          const result = await manager.sendTextMessage(
+            whatsappInstance.instanceName,
+            whatsappInstance.instanceToken!,
+            customer.phone,
+            message
+          )
+
+          if (result.success) {
+            sent++
+            console.log(`[WhatsApp Campaign] Mensagem enviada para ${customer.name} (${customer.phone})`)
+          } else {
+            failed++
+            console.error(`[WhatsApp Campaign] Erro ao enviar para ${customer.name}:`, result.error)
+          }
+        } catch (error) {
+          failed++
+          console.error(`[WhatsApp Campaign] Erro ao enviar para ${customer.name}:`, error)
+        }
+      })
+
+      // Aguardar todos os envios (mas retornar resposta imediata)
+      Promise.all(sendPromises).catch(error => {
+        console.error('[WhatsApp Campaign] Erro ao processar envios:', error)
+      })
+
+      // Retornar resposta imediata com status inicial
+      res.json({
+        success: true,
+        message: 'Campanha iniciada',
+        total: customers.length,
+        sent: 0, // Será atualizado conforme os envios são processados
+        failed: 0,
+        processing: true,
       })
     } catch (error) {
       return errorHandler(error as Error, req, res, () => {})
