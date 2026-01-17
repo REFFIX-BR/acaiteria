@@ -58,10 +58,10 @@ export interface User {
 
 // Configurações da Empresa
 export interface CompanySettings {
-  tradeName: string
-  contactPhone: string
-  cnpj: string
-  adminEmail: string
+  tradeName?: string
+  contactPhone?: string
+  cnpj?: string // Aceita CPF ou CNPJ
+  adminEmail?: string
 }
 
 // Horário de Funcionamento

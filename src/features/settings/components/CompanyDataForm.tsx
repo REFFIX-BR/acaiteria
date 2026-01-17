@@ -11,10 +11,18 @@ import { Building2 } from 'lucide-react'
 import type { CompanySettings } from '@/types'
 
 const companySchema = z.object({
-  tradeName: z.string().min(1, 'Nome fantasia é obrigatório'),
-  contactPhone: z.string().min(1, 'Telefone é obrigatório'),
-  cnpj: z.string().min(1, 'CNPJ/Identificação é obrigatório'),
-  adminEmail: z.string().email('E-mail inválido'),
+  tradeName: z.string().optional(),
+  contactPhone: z.string().optional(),
+  cnpj: z.string().optional(), // Aceita CPF ou CNPJ
+  adminEmail: z.string().optional().refine(
+    (val) => {
+      // Se vazio ou undefined, é válido (campo opcional)
+      if (!val || val.trim() === '') return true
+      // Se preenchido, valida formato de email
+      return z.string().email().safeParse(val).success
+    },
+    { message: 'E-mail inválido' }
+  ),
 })
 
 type CompanyFormData = z.infer<typeof companySchema>
@@ -129,10 +137,10 @@ export const CompanyDataForm = forwardRef<CompanyDataFormRef, CompanyDataFormPro
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="cnpj">CNPJ / IDENTIFICAÇÃO</Label>
+              <Label htmlFor="cnpj">CPF / CNPJ (OPCIONAL)</Label>
               <Input
                 id="cnpj"
-                placeholder="00.000.000/0001-00"
+                placeholder="000.000.000-00 ou 00.000.000/0001-00"
                 {...register('cnpj')}
               />
               {errors.cnpj && (
