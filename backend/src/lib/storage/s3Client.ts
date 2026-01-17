@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand, CreateBucketCommand, HeadBucketCommand } from '@aws-sdk/client-s3'
 
 const s3Enabled = process.env.S3_ENABLED === 'true'
 
@@ -47,6 +47,27 @@ export async function uploadToS3(options: UploadOptions): Promise<string> {
 
   const { bucket, key, body, contentType } = options
 
+  // Verificar se o bucket existe, se não existir, criar
+  try {
+    await s3Client.send(new HeadBucketCommand({ Bucket: bucket }))
+  } catch (error: any) {
+    if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
+      console.log(`[S3] Bucket ${bucket} não existe. Tentando criar...`)
+      try {
+        await s3Client.send(new CreateBucketCommand({ Bucket: bucket }))
+        console.log(`[S3] Bucket ${bucket} criado com sucesso`)
+      } catch (createError) {
+        console.error(`[S3] Erro ao criar bucket ${bucket}:`, createError)
+        // Continua mesmo se não conseguir criar (pode já existir ou ter permissões diferentes)
+      }
+    } else {
+      console.error(`[S3] Erro ao verificar bucket ${bucket}:`, error)
+      // Continua mesmo assim - pode ser problema de permissão mas o bucket existe
+    }
+  }
+
+  console.log(`[S3] Fazendo upload: bucket=${bucket}, key=${key}, contentType=${contentType}`)
+
   const command = new PutObjectCommand({
     Bucket: bucket,
     Key: key,
@@ -54,11 +75,19 @@ export async function uploadToS3(options: UploadOptions): Promise<string> {
     ContentType: contentType,
   })
 
-  await s3Client.send(command)
+  try {
+    await s3Client.send(command)
+    console.log(`[S3] Upload concluído com sucesso: ${key}`)
+  } catch (error) {
+    console.error(`[S3] Erro ao fazer upload:`, error)
+    throw error
+  }
 
   // Retorna URL pública
   const publicUrl = process.env.S3_PUBLIC_URL || `https://${process.env.S3_ENDPOINT}`
-  return `${publicUrl}/${bucket}/${key}`
+  const url = `${publicUrl}/${bucket}/${key}`
+  console.log(`[S3] URL pública gerada: ${url}`)
+  return url
 }
 
 export function getS3PublicUrl(bucket: string, key: string): string {

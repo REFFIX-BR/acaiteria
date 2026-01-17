@@ -30,16 +30,26 @@ const uploadSchema = z.object({
 // Rota pública para upload (usando tenant slug)
 router.post('/public/:tenantSlug', upload.single('image'), async (req, res, next) => {
   try {
+    console.log('[Upload] Requisição pública recebida:', {
+      tenantSlug: req.params.tenantSlug,
+      hasFile: !!req.file,
+      body: req.body,
+    })
+
     if (!isS3Enabled()) {
+      console.error('[Upload] S3 não está habilitado')
       return res.status(503).json({ error: 'Upload de imagens não está disponível' })
     }
 
     if (!req.file) {
+      console.error('[Upload] Nenhum arquivo recebido')
       return res.status(400).json({ error: 'Nenhum arquivo enviado' })
     }
 
     const { tenantSlug } = req.params
     const { type } = uploadSchema.parse(req.body)
+    
+    console.log('[Upload] Processando upload público:', { type, tenantSlug, fileName: req.file.originalname })
 
     // Buscar tenant_id pelo slug
     const { query } = await import('../db/connection.js')
@@ -66,14 +76,22 @@ router.post('/public/:tenantSlug', upload.single('image'), async (req, res, next
 
     // Fazer upload para S3
     const bucket = process.env.S3_BUCKET || 'acaiteria'
-    const url = await uploadToS3({
-      bucket,
-      key,
-      body: req.file.buffer,
-      contentType: req.file.mimetype,
-    })
+    console.log('[Upload] Fazendo upload para S3 (público):', { bucket, key })
+    
+    try {
+      const url = await uploadToS3({
+        bucket,
+        key,
+        body: req.file.buffer,
+        contentType: req.file.mimetype,
+      })
 
-    res.json({ url, key })
+      console.log('[Upload] Upload concluído com sucesso (público):', url)
+      res.json({ url, key })
+    } catch (s3Error) {
+      console.error('[Upload] Erro ao fazer upload para S3 (público):', s3Error)
+      throw s3Error
+    }
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Tipo inválido. Use "logo" ou "menu-item"' })
@@ -85,16 +103,26 @@ router.post('/public/:tenantSlug', upload.single('image'), async (req, res, next
 // Rota autenticada para upload
 router.post('/', authenticate, tenantGuard, upload.single('image'), async (req: AuthRequest, res, next) => {
   try {
+    console.log('[Upload] Requisição recebida:', {
+      hasFile: !!req.file,
+      body: req.body,
+      tenantId: req.user?.tenantId,
+    })
+
     if (!isS3Enabled()) {
+      console.error('[Upload] S3 não está habilitado')
       return res.status(503).json({ error: 'Upload de imagens não está disponível' })
     }
 
     if (!req.file) {
+      console.error('[Upload] Nenhum arquivo recebido')
       return res.status(400).json({ error: 'Nenhum arquivo enviado' })
     }
 
     const { type } = uploadSchema.parse(req.body)
     const tenantId = req.user!.tenantId
+
+    console.log('[Upload] Processando upload:', { type, tenantId, fileName: req.file.originalname })
 
     // Sanitizar nome do arquivo
     const originalName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_')
@@ -108,14 +136,22 @@ router.post('/', authenticate, tenantGuard, upload.single('image'), async (req: 
 
     // Fazer upload para S3
     const bucket = process.env.S3_BUCKET || 'acaiteria'
-    const url = await uploadToS3({
-      bucket,
-      key,
-      body: req.file.buffer,
-      contentType: req.file.mimetype,
-    })
+    console.log('[Upload] Fazendo upload para S3 (autenticado):', { bucket, key })
+    
+    try {
+      const url = await uploadToS3({
+        bucket,
+        key,
+        body: req.file.buffer,
+        contentType: req.file.mimetype,
+      })
 
-    res.json({ url, key })
+      console.log('[Upload] Upload concluído com sucesso (autenticado):', url)
+      res.json({ url, key })
+    } catch (s3Error) {
+      console.error('[Upload] Erro ao fazer upload para S3 (autenticado):', s3Error)
+      throw s3Error
+    }
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Tipo inválido. Use "logo" ou "menu-item"' })

@@ -49,12 +49,16 @@ export async function uploadImage(
     // Rota autenticada
     uploadUrl = `${apiUrl}/api/upload`
     headers['Authorization'] = `Bearer ${token}`
+    // NÃO definir Content-Type - o navegador fará isso automaticamente com o boundary correto para FormData
   } else if (options?.tenantSlug) {
     // Rota pública
     uploadUrl = `${apiUrl}/api/upload/public/${options.tenantSlug}`
+    // NÃO definir Content-Type - o navegador fará isso automaticamente com o boundary correto para FormData
   } else {
     throw new Error('É necessário fornecer tenantId ou tenantSlug')
   }
+
+  console.log('[Upload] Fazendo upload:', { uploadUrl, type, hasToken: !!token })
 
   // Fazer upload
   const response = await fetch(uploadUrl, {
@@ -64,11 +68,19 @@ export async function uploadImage(
   })
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
+    const errorText = await response.text()
+    let errorData: any = {}
+    try {
+      errorData = JSON.parse(errorText)
+    } catch {
+      errorData = { error: errorText || `Erro ao fazer upload: ${response.status}` }
+    }
+    console.error('[Upload] Erro na resposta:', { status: response.status, error: errorData })
     throw new Error(errorData.error || `Erro ao fazer upload: ${response.status}`)
   }
 
   const result: UploadResult = await response.json()
+  console.log('[Upload] Upload concluído com sucesso:', result.url)
   return result.url
 }
 

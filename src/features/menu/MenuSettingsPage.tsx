@@ -72,12 +72,22 @@ export default function MenuSettingsPage() {
     }
 
     try {
+      console.log('[MenuSettings] Iniciando upload de logo:', {
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+        tenantId: currentTenant.id,
+        tenantSlug: currentTenant.slug,
+      })
+
       // Fazer upload para MinIO
       const { uploadImage } = await import('@/lib/api/upload')
       const logoUrl = await uploadImage(file, 'logo', {
         tenantId: currentTenant.id,
         tenantSlug: currentTenant.slug,
       })
+
+      console.log('[MenuSettings] Upload concluído, URL recebida:', logoUrl)
 
       // Atualiza o tenant com o novo logo
       const updatedTenant = {
