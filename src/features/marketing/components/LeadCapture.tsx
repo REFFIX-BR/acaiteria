@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useTenantStore } from '@/stores/tenantStore'
 import { getTenantData, setTenantData } from '@/lib/storage/storage'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -29,6 +29,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { format } from 'date-fns'
 import type { Customer } from '@/types'
+import { getCustomers, createCustomer } from '@/lib/api/customers'
 
 const customerSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório'),
@@ -43,6 +44,44 @@ export function LeadCapture() {
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const [isLoading, setIsLoading] = useState(false)
+
+  // Buscar clientes do backend ao montar o componente
+  useEffect(() => {
+    if (!currentTenant) return
+
+    const loadCustomers = async () => {
+      try {
+        setIsLoading(true)
+        const customersFromApi = await getCustomers()
+        
+        // Converter datas de string para Date
+        const customers = customersFromApi.map((c) => ({
+          ...c,
+          createdAt: typeof c.createdAt === 'string' ? new Date(c.createdAt) : c.createdAt,
+        }))
+        
+        // Salvar no localStorage como cache
+        setTenantData(currentTenant.id, 'customers', customers)
+        setRefreshTrigger((prev) => prev + 1)
+      } catch (error) {
+        console.error('Erro ao carregar clientes:', error)
+        // Se falhar, tenta usar cache do localStorage
+        const cachedCustomers = getTenantData<Customer[]>(currentTenant.id, 'customers') || []
+        if (cachedCustomers.length > 0) {
+          toast({
+            title: 'Aviso',
+            description: 'Usando dados em cache. Alguns clientes podem não estar atualizados.',
+            variant: 'default',
+          })
+        }
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadCustomers()
+  }, [currentTenant])
 
   const customers = useMemo(() => {
     if (!currentTenant) return []
@@ -69,28 +108,22 @@ export function LeadCapture() {
     }
 
     try {
-      const allCustomers = getTenantData<Customer[]>(currentTenant.id, 'customers') || []
-      
-      // Verifica se já existe cliente com mesmo telefone
-      const existing = allCustomers.find((c) => c.phone === data.phone)
-      if (existing) {
-        toast({
-          title: 'Aviso',
-          description: 'Cliente com este telefone já está cadastrado',
-          variant: 'destructive',
-        })
-        return
-      }
-
-      const newCustomer: Customer = {
-        id: `customer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      // Criar cliente no backend
+      const newCustomer = await createCustomer({
         name: data.name,
         phone: data.phone,
         email: data.email || undefined,
-        createdAt: new Date(),
+      })
+
+      // Converter data de string para Date se necessário
+      const customer: Customer = {
+        ...newCustomer,
+        createdAt: typeof newCustomer.createdAt === 'string' ? new Date(newCustomer.createdAt) : newCustomer.createdAt,
       }
 
-      allCustomers.push(newCustomer)
+      // Atualizar lista local
+      const allCustomers = getTenantData<Customer[]>(currentTenant.id, 'customers') || []
+      allCustomers.push(customer)
       setTenantData(currentTenant.id, 'customers', allCustomers)
 
       // Força atualização da lista
@@ -105,11 +138,22 @@ export function LeadCapture() {
       setOpen(false)
     } catch (error) {
       console.error('Erro ao salvar cliente:', error)
-      toast({
-        title: 'Erro',
-        description: 'Erro ao salvar cliente',
-        variant: 'destructive',
-      })
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao salvar cliente'
+      
+      // Se for erro de duplicata, mostra mensagem específica
+      if (errorMessage.includes('já está cadastrado')) {
+        toast({
+          title: 'Aviso',
+          description: errorMessage,
+          variant: 'destructive',
+        })
+      } else {
+        toast({
+          title: 'Erro',
+          description: errorMessage,
+          variant: 'destructive',
+        })
+      }
     }
   }
 
@@ -194,7 +238,11 @@ export function LeadCapture() {
         </div>
       </CardHeader>
       <CardContent>
-        {customers.length === 0 ? (
+        {isLoading ? (
+          <div className="text-center py-12 text-muted-foreground">
+            Carregando clientes...
+          </div>
+        ) : customers.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             Nenhum cliente cadastrado
           </div>

@@ -387,159 +387,112 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
         try {
           console.log('[CampaignForm] Iniciando envio automático da campanha WhatsApp...')
           
-          // Buscar configuração do WhatsApp e instância de todos os lugares possíveis
-          const whatsappConfig = getTenantData<WhatsAppConfig>(currentTenant.id, 'whatsapp_config')
-          const whatsappInstance = getTenantData<WhatsAppInstance>(currentTenant.id, 'whatsapp_instance')
-          
-          // Debug: listar todas as chaves do tenant para ver o que está salvo
-          const { listTenantKeys } = await import('@/lib/storage/storage')
-          const allKeys = listTenantKeys(currentTenant.id)
-          console.log('[CampaignForm] Todas as chaves do tenant:', allKeys)
-          
-          // Combinar todas as fontes de configuração
-          const finalConfig: WhatsAppConfig | null = whatsappConfig || null
-          const instanceName = finalConfig?.instanceName || whatsappInstance?.instanceName
-          const isConnected = whatsappInstance?.status === 'connected' || finalConfig?.connected || false
-          
-          console.log('[CampaignForm] Verificando configuração WhatsApp:', {
-            hasConfig: !!whatsappConfig,
-            hasInstance: !!whatsappInstance,
-            config: whatsappConfig ? {
-              apiUrl: whatsappConfig.apiUrl ? '***' : undefined,
-              hasApiKey: !!whatsappConfig.apiKey,
-              instanceName: whatsappConfig.instanceName,
-              connected: whatsappConfig.connected,
-            } : null,
-            instance: whatsappInstance ? {
-              instanceName: whatsappInstance.instanceName,
-              status: whatsappInstance.status,
-              phoneNumber: whatsappInstance.phoneNumber,
-            } : null,
-            finalInstanceName: instanceName,
-            isConnected,
-          })
-          
-          // Verificar se tem configuração mínima necessária
-          if (!finalConfig || !finalConfig.apiUrl || !finalConfig.apiKey || !instanceName) {
-            console.warn('[CampaignForm] WhatsApp não configurado completamente:', {
-              hasConfig: !!finalConfig,
-              hasApiUrl: !!finalConfig?.apiUrl,
-              hasApiKey: !!finalConfig?.apiKey,
-              hasInstanceName: !!instanceName,
-            })
-            toast({
-              title: 'Aviso',
-              description: 'Campanha salva, mas WhatsApp não está configurado completamente. Configure a URL, API Key e Instância do WhatsApp na página de WhatsApp.',
-              variant: 'default',
-            })
-          } else {
-            // Criar config final para uso
-            const configToUse: WhatsAppConfig = {
-              apiUrl: finalConfig.apiUrl,
-              apiKey: finalConfig.apiKey,
-              instanceName: instanceName,
-              connected: isConnected,
-            }
-            // Buscar todos os clientes
-            const allCustomers = getTenantData<Customer[]>(currentTenant.id, 'customers') || []
+          // Enviar campanha via backend (seguro - credenciais ficam no servidor)
+          try {
+            console.log('[CampaignForm] Iniciando envio automático da campanha via backend...')
             
-            if (allCustomers.length === 0) {
-              console.warn('[CampaignForm] Nenhum cliente cadastrado')
+            // O backend busca todos os clientes do banco automaticamente
+            // Não precisamos passar customerIds - deixar undefined para buscar todos
+            const sendInterval = data.sendInterval || 15
+            
+            // Montar mensagem com informações da campanha
+            let message = data.description || ''
+            
+            // Se for promoção, adicionar informação de desconto
+            if (data.type === 'promotion' && data.discount) {
+              const discountText = `🎉 Promoção: ${data.discount}% de desconto!\n\n`
+              message = discountText + (message || 'Confira nossa promoção especial!')
+            }
+            
+            // Adicionar nome da campanha se houver
+            if (data.name) {
+              message = `📢 ${data.name}\n\n${message}`
+            }
+            
+            const imageUrl = finalImageUrl || undefined
+            const campaignId = campaign?.id || tempId
+            
+            // Chamar backend para enviar (backend usa suas próprias credenciais e busca clientes do banco)
+            const { getApiUrl } = await import('@/lib/api/config')
+            const { getAuthToken } = await import('@/lib/api/auth')
+            const apiUrl = getApiUrl()
+            const token = getAuthToken()
+            
+            if (!token) {
+              console.warn('[CampaignForm] Token de autenticação não encontrado')
               toast({
                 title: 'Aviso',
-                description: 'Campanha salva, mas não há clientes cadastrados para enviar.',
+                description: 'Campanha salva, mas é necessário estar autenticado para enviar.',
                 variant: 'default',
               })
-            } else {
-              // Enviar campanha automaticamente
-              const { EvolutionAPIClient } = await import('@/lib/whatsapp/evolutionApi')
-              const client = new EvolutionAPIClient(configToUse)
-              
-              const sendInterval = data.sendInterval || 15
-              
-              // Montar mensagem com informações da campanha
-              let message = data.description || ''
-              
-              // Se for promoção, adicionar informação de desconto
-              if (data.type === 'promotion' && data.discount) {
-                const discountText = `🎉 Promoção: ${data.discount}% de desconto!\n\n`
-                message = discountText + (message || 'Confira nossa promoção especial!')
-              }
-              
-              // Adicionar nome da campanha se houver
-              if (data.name) {
-                message = `📢 ${data.name}\n\n${message}`
-              }
-              
-              const imageUrl = finalImageUrl || undefined
-              
-              console.log('[CampaignForm] Enviando para', allCustomers.length, 'clientes...')
-              
-              // Enviar em background (não bloquear a UI)
-              client.sendBulkMessage(
-                configToUse.instanceName!,
-                allCustomers,
+              return
+            }
+            
+            console.log('[CampaignForm] Enviando campanha via backend (backend buscará todos os clientes do banco)...')
+            
+            // Enviar em background (não bloquear a UI)
+            // Não passar customerIds - o backend busca todos do banco
+            fetch(`${apiUrl}/api/whatsapp/campaigns/send`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                campaignId,
+                // customerIds não passado - backend busca todos do banco
                 message,
-                undefined, // Sem callback de progresso para não bloquear
+                imageUrl,
                 sendInterval,
-                imageUrl
-              ).then((results) => {
-                console.log('[CampaignForm] Envio automático concluído:', {
-                  sent: results.sent,
-                  failed: results.failed,
-                  total: results.results.length,
-                })
+              }),
+            })
+              .then(async (response) => {
+                const result = await response.json()
                 
-                // Atualizar métricas da campanha
-                const updatedCampaigns = getTenantData<Campaign[]>(currentTenant.id, 'campaigns') || []
-                const campaignIndex = updatedCampaigns.findIndex((c) => 
-                  c.id === (campaign?.id || tempId)
-                )
-                
-                if (campaignIndex !== -1) {
-                  updatedCampaigns[campaignIndex] = {
-                    ...updatedCampaigns[campaignIndex],
-                    metrics: {
-                      ...updatedCampaigns[campaignIndex].metrics,
-                      sent: updatedCampaigns[campaignIndex].metrics.sent + results.sent,
-                      delivered: updatedCampaigns[campaignIndex].metrics.delivered + results.sent,
-                      failed: updatedCampaigns[campaignIndex].metrics.failed + results.failed,
-                    },
+                if (response.ok && result.success) {
+                  console.log('[CampaignForm] Envio automático concluído:', {
+                    sent: result.sent,
+                    failed: result.failed,
+                    total: result.total,
+                  })
+                  
+                  // Atualizar métricas da campanha no localStorage
+                  const updatedCampaigns = getTenantData<Campaign[]>(currentTenant.id, 'campaigns') || []
+                  const campaignIndex = updatedCampaigns.findIndex((c) => c.id === campaignId)
+                  
+                  if (campaignIndex !== -1) {
+                    updatedCampaigns[campaignIndex] = {
+                      ...updatedCampaigns[campaignIndex],
+                      metrics: {
+                        ...updatedCampaigns[campaignIndex].metrics,
+                        sent: updatedCampaigns[campaignIndex].metrics.sent + result.sent,
+                        delivered: updatedCampaigns[campaignIndex].metrics.delivered + result.sent,
+                        failed: updatedCampaigns[campaignIndex].metrics.failed + result.failed,
+                      },
+                    }
+                    setTenantData(currentTenant.id, 'campaigns', updatedCampaigns)
                   }
-                  setTenantData(currentTenant.id, 'campaigns', updatedCampaigns)
+                  
+                  toast({
+                    title: 'Campanha enviada!',
+                    description: `${result.sent} mensagem(ns) enviada(s) para ${result.total} cliente(s)`,
+                  })
+                } else {
+                  throw new Error(result.error || 'Erro ao enviar campanha')
                 }
-                
-                // Salvar histórico de envios
-                const history = getTenantData<WhatsAppSend[]>(currentTenant.id, 'whatsapp_sends') || []
-                const newSends: WhatsAppSend[] = results.results.map((result) => {
-                  const customer = allCustomers.find((c) => c.id === result.customerId)!
-                  return {
-                    id: `send-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                    campaignId: campaign?.id || tempId,
-                    customerId: customer.id,
-                    phone: customer.phone,
-                    message,
-                    status: result.success ? 'sent' : 'failed',
-                    sentAt: result.success ? new Date() : undefined,
-                    error: result.error,
-                    createdAt: new Date(),
-                  }
-                })
-                setTenantData(currentTenant.id, 'whatsapp_sends', [...history, ...newSends])
-                
-                toast({
-                  title: 'Campanha enviada!',
-                  description: `${results.sent} mensagem(ns) enviada(s) para ${allCustomers.length} cliente(s)`,
-                })
-              }).catch((error) => {
+              })
+              .catch((error) => {
                 console.error('[CampaignForm] Erro ao enviar campanha automaticamente:', error)
                 toast({
                   title: 'Erro no envio',
-                  description: 'Campanha salva, mas houve erro ao enviar mensagens. Tente novamente.',
+                  description: error instanceof Error ? error.message : 'Campanha salva, mas houve erro ao enviar mensagens. Tente novamente.',
                   variant: 'destructive',
                 })
               })
             }
+          } catch (error) {
+            console.error('[CampaignForm] Erro ao preparar envio automático:', error)
+            // Não bloquear o salvamento da campanha se houver erro no envio
           }
         } catch (error) {
           console.error('[CampaignForm] Erro ao preparar envio automático:', error)
