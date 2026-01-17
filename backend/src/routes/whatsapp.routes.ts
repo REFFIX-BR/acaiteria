@@ -635,13 +635,21 @@ router.post(
         length: formattedPhone.length,
       })
 
-      // Obter API key do ambiente
-      const apiKey = process.env.EVOLUTION_API_KEY || process.env.EVOLUTION_API_GLOBAL_KEY
+      // Obter token de autenticação (prioridade: instanceToken > API key global)
+      // O instanceToken é obrigatório para api.reffix.com.br
+      let apiKey = dbInstance.instanceToken
+      
+      // Se não tiver instanceToken, tenta usar a API key global como fallback
       if (!apiKey) {
-        console.error('[WhatsApp Send Message] API Key não configurada')
+        apiKey = process.env.EVOLUTION_API_KEY || process.env.EVOLUTION_API_GLOBAL_KEY
+        console.warn('[WhatsApp Send Message] InstanceToken não encontrado, usando API key global')
+      }
+      
+      if (!apiKey) {
+        console.error('[WhatsApp Send Message] Nenhum token de autenticação disponível')
         return res.status(500).json({
           success: false,
-          error: 'API Key não configurada no servidor',
+          error: 'Token de autenticação não configurado. Recrie a instância do WhatsApp.',
         })
       }
 
@@ -656,7 +664,9 @@ router.post(
         instanceName,
         number: formattedPhone,
         textLength: text.length,
+        hasInstanceToken: !!dbInstance.instanceToken,
         hasApiKey: !!apiKey,
+        usingInstanceToken: !!dbInstance.instanceToken,
       })
 
       // Enviar mensagem via api.reffix.com.br
