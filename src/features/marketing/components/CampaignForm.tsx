@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
 import { Plus, Edit, Upload, Image as ImageIcon, X } from 'lucide-react'
-import type { Campaign, Customer, WhatsAppConfig, WhatsAppSend } from '@/types'
+import type { Campaign, Customer, WhatsAppConfig, WhatsAppSend, WhatsAppInstance } from '@/types'
 
 const campaignSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório'),
@@ -387,26 +387,59 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
         try {
           console.log('[CampaignForm] Iniciando envio automático da campanha WhatsApp...')
           
-          // Buscar configuração do WhatsApp
+          // Buscar configuração do WhatsApp e instância de todos os lugares possíveis
           const whatsappConfig = getTenantData<WhatsAppConfig>(currentTenant.id, 'whatsapp_config')
+          const whatsappInstance = getTenantData<WhatsAppInstance>(currentTenant.id, 'whatsapp_instance')
+          
+          // Debug: listar todas as chaves do tenant para ver o que está salvo
+          const { listTenantKeys } = await import('@/lib/storage/storage')
+          const allKeys = listTenantKeys(currentTenant.id)
+          console.log('[CampaignForm] Todas as chaves do tenant:', allKeys)
+          
+          // Combinar todas as fontes de configuração
+          const finalConfig: WhatsAppConfig | null = whatsappConfig || null
+          const instanceName = finalConfig?.instanceName || whatsappInstance?.instanceName
+          const isConnected = whatsappInstance?.status === 'connected' || finalConfig?.connected || false
           
           console.log('[CampaignForm] Verificando configuração WhatsApp:', {
             hasConfig: !!whatsappConfig,
-            apiUrl: whatsappConfig?.apiUrl,
-            hasApiKey: !!whatsappConfig?.apiKey,
-            instanceName: whatsappConfig?.instanceName,
-            connected: whatsappConfig?.connected,
+            hasInstance: !!whatsappInstance,
+            config: whatsappConfig ? {
+              apiUrl: whatsappConfig.apiUrl ? '***' : undefined,
+              hasApiKey: !!whatsappConfig.apiKey,
+              instanceName: whatsappConfig.instanceName,
+              connected: whatsappConfig.connected,
+            } : null,
+            instance: whatsappInstance ? {
+              instanceName: whatsappInstance.instanceName,
+              status: whatsappInstance.status,
+              phoneNumber: whatsappInstance.phoneNumber,
+            } : null,
+            finalInstanceName: instanceName,
+            isConnected,
           })
           
-          // Verificar se tem configuração mínima necessária (apiUrl, apiKey, instanceName)
-          if (!whatsappConfig || !whatsappConfig.apiUrl || !whatsappConfig.apiKey || !whatsappConfig.instanceName) {
-            console.warn('[CampaignForm] WhatsApp não configurado completamente')
+          // Verificar se tem configuração mínima necessária
+          if (!finalConfig || !finalConfig.apiUrl || !finalConfig.apiKey || !instanceName) {
+            console.warn('[CampaignForm] WhatsApp não configurado completamente:', {
+              hasConfig: !!finalConfig,
+              hasApiUrl: !!finalConfig?.apiUrl,
+              hasApiKey: !!finalConfig?.apiKey,
+              hasInstanceName: !!instanceName,
+            })
             toast({
               title: 'Aviso',
-              description: 'Campanha salva, mas WhatsApp não está configurado completamente. Configure o WhatsApp para enviar automaticamente.',
+              description: 'Campanha salva, mas WhatsApp não está configurado completamente. Configure a URL, API Key e Instância do WhatsApp na página de WhatsApp.',
               variant: 'default',
             })
           } else {
+            // Criar config final para uso
+            const configToUse: WhatsAppConfig = {
+              apiUrl: finalConfig.apiUrl,
+              apiKey: finalConfig.apiKey,
+              instanceName: instanceName,
+              connected: isConnected,
+            }
             // Buscar todos os clientes
             const allCustomers = getTenantData<Customer[]>(currentTenant.id, 'customers') || []
             
@@ -420,7 +453,7 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
             } else {
               // Enviar campanha automaticamente
               const { EvolutionAPIClient } = await import('@/lib/whatsapp/evolutionApi')
-              const client = new EvolutionAPIClient(whatsappConfig)
+              const client = new EvolutionAPIClient(configToUse)
               
               const sendInterval = data.sendInterval || 15
               
@@ -444,7 +477,7 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
               
               // Enviar em background (não bloquear a UI)
               client.sendBulkMessage(
-                whatsappConfig.instanceName,
+                configToUse.instanceName!,
                 allCustomers,
                 message,
                 undefined, // Sem callback de progresso para não bloquear
