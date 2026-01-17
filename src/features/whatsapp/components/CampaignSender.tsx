@@ -65,8 +65,17 @@ export function CampaignSender() {
     if (!selectedCampaign || selectedCampaign === 'none') return
 
     const campaign = campaigns.find((c) => c.id === selectedCampaign)
-    if (campaign && campaign.description) {
-      setMessage(campaign.description)
+    if (campaign) {
+      if (campaign.description) {
+        setMessage(campaign.description)
+      }
+      // Mostra aviso se a campanha tem imagem
+      if (campaign.image) {
+        toast({
+          title: 'Campanha com imagem',
+          description: 'A imagem da campanha será enviada junto com a mensagem',
+        })
+      }
     }
   }
 
@@ -116,12 +125,18 @@ export function CampaignSender() {
         selectedCustomers.includes(c.id)
       )
 
-      // Obter intervalo da campanha se houver uma selecionada
+      // Obter intervalo e imagem da campanha se houver uma selecionada
       let sendInterval = 15 // Padrão: 15 segundos
+      let campaignImage: string | undefined
       if (selectedCampaign && selectedCampaign !== 'none') {
         const selectedCampaignData = campaigns.find((c) => c.id === selectedCampaign)
-        if (selectedCampaignData?.sendInterval) {
-          sendInterval = selectedCampaignData.sendInterval
+        if (selectedCampaignData) {
+          if (selectedCampaignData.sendInterval) {
+            sendInterval = selectedCampaignData.sendInterval
+          }
+          if (selectedCampaignData.image) {
+            campaignImage = selectedCampaignData.image
+          }
         }
       }
 
@@ -132,7 +147,8 @@ export function CampaignSender() {
         (sent, total) => {
           setProgress({ sent, total })
         },
-        sendInterval
+        sendInterval,
+        campaignImage // Passa a imagem da campanha se houver
       )
 
       // Salva histórico de envios

@@ -456,36 +456,155 @@ export class EvolutionAPIClient {
       // Formata o número (remove caracteres não numéricos, adiciona código do país se necessário)
       const formattedPhone = this.formatPhone(phone)
 
-      const response = await fetch(
-        `${this.apiUrl}/message/sendText/${instanceName}`,
-        {
-          method: 'POST',
-          headers: {
-            'apikey': this.apiKey,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            number: formattedPhone,
-            text: message,
-          }),
-        }
-      )
+      const endpoint = `${this.apiUrl}/message/sendText/${instanceName}`
+      const payload = {
+        number: formattedPhone,
+        text: message,
+      }
+
+      console.log('[EvolutionAPI] Enviando mensagem:', {
+        endpoint,
+        instanceName,
+        phone: formattedPhone,
+        messageLength: message.length,
+        apiUrl: this.apiUrl,
+      })
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'apikey': this.apiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
 
       const data = await response.json()
+
+      console.log('[EvolutionAPI] Resposta do envio:', {
+        status: response.status,
+        ok: response.ok,
+        data,
+      })
 
       if (response.ok) {
         return {
           success: true,
-          messageId: data.key?.id || `msg-${Date.now()}`,
+          messageId: data.key?.id || data.messageId || `msg-${Date.now()}`,
         }
       } else {
+        const errorMessage = data.message || data.error || 'Erro ao enviar mensagem'
+        console.error('[EvolutionAPI] Erro ao enviar mensagem:', {
+          status: response.status,
+          error: errorMessage,
+          data,
+        })
         return {
           success: false,
-          error: data.message || 'Erro ao enviar mensagem',
+          error: errorMessage,
         }
       }
     } catch (error) {
-      console.error('Erro ao enviar mensagem:', error)
+      console.error('[EvolutionAPI] Erro ao enviar mensagem:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro desconhecido',
+      }
+    }
+  }
+
+  /**
+   * Envia mídia (imagem, vídeo ou documento) para um número
+   */
+  async sendMedia(
+    instanceName: string,
+    phone: string,
+    mediaUrl: string,
+    caption: string = '',
+    mediaType: 'image' | 'video' | 'document' = 'image',
+    fileName?: string
+  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    try {
+      // Formata o número (remove caracteres não numéricos, adiciona código do país se necessário)
+      const formattedPhone = this.formatPhone(phone)
+
+      // Detecta mimetype baseado na extensão ou tipo de mídia
+      let mimetype = 'image/jpeg'
+      if (mediaType === 'image') {
+        const extension = mediaUrl.split('.').pop()?.toLowerCase()
+        if (extension === 'png') mimetype = 'image/png'
+        else if (extension === 'gif') mimetype = 'image/gif'
+        else if (extension === 'webp') mimetype = 'image/webp'
+        else mimetype = 'image/jpeg'
+      } else if (mediaType === 'video') {
+        mimetype = 'video/mp4'
+      } else if (mediaType === 'document') {
+        mimetype = 'application/pdf'
+      }
+
+      // Extrai nome do arquivo da URL se não fornecido
+      const finalFileName = fileName || mediaUrl.split('/').pop() || `image.${mimetype.split('/')[1]}`
+
+      const endpoint = `${this.apiUrl}/message/sendMedia/${instanceName}`
+      const payload: any = {
+        number: formattedPhone,
+        mediatype: mediaType,
+        mimetype,
+        media: mediaUrl,
+        fileName: finalFileName,
+      }
+
+      // Adiciona caption se fornecido
+      if (caption) {
+        payload.caption = caption
+      }
+
+      console.log('[EvolutionAPI] Enviando mídia:', {
+        endpoint,
+        instanceName,
+        phone: formattedPhone,
+        mediaType,
+        mimetype,
+        mediaUrl,
+        caption: caption.substring(0, 50) + (caption.length > 50 ? '...' : ''),
+      })
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'apikey': this.apiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+
+      const data = await response.json()
+
+      console.log('[EvolutionAPI] Resposta do envio de mídia:', {
+        status: response.status,
+        ok: response.ok,
+        data,
+      })
+
+      if (response.ok) {
+        return {
+          success: true,
+          messageId: data.key?.id || data.messageId || `msg-${Date.now()}`,
+        }
+      } else {
+        const errorMessage = data.message || data.error || 'Erro ao enviar mídia'
+        console.error('[EvolutionAPI] Erro ao enviar mídia:', {
+          status: response.status,
+          error: errorMessage,
+          data,
+        })
+        return {
+          success: false,
+          error: errorMessage,
+        }
+      }
+    } catch (error) {
+      console.error('[EvolutionAPI] Erro ao enviar mídia:', error)
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Erro desconhecido',
@@ -501,7 +620,8 @@ export class EvolutionAPIClient {
     customers: Customer[],
     message: string,
     onProgress?: (sent: number, total: number, success: boolean) => void,
-    sendInterval: number = 15 // Intervalo padrão de 15 segundos
+    sendInterval: number = 15, // Intervalo padrão de 15 segundos
+    imageUrl?: string // URL da imagem da campanha (opcional)
   ): Promise<{ sent: number; failed: number; results: Array<{ customerId: string; success: boolean; error?: string }> }> {
     let sent = 0
     let failed = 0
@@ -512,7 +632,20 @@ export class EvolutionAPIClient {
 
     for (let i = 0; i < customers.length; i++) {
       const customer = customers[i]
-      const result = await this.sendMessage(instanceName, customer.phone, message)
+      
+      // Se houver imagem, envia mídia, senão envia texto
+      let result
+      if (imageUrl) {
+        result = await this.sendMedia(
+          instanceName,
+          customer.phone,
+          imageUrl,
+          message, // Usa a mensagem como caption
+          'image'
+        )
+      } else {
+        result = await this.sendMessage(instanceName, customer.phone, message)
+      }
       
       results.push({
         customerId: customer.id,

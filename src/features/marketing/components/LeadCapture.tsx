@@ -42,11 +42,12 @@ export function LeadCapture() {
   const currentTenant = useTenantStore((state) => state.currentTenant)
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   const customers = useMemo(() => {
     if (!currentTenant) return []
     return getTenantData<Customer[]>(currentTenant.id, 'customers') || []
-  }, [currentTenant])
+  }, [currentTenant, refreshTrigger])
 
   const {
     register,
@@ -91,6 +92,9 @@ export function LeadCapture() {
 
       allCustomers.push(newCustomer)
       setTenantData(currentTenant.id, 'customers', allCustomers)
+
+      // Força atualização da lista
+      setRefreshTrigger((prev) => prev + 1)
 
       toast({
         title: 'Sucesso',
