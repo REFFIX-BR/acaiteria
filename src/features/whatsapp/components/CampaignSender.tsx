@@ -116,13 +116,23 @@ export function CampaignSender() {
         selectedCustomers.includes(c.id)
       )
 
+      // Obter intervalo da campanha se houver uma selecionada
+      let sendInterval = 15 // Padrão: 15 segundos
+      if (selectedCampaign && selectedCampaign !== 'none') {
+        const selectedCampaignData = campaigns.find((c) => c.id === selectedCampaign)
+        if (selectedCampaignData?.sendInterval) {
+          sendInterval = selectedCampaignData.sendInterval
+        }
+      }
+
       const results = await client.sendBulkMessage(
         config.instanceName!,
         customersToSend,
         message,
         (sent, total) => {
           setProgress({ sent, total })
-        }
+        },
+        sendInterval
       )
 
       // Salva histórico de envios

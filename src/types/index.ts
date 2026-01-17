@@ -167,6 +167,7 @@ export interface Campaign {
   description?: string
   discount?: number
   image?: string
+  sendInterval?: number // Intervalo de disparo em segundos (mínimo 15)
   createdAt: Date
 }
 

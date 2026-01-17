@@ -500,11 +500,15 @@ export class EvolutionAPIClient {
     instanceName: string,
     customers: Customer[],
     message: string,
-    onProgress?: (sent: number, total: number, success: boolean) => void
+    onProgress?: (sent: number, total: number, success: boolean) => void,
+    sendInterval: number = 15 // Intervalo padrão de 15 segundos
   ): Promise<{ sent: number; failed: number; results: Array<{ customerId: string; success: boolean; error?: string }> }> {
     let sent = 0
     let failed = 0
     const results: Array<{ customerId: string; success: boolean; error?: string }> = []
+
+    // Garantir que o intervalo seja no mínimo 15 segundos
+    const interval = Math.max(15, sendInterval) * 1000 // Converter para milissegundos
 
     for (let i = 0; i < customers.length; i++) {
       const customer = customers[i]
@@ -526,9 +530,9 @@ export class EvolutionAPIClient {
         onProgress(sent + failed, customers.length, result.success)
       }
 
-      // Pequeno delay entre mensagens para evitar rate limiting
+      // Aguardar intervalo configurado entre mensagens (exceto na última)
       if (i < customers.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 1000))
+        await new Promise((resolve) => setTimeout(resolve, interval))
       }
     }
 

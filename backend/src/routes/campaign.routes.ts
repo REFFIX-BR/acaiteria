@@ -17,6 +17,7 @@ const createCampaignSchema = z.object({
   startDate: z.string(),
   endDate: z.string().optional(),
   image: z.string().nullish(),
+  sendInterval: z.number().min(15).optional(),
 })
 
 // Listar campanhas
@@ -39,8 +40,8 @@ router.post('/', async (req: AuthRequest, res, next) => {
     const data = createCampaignSchema.parse(req.body)
 
     const result = await query(
-      `INSERT INTO campaigns (tenant_id, name, type, status, description, discount, start_date, end_date, image, sent, delivered, failed, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 0, 0, 0, NOW(), NOW())
+      `INSERT INTO campaigns (tenant_id, name, type, status, description, discount, start_date, end_date, image, send_interval, sent, delivered, failed, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 0, 0, 0, NOW(), NOW())
        RETURNING id`,
       [
         req.user!.tenantId,
@@ -52,6 +53,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
         data.startDate,
         data.endDate || null,
         data.image || null,
+        data.sendInterval || 15,
       ]
     )
 
@@ -97,6 +99,10 @@ router.put('/:id', async (req: AuthRequest, res, next) => {
     if (data.image !== undefined) {
       updates.push(`image = $${paramCount++}`)
       values.push(data.image)
+    }
+    if (data.sendInterval !== undefined) {
+      updates.push(`send_interval = $${paramCount++}`)
+      values.push(data.sendInterval)
     }
 
     updates.push('updated_at = NOW()')

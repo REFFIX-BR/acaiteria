@@ -28,6 +28,7 @@ const campaignSchema = z.object({
   startDate: z.string().min(1, 'Data de início é obrigatória'),
   endDate: z.string().optional(),
   image: z.string().optional(),
+  sendInterval: z.number().min(15, 'O intervalo mínimo é de 15 segundos').optional(),
 })
 
 type CampaignFormData = z.infer<typeof campaignSchema>
@@ -81,11 +82,13 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
           startDate: formatDateForInput(campaign.startDate),
           endDate: formatDateForInput(campaign.endDate),
           image: campaign.image || '',
+          sendInterval: campaign.sendInterval || 15,
         }
       : {
           type: 'promotion',
           startDate: new Date().toISOString().split('T')[0],
           image: '',
+          sendInterval: 15,
         },
   })
 
@@ -180,6 +183,7 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
       setValue('startDate', formatDateForInput(campaign.startDate))
       setValue('endDate', formatDateForInput(campaign.endDate))
       setValue('image', campaign.image || '')
+      setValue('sendInterval', campaign.sendInterval || 15)
       setImagePreview(campaign.image || null)
     } else {
       setImagePreview(null)
@@ -236,6 +240,7 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
             startDate: new Date(data.startDate),
             endDate: data.endDate ? new Date(data.endDate) : undefined,
             image: finalImageUrl || undefined,
+            sendInterval: data.sendInterval || 15,
           }
         }
       } else {
@@ -251,6 +256,7 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
           startDate: new Date(data.startDate),
           endDate: data.endDate ? new Date(data.endDate) : undefined,
           image: finalImageUrl || undefined,
+          sendInterval: data.sendInterval || 15,
           metrics: {
             sent: 0,
             delivered: 0,
@@ -279,6 +285,7 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
             startDate: data.startDate,
             endDate: data.endDate || undefined,
             image: finalImageUrl || undefined,
+            sendInterval: data.sendInterval || 15,
           }
 
           if (campaign) {
@@ -488,6 +495,27 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
               {errors.discount && (
                 <p className="text-sm text-destructive">{errors.discount.message}</p>
               )}
+            </div>
+          )}
+
+          {campaignType === 'whatsapp' && (
+            <div className="space-y-2">
+              <Label htmlFor="sendInterval">
+                Intervalo de Disparo (segundos)
+              </Label>
+              <Input
+                id="sendInterval"
+                type="number"
+                min="15"
+                placeholder="15"
+                {...register('sendInterval', { valueAsNumber: true })}
+              />
+              {errors.sendInterval && (
+                <p className="text-sm text-destructive">{errors.sendInterval.message}</p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Intervalo mínimo: 15 segundos. Tempo de espera entre cada envio de mensagem.
+              </p>
             </div>
           )}
 
