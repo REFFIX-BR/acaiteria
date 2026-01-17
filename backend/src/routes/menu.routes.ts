@@ -5,7 +5,62 @@ import { authenticate, tenantGuard, AuthRequest } from '../middleware/auth.js'
 
 const router = express.Router()
 
-// Aplicar autenticação em todas as rotas
+// Rota pública: buscar menu por slug do tenant
+router.get('/public/:tenantSlug', async (req, res, next) => {
+  try {
+    // Primeiro busca o tenant pelo slug
+    const tenantResult = await query(
+      'SELECT id FROM tenants WHERE slug = $1 AND deleted_at IS NULL',
+      [req.params.tenantSlug]
+    )
+
+    if (tenantResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Tenant not found' })
+    }
+
+    const tenantId = tenantResult.rows[0].id
+
+    // Busca os itens do menu disponíveis (apenas os que estão available = true)
+    const result = await query(
+      `SELECT mi.*,
+       COALESCE(
+         json_agg(DISTINCT jsonb_build_object('id', mis.id, 'name', mis.name, 'price', mis.price))
+         FILTER (WHERE mis.id IS NOT NULL),
+         '[]'
+       ) as sizes,
+       COALESCE(
+         json_agg(DISTINCT jsonb_build_object('id', mia.id, 'name', mia.name, 'price', mia.price))
+         FILTER (WHERE mia.id IS NOT NULL),
+         '[]'
+       ) as additions,
+       COALESCE(
+         json_agg(DISTINCT jsonb_build_object('id', mic.id, 'name', mic.name, 'price', mic.price))
+         FILTER (WHERE mic.id IS NOT NULL),
+         '[]'
+       ) as complements,
+       COALESCE(
+         json_agg(DISTINCT jsonb_build_object('id', mif.id, 'name', mif.name, 'price', mif.price))
+         FILTER (WHERE mif.id IS NOT NULL),
+         '[]'
+       ) as fruits
+       FROM menu_items mi
+       LEFT JOIN menu_item_sizes mis ON mi.id = mis.menu_item_id
+       LEFT JOIN menu_item_additions mia ON mi.id = mia.menu_item_id
+       LEFT JOIN menu_item_complements mic ON mi.id = mic.menu_item_id
+       LEFT JOIN menu_item_fruits mif ON mi.id = mif.menu_item_id
+       WHERE mi.tenant_id = $1 AND mi.available = true AND mi.deleted_at IS NULL
+       GROUP BY mi.id
+       ORDER BY mi.created_at DESC`,
+      [tenantId]
+    )
+
+    res.json({ items: result.rows })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// Aplicar autenticação nas rotas protegidas
 router.use(authenticate)
 router.use(tenantGuard)
 

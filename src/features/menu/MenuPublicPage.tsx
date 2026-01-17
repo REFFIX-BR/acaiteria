@@ -44,6 +44,9 @@ export default function MenuPublicPage() {
   const [customerData, setCustomerData] = useState<CustomerData | null>(null)
   const [tenant, setTenant] = useState<any | null>(null)
   const [isLoadingTenant, setIsLoadingTenant] = useState(true)
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([])
+  const [menuSettings, setMenuSettings] = useState<any | null>(null)
+  const [isLoadingMenu, setIsLoadingMenu] = useState(false)
   const categoryScrollRef = useRef<HTMLDivElement>(null)
 
   // Carrega dados do cliente do localStorage ao montar
@@ -99,25 +102,85 @@ export default function MenuPublicPage() {
     fetchTenant()
   }, [tenantSlug])
 
-  const menuItems = useMemo(() => {
-    if (!tenant) return []
-    return getTenantData<MenuItem[]>(tenant.id, 'menu') || []
-  }, [tenant])
+  // Busca dados do menu quando o tenant é carregado
+  useEffect(() => {
+    const fetchMenuData = async () => {
+      if (!tenant || !tenantSlug) {
+        setMenuItems([])
+        setMenuSettings(null)
+        return
+      }
 
-  const menuSettings = useMemo(() => {
-    if (!tenant) return null
-    return getTenantData<{
-      showPrices: boolean
-      showDescriptions: boolean
-      showImages: boolean
-      allowWhatsAppOrder: boolean
-      whatsAppNumber: string
-      customMessage: string
-      backgroundColor: string
-      textColor: string
-      accentColor: string
-    }>(tenant.id, 'menuSettings')
-  }, [tenant])
+      setIsLoadingMenu(true)
+      try {
+        // Primeiro tenta buscar do localStorage (para casos onde o admin já está logado)
+        const localMenuItems = getTenantData<MenuItem[]>(tenant.id, 'menu')
+        const localMenuSettings = getTenantData<{
+          showPrices: boolean
+          showDescriptions: boolean
+          showImages: boolean
+          allowWhatsAppOrder: boolean
+          whatsAppNumber: string
+          customMessage: string
+          backgroundColor: string
+          textColor: string
+          accentColor: string
+        }>(tenant.id, 'menuSettings')
+
+        if (localMenuItems && localMenuItems.length > 0) {
+          setMenuItems(localMenuItems)
+          setMenuSettings(localMenuSettings)
+          setIsLoadingMenu(false)
+          return
+        }
+
+        // Se não encontrar no localStorage, busca do backend
+        const { getApiUrl } = await import('@/lib/api/config')
+        const apiUrl = getApiUrl()
+        const menuResponse = await fetch(`${apiUrl}/api/menu/public/${tenantSlug}`)
+        
+        if (menuResponse.ok) {
+          const menuData = await menuResponse.json()
+          if (menuData.items && Array.isArray(menuData.items)) {
+            // Converte os dados do backend para o formato esperado
+            const formattedItems: MenuItem[] = menuData.items.map((item: any) => ({
+              id: item.id,
+              menuItemId: item.id,
+              menuItemName: item.name,
+              name: item.name,
+              description: item.description || '',
+              basePrice: parseFloat(item.base_price) || 0,
+              image: item.image || '',
+              category: item.category || '',
+              available: item.available ?? true,
+              maxAdditions: item.max_additions || undefined,
+              maxComplements: item.max_complements || undefined,
+              maxFruits: item.max_fruits || undefined,
+              sizes: item.sizes || [],
+              additions: item.additions || [],
+              complements: item.complements || [],
+              fruits: item.fruits || [],
+              createdAt: new Date(item.created_at),
+              updatedAt: new Date(item.updated_at),
+            }))
+            setMenuItems(formattedItems)
+          } else {
+            setMenuItems([])
+          }
+        } else {
+          console.error('[MenuPublicPage] Erro ao buscar menu:', menuResponse.status)
+          setMenuItems([])
+        }
+      } catch (error) {
+        console.error('[MenuPublicPage] Erro ao buscar menu:', error)
+        setMenuItems([])
+      } finally {
+        setIsLoadingMenu(false)
+      }
+    }
+
+    fetchMenuData()
+  }, [tenant, tenantSlug])
 
   const storeStatus = useMemo(() => {
     if (!tenant) return { isOpen: true }
