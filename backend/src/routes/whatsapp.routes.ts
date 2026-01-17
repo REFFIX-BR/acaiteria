@@ -618,41 +618,73 @@ router.post(
 
       // Formatar número de telefone (remove caracteres não numéricos, adiciona código do país se necessário)
       let formattedPhone = phone.replace(/\D/g, '')
-      if (formattedPhone.length === 11 && !formattedPhone.startsWith('55')) {
-        formattedPhone = '55' + formattedPhone
-      } else if (formattedPhone.length === 10 && !formattedPhone.startsWith('55')) {
-        formattedPhone = '55' + formattedPhone
+      const originalPhone = formattedPhone
+      
+      // Se não começar com 55, adiciona o código do país
+      if (!formattedPhone.startsWith('55')) {
+        // Se for número brasileiro (10 ou 11 dígitos), adiciona 55
+        if (formattedPhone.length === 11 || formattedPhone.length === 10) {
+          formattedPhone = '55' + formattedPhone
+        }
       }
+
+      console.log('[WhatsApp Send Message] Formatação do número:', {
+        original: phone,
+        limpo: originalPhone,
+        formatado: formattedPhone,
+        length: formattedPhone.length,
+      })
 
       // Obter API key do ambiente
       const apiKey = process.env.EVOLUTION_API_KEY || process.env.EVOLUTION_API_GLOBAL_KEY
       if (!apiKey) {
+        console.error('[WhatsApp Send Message] API Key não configurada')
         return res.status(500).json({
           success: false,
           error: 'API Key não configurada no servidor',
         })
       }
 
+      const apiUrl = `https://api.reffix.com.br/message/sendText/${instanceName}`
+      const requestBody = {
+        number: formattedPhone,
+        text: text,
+      }
+
+      console.log('[WhatsApp Send Message] Enviando mensagem:', {
+        url: apiUrl,
+        instanceName,
+        number: formattedPhone,
+        textLength: text.length,
+        hasApiKey: !!apiKey,
+      })
+
       // Enviar mensagem via api.reffix.com.br
-      const response = await fetch(`https://api.reffix.com.br/message/sendText/${instanceName}`, {
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'apikey': apiKey,
         },
-        body: JSON.stringify({
-          number: formattedPhone,
-          text: text,
-        }),
+        body: JSON.stringify(requestBody),
+      })
+
+      console.log('[WhatsApp Send Message] Resposta recebida:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries()),
       })
 
       let responseData: any = {}
       try {
         const textResponse = await response.text()
+        console.log('[WhatsApp Send Message] Resposta texto:', textResponse.substring(0, 500))
         if (textResponse) {
           responseData = JSON.parse(textResponse)
         }
       } catch (parseError) {
+        console.error('[WhatsApp Send Message] Erro ao parsear resposta:', parseError)
         // Se não conseguir parsear, usar a resposta de erro genérica
         responseData = { 
           error: `Erro ao processar resposta: ${parseError instanceof Error ? parseError.message : 'Erro desconhecido'}` 
@@ -660,12 +692,18 @@ router.post(
       }
 
       if (response.ok) {
+        console.log('[WhatsApp Send Message] Mensagem enviada com sucesso!', responseData)
         res.json({
           success: true,
           message: 'Mensagem enviada com sucesso',
           data: responseData,
         })
       } else {
+        console.error('[WhatsApp Send Message] Erro ao enviar mensagem:', {
+          status: response.status,
+          error: responseData.error || responseData.message,
+          details: responseData,
+        })
         res.status(response.status).json({
           success: false,
           error: responseData.error || responseData.message || `Erro HTTP ${response.status}`,
