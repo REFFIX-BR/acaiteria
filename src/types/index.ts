@@ -166,6 +166,7 @@ export interface Campaign {
   metrics: CampaignMetrics
   description?: string
   discount?: number
+  image?: string
   createdAt: Date
 }
 

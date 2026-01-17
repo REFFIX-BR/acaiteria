@@ -1,7 +1,7 @@
 import { getApiUrl } from './config'
 import { getAuthToken } from './auth'
 
-export type UploadType = 'logo' | 'menu-item'
+export type UploadType = 'logo' | 'menu-item' | 'campaign'
 
 export interface UploadResult {
   url: string

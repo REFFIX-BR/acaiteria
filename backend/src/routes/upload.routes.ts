@@ -24,7 +24,7 @@ const upload = multer({
 })
 
 const uploadSchema = z.object({
-  type: z.enum(['logo', 'menu-item']),
+  type: z.enum(['logo', 'menu-item', 'campaign']),
 })
 
 // Rota pública para upload (usando tenant slug)
@@ -71,7 +71,7 @@ router.post('/public/:tenantSlug', upload.single('image'), async (req, res, next
     const fileName = `${timestamp}-${originalName}`
 
     // Definir path baseado no tipo
-    const folder = type === 'logo' ? 'logos' : 'menu-items'
+    const folder = type === 'logo' ? 'logos' : type === 'menu-item' ? 'menu-items' : 'campaigns'
     const key = `${tenantId}/${folder}/${fileName}`
 
     // Fazer upload para S3
@@ -131,7 +131,7 @@ router.post('/', authenticate, tenantGuard, upload.single('image'), async (req: 
     const fileName = `${timestamp}-${originalName}`
 
     // Definir path baseado no tipo
-    const folder = type === 'logo' ? 'logos' : 'menu-items'
+    const folder = type === 'logo' ? 'logos' : type === 'menu-item' ? 'menu-items' : 'campaigns'
     const key = `${tenantId}/${folder}/${fileName}`
 
     // Fazer upload para S3

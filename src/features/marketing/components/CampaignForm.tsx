@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -17,7 +17,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
-import { Plus, Edit } from 'lucide-react'
+import { Plus, Edit, Upload, Image as ImageIcon, X } from 'lucide-react'
 import type { Campaign } from '@/types'
 
 const campaignSchema = z.object({
@@ -27,6 +27,7 @@ const campaignSchema = z.object({
   discount: z.number().min(0).max(100).optional(),
   startDate: z.string().min(1, 'Data de início é obrigatória'),
   endDate: z.string().optional(),
+  image: z.string().optional(),
 })
 
 type CampaignFormData = z.infer<typeof campaignSchema>
@@ -41,6 +42,10 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
   const currentTenant = useTenantStore((state) => state.currentTenant)
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
+  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Função auxiliar para converter Date ou string para formato de input date
   const formatDateForInput = (date: Date | string | undefined): string => {
@@ -75,14 +80,96 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
           discount: campaign.discount,
           startDate: formatDateForInput(campaign.startDate),
           endDate: formatDateForInput(campaign.endDate),
+          image: campaign.image || '',
         }
       : {
           type: 'promotion',
           startDate: new Date().toISOString().split('T')[0],
+          image: '',
         },
   })
 
   const campaignType = watch('type')
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !currentTenant) return
+
+    // Valida tipo de arquivo
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: 'Erro',
+        description: 'Por favor, selecione uma imagem válida',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Valida tamanho (máximo 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: 'Erro',
+        description: 'A imagem deve ter no máximo 5MB',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setIsUploadingImage(true)
+    setSelectedImageFile(file)
+
+    try {
+      // Preview local imediato
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        const previewUrl = event.target?.result as string
+        setImagePreview(previewUrl)
+      }
+      reader.readAsDataURL(file)
+
+      // Fazer upload para MinIO
+      console.log('[CampaignForm] Iniciando upload de imagem:', {
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+        tenantId: currentTenant.id,
+        tenantSlug: currentTenant.slug,
+      })
+
+      const { uploadImage } = await import('@/lib/api/upload')
+      const imageUrl = await uploadImage(file, 'campaign', {
+        tenantId: currentTenant.id,
+        tenantSlug: currentTenant.slug,
+      })
+
+      console.log('[CampaignForm] Upload concluído, URL recebida:', imageUrl)
+      
+      // Atualiza o preview com a URL do MinIO
+      setImagePreview(imageUrl)
+      setValue('image', imageUrl)
+    } catch (error) {
+      console.error('[CampaignForm] Erro ao fazer upload:', error)
+      toast({
+        title: 'Erro',
+        description: error instanceof Error ? error.message : 'Erro ao fazer upload da imagem',
+        variant: 'destructive',
+      })
+      setSelectedImageFile(null)
+      setImagePreview(null)
+      setValue('image', '')
+    } finally {
+      setIsUploadingImage(false)
+    }
+  }
+
+  const handleRemoveImage = () => {
+    setImagePreview(null)
+    setSelectedImageFile(null)
+    setValue('image', '')
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
 
   useEffect(() => {
     if (campaign) {
@@ -92,6 +179,11 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
       setValue('discount', campaign.discount)
       setValue('startDate', formatDateForInput(campaign.startDate))
       setValue('endDate', formatDateForInput(campaign.endDate))
+      setValue('image', campaign.image || '')
+      setImagePreview(campaign.image || null)
+    } else {
+      setImagePreview(null)
+      setSelectedImageFile(null)
     }
   }, [campaign, setValue])
 
@@ -106,7 +198,30 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
     }
 
     try {
+      // Se há um arquivo selecionado mas ainda não foi feito upload, fazer agora
+      let finalImageUrl = data.image
+      if (selectedImageFile && imagePreview && imagePreview.startsWith('data:')) {
+        console.log('[CampaignForm] Fazendo upload antes de salvar...')
+        setIsUploadingImage(true)
+        
+        try {
+          const { uploadImage } = await import('@/lib/api/upload')
+          finalImageUrl = await uploadImage(selectedImageFile, 'campaign', {
+            tenantId: currentTenant.id,
+            tenantSlug: currentTenant.slug,
+          })
+          setImagePreview(finalImageUrl)
+          setSelectedImageFile(null)
+        } catch (uploadError) {
+          console.error('[CampaignForm] Erro ao fazer upload:', uploadError)
+          throw uploadError
+        } finally {
+          setIsUploadingImage(false)
+        }
+      }
+
       const campaigns = getTenantData<Campaign[]>(currentTenant.id, 'campaigns') || []
+      let tempId: string | undefined
 
       if (campaign) {
         // Editar campanha existente
@@ -120,12 +235,14 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
             discount: data.discount,
             startDate: new Date(data.startDate),
             endDate: data.endDate ? new Date(data.endDate) : undefined,
+            image: finalImageUrl || undefined,
           }
         }
       } else {
         // Criar nova campanha
+        tempId = `campaign-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
         const newCampaign: Campaign = {
-          id: `campaign-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          id: tempId,
           name: data.name,
           type: data.type,
           status: 'active',
@@ -133,6 +250,7 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
           discount: data.discount,
           startDate: new Date(data.startDate),
           endDate: data.endDate ? new Date(data.endDate) : undefined,
+          image: finalImageUrl || undefined,
           metrics: {
             sent: 0,
             delivered: 0,
@@ -145,6 +263,70 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
         campaigns.push(newCampaign)
       }
 
+      // Salvar no backend
+      try {
+        const { getApiUrl } = await import('@/lib/api/config')
+        const { getAuthToken } = await import('@/lib/api/auth')
+        const apiUrl = getApiUrl()
+        const token = getAuthToken()
+
+        if (token) {
+          const payload = {
+            name: data.name,
+            type: data.type,
+            description: data.description,
+            discount: data.discount,
+            startDate: data.startDate,
+            endDate: data.endDate || undefined,
+            image: finalImageUrl || undefined,
+          }
+
+          if (campaign) {
+            // Atualizar campanha existente
+            const response = await fetch(`${apiUrl}/api/campaigns/${campaign.id}`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify(payload),
+            })
+
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({}))
+              throw new Error(errorData.error || `Erro ao atualizar campanha: ${response.status}`)
+            }
+          } else {
+            // Criar nova campanha
+            const response = await fetch(`${apiUrl}/api/campaigns`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify(payload),
+            })
+
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({}))
+              throw new Error(errorData.error || `Erro ao criar campanha: ${response.status}`)
+            }
+
+            const result = await response.json()
+            // Atualizar o ID da campanha criada no localStorage com o ID do backend
+            if (result.id) {
+              const index = campaigns.findIndex((c) => c.id === tempId)
+              if (index !== -1) {
+                campaigns[index].id = result.id
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[CampaignForm] Erro ao salvar campanha no backend:', error)
+        // Continua para salvar no localStorage mesmo se falhar no backend
+      }
+
       setTenantData(currentTenant.id, 'campaigns', campaigns)
 
       toast({
@@ -153,6 +335,8 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
       })
 
       reset()
+      setImagePreview(null)
+      setSelectedImageFile(null)
       setOpen(false)
       onSuccess?.()
     } catch (error) {
@@ -226,6 +410,70 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
             />
           </div>
 
+          <div className="space-y-2">
+            <Label htmlFor="image">Imagem da Campanha (opcional)</Label>
+            <div className="space-y-2">
+              {imagePreview ? (
+                <div className="relative group">
+                  <img
+                    src={imagePreview}
+                    alt="Preview"
+                    className="h-32 w-full object-cover rounded-md border"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none'
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="icon"
+                    className="absolute top-2 right-2 h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={handleRemoveImage}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="h-32 w-full border-2 border-dashed rounded-md bg-muted flex items-center justify-center">
+                  <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploadingImage}
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  {isUploadingImage ? 'Enviando...' : imagePreview ? 'Alterar Imagem' : 'Carregar Imagem'}
+                </Button>
+                {imagePreview && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRemoveImage}
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Remover
+                  </Button>
+                )}
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                className="hidden"
+              />
+              <p className="text-xs text-muted-foreground">
+                Formatos aceitos: JPG, PNG, GIF, WebP. Tamanho máximo: 5MB
+              </p>
+            </div>
+          </div>
+
           {campaignType === 'promotion' && (
             <div className="space-y-2">
               <Label htmlFor="discount">Desconto (%)</Label>
@@ -274,8 +522,8 @@ export function CampaignForm({ campaign, onSuccess, trigger }: CampaignFormProps
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Salvando...' : 'Salvar'}
+            <Button type="submit" disabled={isSubmitting || isUploadingImage}>
+              {isSubmitting || isUploadingImage ? 'Salvando...' : 'Salvar'}
             </Button>
           </DialogFooter>
         </form>
