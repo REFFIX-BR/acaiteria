@@ -42,6 +42,8 @@ export default function MenuPublicPage() {
   const [cartOpen, setCartOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [customerData, setCustomerData] = useState<CustomerData | null>(null)
+  const [tenant, setTenant] = useState<any | null>(null)
+  const [isLoadingTenant, setIsLoadingTenant] = useState(true)
   const categoryScrollRef = useRef<HTMLDivElement>(null)
 
   // Carrega dados do cliente do localStorage ao montar
@@ -52,22 +54,49 @@ export default function MenuPublicPage() {
     }
   }, [])
 
-  const tenant = useMemo(() => {
-    if (!tenantSlug) return null
-    
-    // Debug: Log para verificar o slug
-    console.log('[MenuPublicPage] Buscando tenant com slug:', tenantSlug)
-    
-    const foundTenant = getTenantBySlug(tenantSlug)
-    
-    if (!foundTenant) {
-      console.warn('[MenuPublicPage] Tenant não encontrado com slug:', tenantSlug)
-      // Lista todos os tenants disponíveis para debug
-      const allTenants = getAllTenants()
-      console.log('[MenuPublicPage] Tenants disponíveis:', allTenants.map(t => ({ id: t.id, name: t.name, slug: t.slug })))
+  // Busca tenant do backend quando o slug muda
+  useEffect(() => {
+    const fetchTenant = async () => {
+      if (!tenantSlug) {
+        setIsLoadingTenant(false)
+        return
+      }
+
+      setIsLoadingTenant(true)
+      try {
+        // Primeiro tenta buscar do localStorage (para casos onde o admin já está logado)
+        const localTenant = getTenantBySlug(tenantSlug)
+        if (localTenant) {
+          setTenant(localTenant)
+          setIsLoadingTenant(false)
+          return
+        }
+
+        // Se não encontrar no localStorage, busca do backend
+        const { getApiUrl } = await import('@/lib/api/config')
+        const apiUrl = getApiUrl()
+        const response = await fetch(`${apiUrl}/api/tenants/slug/${tenantSlug}`)
+        
+        if (response.ok) {
+          const data = await response.json()
+          if (data.tenant) {
+            setTenant(data.tenant)
+          } else {
+            setTenant(null)
+          }
+        } else {
+          console.error('[MenuPublicPage] Erro ao buscar tenant:', response.status, response.statusText)
+          setTenant(null)
+        }
+      } catch (error) {
+        console.error('[MenuPublicPage] Erro ao buscar tenant:', error)
+        setTenant(null)
+      } finally {
+        setIsLoadingTenant(false)
+      }
     }
-    
-    return foundTenant
+
+    fetchTenant()
   }, [tenantSlug])
 
   const menuItems = useMemo(() => {
@@ -201,6 +230,24 @@ export default function MenuPublicPage() {
     return count
   }, [selectedItems])
 
+  // Mostra loading enquanto busca o tenant
+  if (isLoadingTenant) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
+        <div className="text-center max-w-md">
+          <div className="mb-6 inline-block p-5 bg-blue-50 rounded-full animate-pulse">
+            <ChefHat className="h-14 w-14 text-blue-500" />
+          </div>
+          <h1 className="text-3xl font-bold mb-3 text-gray-900">
+            Carregando...
+          </h1>
+          <p className="text-gray-600">Buscando informações da açaiteria...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Mostra erro se não encontrou o tenant
   if (!tenant) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
