@@ -252,9 +252,37 @@ export function CartSidebar({
     return `${numbers.slice(0, 5)}-${numbers.slice(5, 8)}`
   }
 
-  const handleZipCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleZipCodeChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = formatZipCode(e.target.value)
     setDeliveryZipCode(formatted)
+    
+    // Consulta CEP quando tiver 8 dígitos (sem hífen)
+    const cleanZipCode = formatted.replace(/\D/g, '')
+    if (cleanZipCode.length === 8) {
+      try {
+        const response = await fetch(`https://viacep.com.br/ws/${cleanZipCode}/json/`)
+        const data = await response.json()
+        
+        // Verifica se o CEP foi encontrado (não retorna erro)
+        if (data.cep && !data.erro) {
+          // Preenche automaticamente os campos
+          if (data.logradouro) {
+            setDeliveryAddress(data.logradouro)
+          }
+          if (data.bairro) {
+            setDeliveryNeighborhood(data.bairro)
+          }
+          // localidade seria a cidade, mas não temos campo para isso no momento
+          // Se precisar, pode adicionar depois
+        } else {
+          // CEP não encontrado - limpa os campos (opcional, pode deixar como está)
+          console.log('CEP não encontrado')
+        }
+      } catch (error) {
+        console.error('Erro ao consultar CEP:', error)
+        // Em caso de erro, apenas loga - não interfere no preenchimento manual
+      }
+    }
   }
 
   const handleFinalizeOrder = () => {
@@ -728,6 +756,21 @@ export function CartSidebar({
                         {(!showAddressOption || useSavedAddress) && (
                           <>
                             <div className="space-y-2">
+                              <Label htmlFor="deliveryZipCode" className="text-xs font-bold uppercase tracking-widest text-white/60">
+                                CEP *
+                              </Label>
+                              <Input
+                                id="deliveryZipCode"
+                                placeholder="00000-000"
+                                value={deliveryZipCode}
+                                onChange={handleZipCodeChange}
+                                maxLength={9}
+                                className="bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-primary"
+                                style={{ '--tw-ring-color': primaryColor } as any}
+                              />
+                            </div>
+
+                            <div className="space-y-2">
                               <Label htmlFor="deliveryAddress" className="text-xs font-bold uppercase tracking-widest text-white/60">
                                 Endereço *
                               </Label>
@@ -741,35 +784,18 @@ export function CartSidebar({
                               />
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label htmlFor="deliveryNumber" className="text-xs font-bold uppercase tracking-widest text-white/60">
-                                  Número *
-                                </Label>
-                                <Input
-                                  id="deliveryNumber"
-                                  placeholder="123"
-                                  value={deliveryNumber}
-                                  onChange={(e) => setDeliveryNumber(e.target.value)}
-                                  className="bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-primary"
-                                  style={{ '--tw-ring-color': primaryColor } as any}
-                                />
-                              </div>
-
-                              <div className="space-y-2">
-                                <Label htmlFor="deliveryZipCode" className="text-xs font-bold uppercase tracking-widest text-white/60">
-                                  CEP *
-                                </Label>
-                                <Input
-                                  id="deliveryZipCode"
-                                  placeholder="00000-000"
-                                  value={deliveryZipCode}
-                                  onChange={handleZipCodeChange}
-                                  maxLength={9}
-                                  className="bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-primary"
-                                  style={{ '--tw-ring-color': primaryColor } as any}
-                                />
-                              </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="deliveryNumber" className="text-xs font-bold uppercase tracking-widest text-white/60">
+                                Número *
+                              </Label>
+                              <Input
+                                id="deliveryNumber"
+                                placeholder="123"
+                                value={deliveryNumber}
+                                onChange={(e) => setDeliveryNumber(e.target.value)}
+                                className="bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-primary"
+                                style={{ '--tw-ring-color': primaryColor } as any}
+                              />
                             </div>
 
                             <div className="space-y-2">
