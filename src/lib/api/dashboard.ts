@@ -328,7 +328,7 @@ export function getSalesChartData(
     }
   }
   
-  for (let i = daysToShow - 1; i >= 0; i--) {
+  for (let i = 0; i < daysToShow; i++) {
     const date = new Date(periodStart)
     date.setDate(date.getDate() + i)
     const dayStart = startOfDay(date)

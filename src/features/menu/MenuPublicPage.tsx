@@ -1,6 +1,6 @@
 import { useParams } from 'react-router-dom'
 import { useMemo, useState, useEffect, useRef } from 'react'
-import { getTenantBySlug, getTenantData, setTenantData, setGlobalData, getGlobalData } from '@/lib/storage/storage'
+import { getTenantBySlug, getTenantData, setTenantData, setGlobalData, getGlobalData, getAllTenants } from '@/lib/storage/storage'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ShoppingCart, ChefHat, Clock, Lock, Search, Plus, Menu as MenuIcon, X } from 'lucide-react'
@@ -54,7 +54,20 @@ export default function MenuPublicPage() {
 
   const tenant = useMemo(() => {
     if (!tenantSlug) return null
-    return getTenantBySlug(tenantSlug)
+    
+    // Debug: Log para verificar o slug
+    console.log('[MenuPublicPage] Buscando tenant com slug:', tenantSlug)
+    
+    const foundTenant = getTenantBySlug(tenantSlug)
+    
+    if (!foundTenant) {
+      console.warn('[MenuPublicPage] Tenant não encontrado com slug:', tenantSlug)
+      // Lista todos os tenants disponíveis para debug
+      const allTenants = getAllTenants()
+      console.log('[MenuPublicPage] Tenants disponíveis:', allTenants.map(t => ({ id: t.id, name: t.name, slug: t.slug })))
+    }
+    
+    return foundTenant
   }, [tenantSlug])
 
   const menuItems = useMemo(() => {

@@ -2,7 +2,9 @@
  * Gera URL pública do cardápio
  */
 export function getMenuPublicUrl(tenantSlug: string, source?: 'counter' | 'digital'): string {
-  const baseUrl = window.location.origin
+  // Usa window.location.origin que funciona tanto em dev quanto em produção
+  // No cliente, window.location.origin será sempre a origem correta
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
   const baseUrlPath = `${baseUrl}/menu/${tenantSlug}`
   
   if (source === 'counter') {
