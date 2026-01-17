@@ -158,10 +158,18 @@ export default function OrdersPage() {
       setRefreshTrigger((prev) => prev + 1)
 
       // Envia notificação via WhatsApp (não bloqueia a atualização)
-      notifyOrderStatusChange(currentTenant.id, updatedOrder, newStatus).catch((error) => {
-        console.error('Erro ao enviar notificação WhatsApp:', error)
-        // Não mostra erro ao usuário, apenas loga no console
-      })
+      console.log('[OrdersPage] Tentando enviar notificação WhatsApp para status:', newStatus)
+      notifyOrderStatusChange(currentTenant.id, updatedOrder, newStatus)
+        .then((result) => {
+          if (result.success) {
+            console.log('[OrdersPage] Notificação WhatsApp enviada com sucesso!')
+          } else {
+            console.error('[OrdersPage] Falha ao enviar notificação WhatsApp:', result.error)
+          }
+        })
+        .catch((error) => {
+          console.error('[OrdersPage] Erro ao enviar notificação WhatsApp:', error)
+        })
 
       // Se o pedido foi marcado como entregue, cria uma transação de entrada
       if (newStatus === 'delivered' && order.status !== 'delivered') {

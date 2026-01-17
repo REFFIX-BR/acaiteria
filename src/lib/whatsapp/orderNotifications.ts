@@ -26,34 +26,70 @@ function formatPhone(phone: string): string {
 export async function sendWhatsAppMessage(
   instance: string,
   phone: string,
-  text: string
+  text: string,
+  apiKey?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const formattedPhone = formatPhone(phone)
+    const url = `https://api.reffix.com.br/message/sendText/${instance}`
+    
+    console.log('[WhatsApp] Enviando mensagem:', {
+      url,
+      instance,
+      phone: formattedPhone,
+      textLength: text.length,
+      hasApiKey: !!apiKey,
+    })
 
-    const response = await fetch(`https://api.reffix.com.br/message/sendText/${instance}`, {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+
+    // Adiciona API key se disponível
+    if (apiKey) {
+      headers['apikey'] = apiKey
+    }
+
+    const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify({
         number: formattedPhone,
         text: text,
       }),
     })
 
-    const data = await response.json()
+    console.log('[WhatsApp] Resposta recebida:', {
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok,
+      headers: Object.fromEntries(response.headers.entries()),
+    })
+
+    let data: any = {}
+    try {
+      const textResponse = await response.text()
+      console.log('[WhatsApp] Resposta texto:', textResponse.substring(0, 200))
+      if (textResponse) {
+        data = JSON.parse(textResponse)
+      }
+    } catch (parseError) {
+      console.warn('[WhatsApp] Erro ao parsear resposta JSON:', parseError)
+    }
 
     if (response.ok) {
+      console.log('[WhatsApp] Mensagem enviada com sucesso!', data)
       return { success: true }
     } else {
+      const errorMsg = data.message || data.error || `Erro HTTP ${response.status}`
+      console.error('[WhatsApp] Erro ao enviar mensagem:', errorMsg, data)
       return {
         success: false,
-        error: data.message || 'Erro ao enviar mensagem',
+        error: errorMsg,
       }
     }
   } catch (error) {
-    console.error('Erro ao enviar mensagem WhatsApp:', error)
+    console.error('[WhatsApp] Erro ao enviar mensagem WhatsApp:', error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Erro desconhecido',
@@ -102,41 +138,70 @@ export async function notifyOrderStatusChange(
   newStatus: Order['status']
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    console.log('[WhatsApp Notificação] Iniciando notificação de mudança de status:', {
+      tenantId,
+      orderId: order.id,
+      newStatus,
+      customerPhone: order.customerPhone,
+    })
+
     // Busca a configuração do WhatsApp
     const config = getTenantData<WhatsAppConfig>(tenantId, 'whatsapp_config')
+    console.log('[WhatsApp Notificação] Configuração:', config)
+    
     if (!config || !config.connected) {
+      const error = 'WhatsApp não configurado ou desconectado'
+      console.warn('[WhatsApp Notificação]', error)
       return {
         success: false,
-        error: 'WhatsApp não configurado ou desconectado',
+        error,
       }
     }
 
     // Busca a instância do WhatsApp
     const instance = getTenantData<WhatsAppInstance>(tenantId, 'whatsapp_instance')
+    console.log('[WhatsApp Notificação] Instância:', instance)
+    
     if (!instance || !instance.instanceName || instance.status !== 'connected') {
+      const error = 'Instância do WhatsApp não encontrada ou desconectada'
+      console.warn('[WhatsApp Notificação]', error)
       return {
         success: false,
-        error: 'Instância do WhatsApp não encontrada ou desconectada',
+        error,
       }
     }
 
     // Verifica se o pedido tem número de telefone
     if (!order.customerPhone) {
+      const error = 'Pedido sem número de telefone do cliente'
+      console.warn('[WhatsApp Notificação]', error)
       return {
         success: false,
-        error: 'Pedido sem número de telefone do cliente',
+        error,
       }
     }
 
     // Gera a mensagem personalizada
     const message = generateStatusMessage(order, newStatus)
+    console.log('[WhatsApp Notificação] Mensagem gerada:', message.substring(0, 100) + '...')
 
-    // Envia a mensagem
-    const result = await sendWhatsAppMessage(instance.instanceName, order.customerPhone, message)
+    // Envia a mensagem (passa a API key se disponível)
+    const result = await sendWhatsAppMessage(
+      instance.instanceName, 
+      order.customerPhone, 
+      message,
+      config.apiKey
+    )
+    
+    if (result.success) {
+      console.log('[WhatsApp Notificação] Notificação enviada com sucesso!')
+    } else {
+      console.error('[WhatsApp Notificação] Falha ao enviar notificação:', result.error)
+    }
 
     return result
   } catch (error) {
-    console.error('Erro ao enviar notificação de status:', error)
+    console.error('[WhatsApp Notificação] Erro ao enviar notificação de status:', error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Erro desconhecido',
