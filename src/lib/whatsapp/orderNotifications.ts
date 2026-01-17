@@ -145,20 +145,7 @@ export async function notifyOrderStatusChange(
       customerPhone: order.customerPhone,
     })
 
-    // Busca a configuração do WhatsApp
-    const config = getTenantData<WhatsAppConfig>(tenantId, 'whatsapp_config')
-    console.log('[WhatsApp Notificação] Configuração:', config)
-    
-    if (!config || !config.connected) {
-      const error = 'WhatsApp não configurado ou desconectado'
-      console.warn('[WhatsApp Notificação]', error)
-      return {
-        success: false,
-        error,
-      }
-    }
-
-    // Busca a instância do WhatsApp
+    // Busca a instância do WhatsApp primeiro (fonte mais confiável do status)
     const instance = getTenantData<WhatsAppInstance>(tenantId, 'whatsapp_instance')
     console.log('[WhatsApp Notificação] Instância:', instance)
     
@@ -170,6 +157,13 @@ export async function notifyOrderStatusChange(
         error,
       }
     }
+
+    // Busca a configuração do WhatsApp (para obter a API key se necessário)
+    const config = getTenantData<WhatsAppConfig>(tenantId, 'whatsapp_config')
+    console.log('[WhatsApp Notificação] Configuração:', config)
+    
+    // Se não houver configuração mas a instância estiver conectada, ainda tentamos enviar
+    // (a API pode funcionar sem config ou a API key pode estar no backend)
 
     // Verifica se o pedido tem número de telefone
     if (!order.customerPhone) {
