@@ -229,13 +229,15 @@ export default function MenuPublicPage() {
   }
 
   const primaryColor = (menuSettings && menuSettings.accentColor) ? menuSettings.accentColor : (tenant.primaryColor || '#ee8c2b')
+  const backgroundColor = menuSettings?.backgroundColor || '#f9fafb' // bg-gray-50 como padrão
+  const textColor = menuSettings?.textColor || '#111827' // text-gray-900 como padrão
   const currentCategory = selectedCategory === 'all' ? 'Todos os Produtos' : selectedCategory
   const currentCategoryItems = filteredItems.filter(item => 
     selectedCategory === 'all' || item.category === selectedCategory
   )
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen" style={{ backgroundColor, color: textColor }}>
       {/* Mobile Sidebar Drawer */}
       {sidebarOpen && (
         <>

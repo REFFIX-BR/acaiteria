@@ -119,9 +119,17 @@ export function MenuItemList({ refreshTrigger, onRefresh }: MenuItemListProps) {
           title: 'Sucesso',
           description: item.available ? 'Item ocultado' : 'Item disponibilizado',
         })
+        
+        // Atualiza a lista em tempo real
+        onRefresh?.()
       }
     } catch (error) {
       console.error('Erro ao atualizar item:', error)
+      toast({
+        title: 'Erro',
+        description: 'Erro ao atualizar item',
+        variant: 'destructive',
+      })
     }
   }
 
