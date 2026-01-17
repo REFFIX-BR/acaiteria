@@ -14,7 +14,7 @@ async function sendWhatsAppMessage(
   try {
     // Importa dinamicamente para evitar dependência circular
     const { getApiUrl } = await import('@/lib/api/config')
-    const { authenticatedFetch } = await import('@/lib/auth/auth')
+    const { authenticatedFetch } = await import('@/lib/api/auth')
     
     const apiUrl = getApiUrl()
     const url = `${apiUrl}/api/whatsapp/messages/send`
