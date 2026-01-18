@@ -18,7 +18,7 @@ export default function WhatsAppPage() {
         </Button>
       </div>
 
-      <WhatsAppConnection />
+          <WhatsAppConnection />
     </div>
   )
 }

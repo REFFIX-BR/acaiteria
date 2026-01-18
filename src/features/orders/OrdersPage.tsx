@@ -129,7 +129,7 @@ export default function OrdersPage() {
         if (response.ok) {
           const data = await response.json()
           const normalizedOrders = (data.orders || []).map((order: any) => ({
-            ...order,
+      ...order,
             source: order.source || 'digital',
             createdAt: order.created_at ? new Date(order.created_at) : (order.createdAt ? new Date(order.createdAt) : new Date()),
             updatedAt: order.updated_at ? new Date(order.updated_at) : (order.updatedAt ? new Date(order.updatedAt) : new Date()),
@@ -198,24 +198,24 @@ export default function OrdersPage() {
       const order = orders.find(o => o.id === orderId)
       if (order) {
         const oldStatus = order.status
-        const updatedOrder: Order = {
-          ...order,
-          status: newStatus,
-          updatedAt: new Date(),
-          acceptedAt: newStatus === 'accepted' ? new Date() : order.acceptedAt,
-          readyAt: newStatus === 'ready' ? new Date() : order.readyAt,
-          deliveredAt: newStatus === 'delivered' ? new Date() : order.deliveredAt,
-        }
+      const updatedOrder: Order = {
+        ...order,
+        status: newStatus,
+        updatedAt: new Date(),
+        acceptedAt: newStatus === 'accepted' ? new Date() : order.acceptedAt,
+        readyAt: newStatus === 'ready' ? new Date() : order.readyAt,
+        deliveredAt: newStatus === 'delivered' ? new Date() : order.deliveredAt,
+      }
 
         setOrders(prev => prev.map(o => o.id === orderId ? updatedOrder : o))
-        setRefreshTrigger((prev) => prev + 1)
+      setRefreshTrigger((prev) => prev + 1)
 
         // Backend já cria transação quando pedido é entregue, não precisa fazer aqui
-        toast({
-          title: 'Status atualizado',
-          description: `Pedido ${statusConfig[newStatus].label.toLowerCase()}`,
-        })
-      }
+          toast({
+            title: 'Status atualizado',
+            description: `Pedido ${statusConfig[newStatus].label.toLowerCase()}`,
+          })
+        }
     } catch (error: any) {
       console.error('Erro ao atualizar pedido:', error)
       

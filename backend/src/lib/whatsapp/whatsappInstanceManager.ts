@@ -1029,7 +1029,7 @@ export class WhatsAppInstanceManager {
           })
 
           if (response.ok) {
-            const data = await response.json().catch(() => ({}))
+            const data = await response.json().catch(() => ({})) as any
             console.log(`[WhatsApp Manager] ✅ Imagem enviada com sucesso via ${endpoint}`)
             return {
               success: true,
