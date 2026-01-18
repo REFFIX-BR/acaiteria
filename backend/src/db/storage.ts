@@ -1,5 +1,6 @@
 import { pool, query } from './connection.js'
 import type { PoolClient } from 'pg'
+import { normalizeString, calculateSimilarity } from '../lib/utils/string-normalize.js'
 
 export type PlanOrderStatus = 'pending' | 'paid' | 'cancelled' | 'expired' | 'failed'
 export type PlanOrderPaymentMethod = 'pix' | 'boleto'
@@ -521,23 +522,47 @@ export async function getDeliveryFeeByNeighborhood(
   tenantId: string,
   neighborhood: string
 ): Promise<DeliveryFee | null> {
-  // Normalizar nome do bairro para comparação (case-insensitive, sem espaços extras)
-  const normalizedNeighborhood = neighborhood.trim().toLowerCase()
+  // Busca todos os bairros do tenant
+  const allFees = await getAllDeliveryFees(tenantId)
   
-  const result = await query(
-    `SELECT * FROM delivery_fees 
-     WHERE tenant_id = $1 
-     AND LOWER(TRIM(neighborhood)) = $2 
-     AND deleted_at IS NULL 
-     LIMIT 1`,
-    [tenantId, normalizedNeighborhood]
-  )
-
-  if (result.rows.length === 0) {
+  if (allFees.length === 0) {
     return null
   }
 
-  return mapDeliveryFeeFromDb(result.rows[0])
+  // Normaliza o bairro buscado
+  const normalizedSearch = normalizeString(neighborhood)
+  
+  // Primeiro tenta busca exata normalizada (incluindo remoção de acentos)
+  for (const fee of allFees) {
+    const normalizedFee = normalizeString(fee.neighborhood)
+    if (normalizedSearch === normalizedFee) {
+      return fee
+    }
+  }
+
+  // Se não encontrou correspondência exata, busca por similaridade
+  let bestMatch: DeliveryFee | null = null
+  let bestSimilarity = 0
+  const SIMILARITY_THRESHOLD = 80 // 80% de similaridade mínima
+
+  for (const fee of allFees) {
+    const similarity = calculateSimilarity(neighborhood, fee.neighborhood)
+    
+    if (similarity > bestSimilarity && similarity >= SIMILARITY_THRESHOLD) {
+      bestSimilarity = similarity
+      bestMatch = fee
+    }
+  }
+
+  // Log quando usar busca aproximada para debug
+  if (bestMatch) {
+    console.log(
+      `[DeliveryFee] Busca aproximada: "${neighborhood}" -> "${bestMatch.neighborhood}" ` +
+      `(similaridade: ${bestSimilarity.toFixed(1)}%)`
+    )
+  }
+
+  return bestMatch
 }
 
 /**
