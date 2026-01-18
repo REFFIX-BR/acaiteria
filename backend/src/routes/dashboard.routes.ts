@@ -12,6 +12,7 @@ router.get('/kpis', async (req: AuthRequest, res, next) => {
   try {
     const { period, startDate, endDate } = req.query
     const tenantId = req.user!.tenantId
+    console.log('[Dashboard KPIs] Tenant ID:', tenantId, 'User ID:', req.user!.id)
 
     // Calcular vendas do período (incluindo transações e pedidos entregues)
     let periodStart: Date | null = null
@@ -48,6 +49,39 @@ router.get('/kpis', async (req: AuthRequest, res, next) => {
       }
     }
 
+    // Verificar se há dados para este tenant
+    const checkOrders = await query(
+      `SELECT COUNT(*) as count FROM orders WHERE tenant_id = $1 AND deleted_at IS NULL`,
+      [tenantId]
+    )
+    const checkDeliveredOrders = await query(
+      `SELECT COUNT(*) as count FROM orders WHERE tenant_id = $1 AND status = 'delivered' AND deleted_at IS NULL`,
+      [tenantId]
+    )
+    const checkTransactions = await query(
+      `SELECT COUNT(*) as count FROM transactions WHERE tenant_id = $1 AND deleted_at IS NULL`,
+      [tenantId]
+    )
+    const checkIncomeTransactions = await query(
+      `SELECT COUNT(*) as count FROM transactions WHERE tenant_id = $1 AND type = 'income' AND deleted_at IS NULL`,
+      [tenantId]
+    )
+    const ordersStatusBreakdown = await query(
+      `SELECT status, COUNT(*) as count FROM orders WHERE tenant_id = $1 AND deleted_at IS NULL GROUP BY status`,
+      [tenantId]
+    )
+    console.log('[Dashboard KPIs] Verificação de dados:', {
+      tenantId,
+      totalOrders: checkOrders.rows[0]?.count || 0,
+      deliveredOrders: checkDeliveredOrders.rows[0]?.count || 0,
+      totalTransactions: checkTransactions.rows[0]?.count || 0,
+      incomeTransactions: checkIncomeTransactions.rows[0]?.count || 0,
+      ordersByStatus: ordersStatusBreakdown.rows,
+      period: period,
+      periodStart,
+      periodEnd,
+    })
+
     // Vendas do período: transações + pedidos entregues
     let periodSales = 0
 
@@ -71,6 +105,12 @@ router.get('/kpis', async (req: AuthRequest, res, next) => {
         [tenantId, periodStart, periodEnd]
       )
       periodSales += parseFloat(ordersResult.rows[0]?.total || '0')
+      
+      console.log('[Dashboard KPIs] Resultados:', {
+        transactionsTotal: transactionsResult.rows[0]?.total || 0,
+        ordersTotal: ordersResult.rows[0]?.total || 0,
+        periodSales,
+      })
     }
 
     // Faturamento total (todas as transações de receita + todos os pedidos entregues)
@@ -96,6 +136,7 @@ router.get('/financial-summary', async (req: AuthRequest, res, next) => {
   try {
     const { startDate, endDate } = req.query
     const tenantId = req.user!.tenantId
+    console.log('[Dashboard Financial Summary] Tenant ID:', tenantId, 'User ID:', req.user!.id)
 
     let sql = `
       SELECT 
@@ -202,6 +243,7 @@ router.get('/sales-chart', async (req: AuthRequest, res, next) => {
   try {
     const { startDate, endDate } = req.query
     const tenantId = req.user!.tenantId
+    console.log('[Dashboard Sales Chart] Tenant ID:', tenantId, 'User ID:', req.user!.id)
 
     let sql = `
       SELECT 

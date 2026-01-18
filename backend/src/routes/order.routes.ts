@@ -38,6 +38,9 @@ const createOrderSchema = z.object({
 router.get('/', async (req: AuthRequest, res, next) => {
   try {
     const { status, source } = req.query
+    const tenantId = req.user!.tenantId
+    
+    console.log('[Orders List] Tenant ID:', tenantId, 'User ID:', req.user!.id, 'Status:', status, 'Source:', source)
 
     let sql = `
       SELECT o.*,
