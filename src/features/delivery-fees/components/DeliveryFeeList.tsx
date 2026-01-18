@@ -1,9 +1,15 @@
 import { useState } from 'react'
 import { Edit, Trash2, Search } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
-import { useConfirmDialog } from '@/hooks/use-confirm-dialog'
+import { useConfirmDialog } from '@/components/ui/confirm-dialog'
 import { deleteDeliveryFee, type DeliveryFee } from '@/lib/api/delivery-fees'
-import { formatCurrency } from '@/lib/utils'
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(value)
+}
 
 interface DeliveryFeeListProps {
   deliveryFees: DeliveryFee[]
