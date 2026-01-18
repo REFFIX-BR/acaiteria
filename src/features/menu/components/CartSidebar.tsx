@@ -13,6 +13,7 @@ import { CustomerIdentificationModal } from './CustomerIdentificationModal'
 import { getOrderSourceFromUrl } from '@/lib/menu/menuUrl'
 import { getApiUrl } from '@/lib/api/config'
 import { authenticatedFetch } from '@/lib/api/auth'
+import { getDeliveryFeeByCEP } from '@/lib/api/delivery-fees'
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('pt-BR', {
@@ -82,6 +83,8 @@ export function CartSidebar({
   const [showChangeModal, setShowChangeModal] = useState(false)
   const [cashReceived, setCashReceived] = useState('')
   const [needsChange, setNeedsChange] = useState(false)
+  const [deliveryFee, setDeliveryFee] = useState(0)
+  const [isLoadingCEP, setIsLoadingCEP] = useState(false)
 
   // Carrega dados do cliente do localStorage ao montar
   useEffect(() => {
@@ -108,18 +111,23 @@ export function CartSidebar({
       setPaymentMethod(null)
       setCashReceived('')
       setNeedsChange(false)
+      setDeliveryFee(0) // Resetar taxa quando mudar para retirada
     }
   }, [deliveryType, savedAddress, deliveryAddress])
 
-  // Calcula troco
+  // Calcula troco (incluindo taxa de entrega se houver)
+  const totalWithFee = useMemo(() => {
+    return total + (deliveryType === 'delivery' ? deliveryFee : 0)
+  }, [total, deliveryType, deliveryFee])
+
   const change = useMemo(() => {
     if (paymentMethod === 'cash' && needsChange && cashReceived) {
       const received = parseFloat(cashReceived.replace(',', '.')) || 0
-      const calculatedChange = received - total
+      const calculatedChange = received - totalWithFee
       return calculatedChange > 0 ? calculatedChange : 0
     }
     return 0
-  }, [paymentMethod, needsChange, cashReceived, total])
+  }, [paymentMethod, needsChange, cashReceived, totalWithFee])
 
   const calculateItemTotal = (item: CartItem) => {
     // Se tem tamanho selecionado, usa o preço do tamanho
@@ -161,7 +169,8 @@ export function CartSidebar({
       }
       message += ` x${item.quantity}\n`
     })
-    message += `\nTotal: R$ ${total.toFixed(2).replace('.', ',')}`
+    const totalWithFee = total + (deliveryType === 'delivery' ? deliveryFee : 0)
+    message += `\nTotal: R$ ${totalWithFee.toFixed(2).replace('.', ',')}`
     
     // Adiciona informações de entrega se for entrega
     if (deliveryType === 'delivery' && deliveryAddress) {
@@ -259,6 +268,55 @@ export function CartSidebar({
     setDeliveryZipCode(formatted)
   }
 
+  // Buscar taxa de entrega quando CEP for informado
+  useEffect(() => {
+    const fetchDeliveryFee = async () => {
+      if (!tenantId || deliveryType !== 'delivery') {
+        setDeliveryFee(0)
+        return
+      }
+
+      const cleanCEP = deliveryZipCode.replace(/\D/g, '')
+      
+      // Só busca se tiver 8 dígitos
+      if (cleanCEP.length !== 8) {
+        setDeliveryFee(0)
+        return
+      }
+
+      setIsLoadingCEP(true)
+      try {
+        const result = await getDeliveryFeeByCEP(cleanCEP, tenantId)
+        
+        if (result.success && result.neighborhood) {
+          // Atualiza o bairro se não estiver preenchido
+          if (!deliveryNeighborhood) {
+            setDeliveryNeighborhood(result.neighborhood)
+          }
+          
+          // Define a taxa de entrega
+          setDeliveryFee(result.fee || 0)
+        } else {
+          // CEP não encontrado ou sem bairro - permite sem taxa
+          setDeliveryFee(0)
+        }
+      } catch (error) {
+        console.error('Erro ao buscar taxa de entrega:', error)
+        // Em caso de erro, permite sem taxa
+        setDeliveryFee(0)
+      } finally {
+        setIsLoadingCEP(false)
+      }
+    }
+
+    // Debounce para não fazer muitas requisições
+    const timeoutId = setTimeout(() => {
+      fetchDeliveryFee()
+    }, 500)
+
+    return () => clearTimeout(timeoutId)
+  }, [deliveryZipCode, deliveryType, tenantId, deliveryNeighborhood])
+
   const handleFinalizeOrder = () => {
     // Verifica se está identificado antes de finalizar
     if (!customerName || !customerPhone) {
@@ -294,10 +352,11 @@ export function CartSidebar({
       }
       if (paymentMethod === 'cash' && needsChange) {
         const received = parseFloat(cashReceived.replace(',', '.')) || 0
-        if (received < total) {
+        const totalWithFee = total + (deliveryType === 'delivery' ? deliveryFee : 0)
+        if (received < totalWithFee) {
           toast({
             title: 'Valor insuficiente',
-            description: `O valor recebido (${formatCurrency(received)}) deve ser maior ou igual ao total (${formatCurrency(total)})`,
+            description: `O valor recebido (${formatCurrency(received)}) deve ser maior ou igual ao total (${formatCurrency(totalWithFee)})`,
             variant: 'destructive',
           })
           return
@@ -382,10 +441,11 @@ export function CartSidebar({
     }
     if (needsChange) {
       const received = parseFloat(cashReceived.replace(',', '.')) || 0
-      if (received < total) {
+      const totalWithFee = total + (deliveryType === 'delivery' ? deliveryFee : 0)
+      if (received < totalWithFee) {
         toast({
           title: 'Valor insuficiente',
-          description: `O valor recebido (${formatCurrency(received)}) deve ser maior ou igual ao total (${formatCurrency(total)})`,
+          description: `O valor recebido (${formatCurrency(received)}) deve ser maior ou igual ao total (${formatCurrency(totalWithFee)})`,
           variant: 'destructive',
         })
         return
@@ -475,10 +535,11 @@ export function CartSidebar({
             totalPrice: item.totalPrice,
           })),
           subtotal: total,
-          total,
+          total: total + (deliveryType === 'delivery' ? deliveryFee : 0),
           paymentMethod: orderPaymentMethod,
           deliveryType,
           deliveryAddress: fullAddress,
+          deliveryFee: deliveryType === 'delivery' ? deliveryFee : undefined,
           notes: paymentMethod === 'cash' && needsChange && cashReceived
             ? `Pagamento em dinheiro. Valor recebido: ${formatCurrency(parseFloat(cashReceived.replace(',', '.')) || 0)}. Troco: ${formatCurrency(change)}`
             : undefined,
@@ -512,7 +573,8 @@ export function CartSidebar({
         customerPhone: phone,
         items: orderItems,
         subtotal: total,
-        total,
+        total: total + (deliveryType === 'delivery' ? deliveryFee : 0),
+        deliveryFee: deliveryType === 'delivery' ? deliveryFee : undefined,
         status: 'pending',
         paymentMethod: orderPaymentMethod,
         deliveryType,
@@ -631,14 +693,28 @@ export function CartSidebar({
                   </h2>
                   
                   <div className="space-y-4 mb-8">
-                    <div className="pt-4 border-t border-white/10 flex justify-between items-baseline">
-                      <span className="text-lg font-bold">Total</span>
-                      <span
-                        className="text-2xl sm:text-3xl font-black"
-                        style={{ color: primaryColor }}
-                      >
-                        {formatCurrency(total)}
-                      </span>
+                    <div className="pt-4 border-t border-white/10 space-y-2">
+                      <div className="flex justify-between items-baseline">
+                        <span className="text-sm text-white/80">Subtotal</span>
+                        <span className="text-lg font-semibold">{formatCurrency(total)}</span>
+                      </div>
+                      {deliveryType === 'delivery' && deliveryFee > 0 && (
+                        <div className="flex justify-between items-baseline">
+                          <span className="text-sm text-white/80">
+                            Taxa de Entrega {isLoadingCEP && <span className="text-xs">(buscando...)</span>}
+                          </span>
+                          <span className="text-lg font-semibold">{formatCurrency(deliveryFee)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-baseline pt-2 border-t border-white/10">
+                        <span className="text-lg font-bold">Total</span>
+                        <span
+                          className="text-2xl sm:text-3xl font-black"
+                          style={{ color: primaryColor }}
+                        >
+                          {formatCurrency(totalWithFee)}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -820,7 +896,8 @@ export function CartSidebar({
                                   value={deliveryZipCode}
                                   onChange={handleZipCodeChange}
                                   maxLength={9}
-                                  className="bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-primary"
+                                  disabled={isLoadingCEP}
+                                  className="bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-primary disabled:opacity-50"
                                   style={{ '--tw-ring-color': primaryColor } as any}
                                 />
                               </div>
@@ -919,11 +996,11 @@ export function CartSidebar({
                   className="text-lg"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Total: {formatCurrency(total)}
+                  Total: {formatCurrency(totalWithFee)}
                 </p>
                 {cashReceived && (() => {
                   const received = parseFloat(cashReceived.replace(',', '.')) || 0
-                  const calculatedChange = received - total
+                  const calculatedChange = received - totalWithFee
                   if (calculatedChange < 0) {
                     return (
                       <p className="text-xs text-red-500">

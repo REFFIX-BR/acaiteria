@@ -490,6 +490,156 @@ function mapWhatsAppInstanceFromDb(row: any): WhatsAppInstance {
   }
 }
 
+// ============================================
+// DELIVERY FEES
+// ============================================
+
+export interface DeliveryFee {
+  id: string
+  tenantId: string
+  neighborhood: string
+  fee: number
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface CreateDeliveryFeeData {
+  tenantId: string
+  neighborhood: string
+  fee: number
+}
+
+export interface UpdateDeliveryFeeData {
+  neighborhood?: string
+  fee?: number
+}
+
+/**
+ * Busca taxa de entrega por bairro
+ */
+export async function getDeliveryFeeByNeighborhood(
+  tenantId: string,
+  neighborhood: string
+): Promise<DeliveryFee | null> {
+  // Normalizar nome do bairro para comparação (case-insensitive, sem espaços extras)
+  const normalizedNeighborhood = neighborhood.trim().toLowerCase()
+  
+  const result = await query(
+    `SELECT * FROM delivery_fees 
+     WHERE tenant_id = $1 
+     AND LOWER(TRIM(neighborhood)) = $2 
+     AND deleted_at IS NULL 
+     LIMIT 1`,
+    [tenantId, normalizedNeighborhood]
+  )
+
+  if (result.rows.length === 0) {
+    return null
+  }
+
+  return mapDeliveryFeeFromDb(result.rows[0])
+}
+
+/**
+ * Lista todas as taxas de entrega do tenant
+ */
+export async function getAllDeliveryFees(tenantId: string): Promise<DeliveryFee[]> {
+  const result = await query(
+    `SELECT * FROM delivery_fees 
+     WHERE tenant_id = $1 AND deleted_at IS NULL 
+     ORDER BY neighborhood ASC`,
+    [tenantId]
+  )
+
+  return result.rows.map(mapDeliveryFeeFromDb)
+}
+
+/**
+ * Cria uma nova taxa de entrega
+ */
+export async function createDeliveryFee(data: CreateDeliveryFeeData): Promise<DeliveryFee> {
+  // Normalizar nome do bairro
+  const normalizedNeighborhood = data.neighborhood.trim()
+  
+  const result = await query(
+    `INSERT INTO delivery_fees (tenant_id, neighborhood, fee)
+     VALUES ($1, $2, $3)
+     RETURNING *`,
+    [data.tenantId, normalizedNeighborhood, data.fee]
+  )
+
+  return mapDeliveryFeeFromDb(result.rows[0])
+}
+
+/**
+ * Atualiza uma taxa de entrega
+ */
+export async function updateDeliveryFee(
+  id: string,
+  data: UpdateDeliveryFeeData
+): Promise<DeliveryFee> {
+  const updates: string[] = []
+  const values: any[] = []
+  let paramIndex = 1
+
+  if (data.neighborhood !== undefined) {
+    updates.push(`neighborhood = $${paramIndex++}`)
+    values.push(data.neighborhood.trim())
+  }
+
+  if (data.fee !== undefined) {
+    updates.push(`fee = $${paramIndex++}`)
+    values.push(data.fee)
+  }
+
+  if (updates.length === 0) {
+    throw new Error('Nenhum campo para atualizar')
+  }
+
+  updates.push(`updated_at = NOW()`)
+  values.push(id)
+
+  const result = await query(
+    `UPDATE delivery_fees 
+     SET ${updates.join(', ')}
+     WHERE id = $${paramIndex} AND deleted_at IS NULL
+     RETURNING *`,
+    values
+  )
+
+  if (result.rows.length === 0) {
+    throw new Error('Taxa de entrega não encontrada')
+  }
+
+  return mapDeliveryFeeFromDb(result.rows[0])
+}
+
+/**
+ * Deleta uma taxa de entrega (soft delete)
+ */
+export async function deleteDeliveryFee(id: string): Promise<void> {
+  await query(
+    `UPDATE delivery_fees 
+     SET deleted_at = NOW()
+     WHERE id = $1`,
+    [id]
+  )
+}
+
+/**
+ * Mapeia resultado do banco para DeliveryFee
+ */
+function mapDeliveryFeeFromDb(row: any): DeliveryFee {
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    neighborhood: row.neighborhood,
+    fee: parseFloat(row.fee),
+    createdAt: new Date(row.created_at),
+    updatedAt: new Date(row.updated_at),
+  }
+}
+
 /**
  * Mapeia resultado do banco para PlanOrder
  */

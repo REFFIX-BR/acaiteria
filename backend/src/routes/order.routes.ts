@@ -30,6 +30,7 @@ const createOrderSchema = z.object({
   paymentMethod: z.enum(['cash', 'card', 'pix', 'other']).optional(),
   deliveryType: z.enum(['pickup', 'delivery']),
   deliveryAddress: z.string().optional(),
+  deliveryFee: z.number().min(0).optional(),
   notes: z.string().optional(),
   source: z.enum(['digital', 'counter']).default('digital'),
 })
@@ -95,8 +96,8 @@ router.post('/', async (req: AuthRequest, res, next) => {
 
     // Criar pedido
     const orderResult = await query(
-      `INSERT INTO orders (tenant_id, customer_name, customer_phone, customer_email, subtotal, total, status, payment_method, delivery_type, delivery_address, notes, source, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8, $9, $10, $11, NOW(), NOW())
+      `INSERT INTO orders (tenant_id, customer_name, customer_phone, customer_email, subtotal, total, status, payment_method, delivery_type, delivery_address, delivery_fee, notes, source, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8, $9, $10, $11, $12, NOW(), NOW())
        RETURNING id`,
       [
         req.user!.tenantId,
@@ -108,6 +109,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
         data.paymentMethod || null,
         data.deliveryType,
         data.deliveryAddress || null,
+        data.deliveryFee || null,
         data.notes || null,
         data.source,
       ]

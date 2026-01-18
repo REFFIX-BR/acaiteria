@@ -25,6 +25,7 @@ import MarketingPage from '@/features/marketing/MarketingPage'
 import WhatsAppPage from '@/features/whatsapp/WhatsAppPage'
 import SettingsPage from '@/features/settings/SettingsPage'
 import PlansPage from '@/features/subscription/PlansPage'
+import DeliveryFeesPage from '@/features/delivery-fees/DeliveryFeesPage'
 import { SubscriptionGuard } from '@/components/SubscriptionGuard'
 
 // Layout
@@ -183,6 +184,18 @@ function App() {
                 <MainLayout>
                   <SubscriptionGuard>
                     <WhatsAppPage />
+                  </SubscriptionGuard>
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/delivery-fees"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <SubscriptionGuard>
+                    <DeliveryFeesPage />
                   </SubscriptionGuard>
                 </MainLayout>
               </ProtectedRoute>

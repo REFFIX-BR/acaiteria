@@ -16,6 +16,7 @@ import {
   Eye,
   ShoppingBag,
   Store,
+  Truck,
 } from 'lucide-react'
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -47,6 +48,7 @@ const navigation = [
   { name: 'Config. Cardápio', href: '/menu-settings', icon: Eye, color: 'from-purple-500 to-purple-600' },
   { name: 'Marketing', href: '/marketing', icon: Megaphone, color: 'from-red-500 to-red-600' },
   { name: 'WhatsApp', href: '/whatsapp', icon: MessageCircle, color: 'from-emerald-500 to-emerald-600' },
+  { name: 'Taxa Entrega', href: '/delivery-fees', icon: Truck, color: 'from-cyan-500 to-cyan-600' },
   { name: 'Configurações', href: '/settings', icon: Settings, color: 'from-slate-500 to-slate-600' },
 ]
 

@@ -238,6 +238,15 @@ export interface OrderItem {
   totalPrice: number
 }
 
+export interface DeliveryFee {
+  id: string
+  tenantId: string
+  neighborhood: string
+  fee: number
+  createdAt: Date
+  updatedAt: Date
+}
+
 export interface Order {
   id: string
   tenantId: string
@@ -251,6 +260,7 @@ export interface Order {
   paymentMethod?: 'cash' | 'card' | 'pix' | 'other'
   deliveryType: 'pickup' | 'delivery'
   deliveryAddress?: string
+  deliveryFee?: number
   notes?: string
   source: 'digital' | 'counter' // Origem do pedido: digital (cardápio online) ou counter (balcão)
   createdAt: Date

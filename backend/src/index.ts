@@ -18,6 +18,7 @@ import paymentRoutes from './routes/payment.routes.js'
 import paghiperRoutes from './routes/paghiper.routes.js'
 import whatsappRoutes from './routes/whatsapp.routes.js'
 import { uploadRoutes } from './routes/upload.routes.js'
+import { deliveryFeeRoutes } from './routes/delivery-fee.routes.js'
 
 dotenv.config()
 
@@ -134,6 +135,9 @@ app.use('/api/whatsapp', whatsappRoutes)
 // Rotas de Upload
 console.log('📋 Registrando rota /api/upload')
 app.use('/api/upload', uploadRoutes)
+// Rotas de Taxa de Entrega
+console.log('📋 Registrando rota /api/delivery-fees')
+app.use('/api/delivery-fees', deliveryFeeRoutes)
 
 // Debug: Log de todas as rotas registradas
 console.log('📋 Rotas registradas:')
