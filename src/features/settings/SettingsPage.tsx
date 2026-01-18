@@ -14,24 +14,53 @@ export default function SettingsPage() {
   const logoFormRef = useRef<LogoUploadFormRef>(null)
 
   const handleSave = async () => {
+    const errors: string[] = []
+    const successes: string[] = []
+
+    // Salva cada formulário independentemente
     try {
-      // Salva todos os formulários
-      await Promise.all([
-        companyFormRef.current?.save(),
-        hoursFormRef.current?.save(),
-        logoFormRef.current?.save(),
-      ])
-      
-      setHasChanges(false)
-      toast({
-        title: 'Sucesso',
-        description: 'Configurações salvas com sucesso',
-      })
+      await companyFormRef.current?.save()
+      successes.push('Dados da empresa')
     } catch (error) {
-      console.error('Erro ao salvar configurações:', error)
+      console.error('Erro ao salvar dados da empresa:', error)
+      errors.push('Dados da empresa')
+    }
+
+    try {
+      await hoursFormRef.current?.save()
+      successes.push('Horários de funcionamento')
+    } catch (error) {
+      console.error('Erro ao salvar horários:', error)
+      errors.push('Horários de funcionamento')
+    }
+
+    try {
+      await logoFormRef.current?.save()
+      successes.push('Logo')
+    } catch (error) {
+      console.error('Erro ao salvar logo:', error)
+      errors.push('Logo')
+    }
+
+    // Se pelo menos um foi salvo com sucesso, considera sucesso parcial
+    if (successes.length > 0) {
+      setHasChanges(false)
+      if (errors.length === 0) {
+        toast({
+          title: 'Sucesso',
+          description: 'Todas as configurações foram salvas com sucesso',
+        })
+      } else {
+        toast({
+          title: 'Salvo parcialmente',
+          description: `Salvo: ${successes.join(', ')}. Erro: ${errors.join(', ')}`,
+          variant: 'default',
+        })
+      }
+    } else if (errors.length > 0) {
       toast({
         title: 'Erro',
-        description: 'Erro ao salvar configurações',
+        description: `Não foi possível salvar: ${errors.join(', ')}`,
         variant: 'destructive',
       })
     }

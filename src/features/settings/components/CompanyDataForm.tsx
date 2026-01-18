@@ -102,6 +102,11 @@ export const CompanyDataForm = forwardRef<CompanyDataFormRef, CompanyDataFormPro
   const save = async () => {
     if (!currentTenant) return
 
+    // Só salva se houver mudanças
+    if (!isDirty) {
+      return
+    }
+
     const data = watch()
     const isValid = await trigger()
     
@@ -127,10 +132,10 @@ export const CompanyDataForm = forwardRef<CompanyDataFormRef, CompanyDataFormPro
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          tradeName: data.tradeName,
-          contactPhone: data.contactPhone,
-          cnpj: data.cnpj,
-          adminEmail: data.adminEmail,
+          tradeName: data.tradeName || undefined,
+          contactPhone: data.contactPhone || undefined,
+          cnpj: data.cnpj || undefined,
+          adminEmail: data.adminEmail || undefined,
         }),
       })
 

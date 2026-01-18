@@ -9,10 +9,14 @@ router.use(authenticate)
 router.use(tenantGuard)
 
 const companySettingsSchema = z.object({
-  tradeName: z.string().min(1),
+  tradeName: z.string().optional(),
   contactPhone: z.string().optional(),
   cnpj: z.string().optional(),
-  adminEmail: z.string().email().optional(),
+  adminEmail: z.union([
+    z.string().email(),
+    z.literal(''),
+    z.undefined(),
+  ]).optional(),
 })
 
 const operatingHoursSchema = z.array(z.object({
