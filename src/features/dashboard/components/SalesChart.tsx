@@ -43,7 +43,7 @@ export function SalesChart({ period, startDate, endDate }: SalesChartProps) {
       try {
         setIsLoading(true)
         const rawData = await getSalesChartData(currentTenant.id, period, startDate, endDate)
-        const formattedData = rawData.map((item) => ({
+        const formattedData = rawData.map((item: { date: string; sales: number }) => ({
           date: format(new Date(item.date), 'dd/MM'),
           Vendas: item.sales,
         }))
