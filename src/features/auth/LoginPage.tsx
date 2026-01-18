@@ -180,23 +180,12 @@ export default function LoginPage() {
         return
       }
 
-      // Carrega o tenant do usuário
-      const tenant = getTenantById(user.tenantId)
-      if (!tenant) {
-        toast({
-          title: 'Erro',
-          description: 'Tenant não encontrado',
-          variant: 'destructive',
-        })
-        return
-      }
+      // Carrega o tenant do backend
+      const { loadTenant } = useTenantStore.getState()
+      await loadTenant(user.tenantId)
 
-      // Define usuário e tenant
+      // Define usuário (tenant já foi carregado pelo loadTenant)
       setUser(user)
-      setTenant({
-        ...tenant,
-        createdAt: tenant.createdAt instanceof Date ? tenant.createdAt : new Date(tenant.createdAt),
-      })
 
       toast({
         title: 'Bem-vindo!',

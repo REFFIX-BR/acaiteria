@@ -70,7 +70,6 @@ export const useTenantStore = create<TenantState>((set, get) => ({
         secondaryColor: tenantData.secondaryColor || '#ec4899',
         createdAt: tenantData.createdAt ? new Date(tenantData.createdAt) : new Date(),
         subscription: tenantData.subscription ? {
-          id: tenantData.subscription.id,
           planType: tenantData.subscription.planType,
           trialStartDate: tenantData.subscription.trialStartDate 
             ? new Date(tenantData.subscription.trialStartDate)
