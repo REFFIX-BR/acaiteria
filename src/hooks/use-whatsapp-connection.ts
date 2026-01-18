@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTenantStore } from '@/stores/tenantStore'
-import { getTenantData, setTenantData, removeTenantData } from '@/lib/storage/storage'
 import { normalizeInstanceName } from '@/lib/whatsapp/evolutionApi'
 import { useToast } from '@/hooks/use-toast'
 import { getApiUrl } from '@/lib/api/config'
@@ -20,47 +19,77 @@ export function useWhatsAppConnection() {
   const monitoringIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const cancelledFlagRef = useRef(false)
 
-  // Carrega instância do storage
+  // Carrega instância do backend
   useEffect(() => {
-    if (currentTenant) {
-      const savedInstance = getTenantData<WhatsAppInstance>(currentTenant.id, 'whatsapp_instance')
-      if (savedInstance) {
-        setInstance(savedInstance)
-        // Verifica se estava conectado
-        if (savedInstance.status === 'connected') {
-          setState({ status: 'connected' })
-        } else if (savedInstance.status === 'connecting') {
-          setState({ status: 'waiting' })
+    const loadInstance = async () => {
+      if (!currentTenant) return
+
+      try {
+        const apiUrl = getApiUrl()
+        const response = await authenticatedFetch(`${apiUrl}/api/whatsapp/instances/me`)
+
+        if (response.ok) {
+          const result = await response.json()
+          
+          if (result.success && result.instance) {
+            const backendInstance: WhatsAppInstance = {
+              ...result.instance,
+              createdAt: new Date(result.instance.createdAt),
+              updatedAt: new Date(result.instance.updatedAt),
+            }
+            
+            setInstance(backendInstance)
+            
+            // Verifica se estava conectado
+            if (backendInstance.status === 'connected') {
+              setState({ status: 'connected' })
+            } else if (backendInstance.status === 'connecting') {
+              setState({ status: 'waiting' })
+            }
+          } else {
+            setInstance(null)
+            setState({ status: 'disconnected' })
+          }
+        } else {
+          console.error('[WhatsApp] Erro ao carregar instância:', await response.json().catch(() => ({})))
+          setInstance(null)
+          setState({ status: 'disconnected' })
         }
+      } catch (error) {
+        console.error('[WhatsApp] Erro ao carregar instância:', error)
+        setInstance(null)
+        setState({ status: 'disconnected' })
       }
     }
+
+    loadInstance()
   }, [currentTenant])
 
-  // Salva instância no storage
-  const saveInstance = useCallback((instanceData: Partial<WhatsAppInstance>) => {
+  // Salva instância no backend (atualiza estado local também)
+  const saveInstance = useCallback(async (instanceData: Partial<WhatsAppInstance>) => {
     if (!currentTenant) return
 
-    const now = new Date()
-    const existingInstance = getTenantData<WhatsAppInstance>(currentTenant.id, 'whatsapp_instance')
-    
+    // Atualiza estado local imediatamente para melhor UX
     const updatedInstance: WhatsAppInstance = {
-      ...(existingInstance || {
+      ...(instance || {
         id: `instance-${Date.now()}`,
         restaurantId: currentTenant.id,
         instanceName: '',
         status: 'created',
         integration: 'WHATSAPP-BAILEYS',
-        createdAt: now,
+        createdAt: new Date(),
       }),
       ...instanceData,
-      instanceName: instanceData.instanceName || existingInstance?.instanceName || '',
-      status: instanceData.status || existingInstance?.status || 'created',
-      updatedAt: now,
+      instanceName: instanceData.instanceName || instance?.instanceName || '',
+      status: instanceData.status || instance?.status || 'created',
+      updatedAt: new Date(),
     }
 
-    setTenantData(currentTenant.id, 'whatsapp_instance', updatedInstance)
     setInstance(updatedInstance)
-  }, [currentTenant])
+
+    // Se a instância já existe no backend (tem instanceName), o backend já atualiza automaticamente
+    // Não precisamos fazer uma chamada adicional aqui, pois o backend já atualiza quando necessário
+  }, [currentTenant, instance])
 
   // Inicia monitoramento automático
   const startMonitoring = useCallback((instanceName: string) => {
@@ -165,11 +194,19 @@ export function useWhatsAppConnection() {
         return
       }
 
-      // Salva instância no storage
-      saveInstance({
-        instanceName,
-        status: 'connecting',
-      })
+      // Recarrega do backend para garantir sincronização
+      const reloadResponse = await authenticatedFetch(`${apiUrl}/api/whatsapp/instances/me`)
+      if (reloadResponse.ok) {
+        const reloadResult = await reloadResponse.json()
+        if (reloadResult.success && reloadResult.instance) {
+          const backendInstance = {
+            ...reloadResult.instance,
+            createdAt: new Date(reloadResult.instance.createdAt),
+            updatedAt: new Date(reloadResult.instance.updatedAt),
+          }
+          setInstance(backendInstance)
+        }
+      }
 
       // Se o QR Code já veio na resposta, usar
       if (result.connectionCode?.qrcode) {
@@ -257,12 +294,19 @@ export function useWhatsAppConnection() {
         return
       }
 
-      // Salva instância no storage
-      saveInstance({
-        instanceName,
-        phoneNumber,
-        status: 'connecting',
-      })
+      // Recarrega do backend para garantir sincronização
+      const reloadResponse = await authenticatedFetch(`${apiUrl}/api/whatsapp/instances/me`)
+      if (reloadResponse.ok) {
+        const reloadResult = await reloadResponse.json()
+        if (reloadResult.success && reloadResult.instance) {
+          const backendInstance = {
+            ...reloadResult.instance,
+            createdAt: new Date(reloadResult.instance.createdAt),
+            updatedAt: new Date(reloadResult.instance.updatedAt),
+          }
+          setInstance(backendInstance)
+        }
+      }
 
       if (result.connectionCode?.pairingCode) {
         setState({ 
@@ -378,8 +422,7 @@ export function useWhatsAppConnection() {
         console.warn('[WhatsApp] Erro ao deletar instância na API:', error)
       }
 
-      // Remove do storage
-      removeTenantData(currentTenant.id, 'whatsapp_instance')
+      // Limpa estado local
       setInstance(null)
       setState({ status: 'disconnected' })
 

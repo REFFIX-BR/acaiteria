@@ -1,6 +1,7 @@
 import type { Order } from '@/types'
-import { getTenantData } from '@/lib/storage/storage'
 import type { WhatsAppInstance } from '@/types'
+import { getApiUrl } from '@/lib/api/config'
+import { getAuthToken } from '@/lib/api/auth'
 
 /**
  * Envia mensagem via WhatsApp usando o endpoint do backend
@@ -176,8 +177,40 @@ export async function notifyOrderStatusChange(
       customerPhone: order.customerPhone,
     })
 
-    // Busca a instância do WhatsApp primeiro (fonte mais confiável do status)
-    const instance = getTenantData<WhatsAppInstance>(tenantId, 'whatsapp_instance')
+    // Busca a instância do WhatsApp do backend
+    let instance: WhatsAppInstance | null = null
+    try {
+      const apiUrl = getApiUrl()
+      const token = getAuthToken()
+      
+      if (!token) {
+        console.warn('[WhatsApp Notificação] Token de autenticação não encontrado')
+        return {
+          success: false,
+          error: 'Token de autenticação não encontrado',
+        }
+      }
+
+      const response = await fetch(`${apiUrl}/api/whatsapp/instances/me`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        if (result.success && result.instance) {
+          instance = {
+            ...result.instance,
+            createdAt: new Date(result.instance.createdAt),
+            updatedAt: new Date(result.instance.updatedAt),
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[WhatsApp Notificação] Erro ao buscar instância:', error)
+    }
+    
     console.log('[WhatsApp Notificação] Instância:', instance)
     
     if (!instance || !instance.instanceName || instance.status !== 'connected') {

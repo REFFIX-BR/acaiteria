@@ -29,6 +29,50 @@ const pairingCodeSchema = z.object({
 })
 
 /**
+ * GET /api/whatsapp/instances/me
+ * Busca a instância WhatsApp do tenant atual
+ */
+router.get(
+  '/instances/me',
+  authenticate,
+  tenantGuard,
+  async (req: AuthRequest, res: ExpressResponse) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ success: false, error: 'Não autenticado' })
+      }
+
+      const tenantId = req.user.tenantId
+      const instance = await getWhatsAppInstanceByTenant(tenantId)
+
+      if (!instance) {
+        return res.json({
+          success: true,
+          instance: null,
+        })
+      }
+
+      // Converter para formato do frontend
+      res.json({
+        success: true,
+        instance: {
+          id: instance.id,
+          restaurantId: instance.tenantId,
+          instanceName: instance.instanceName,
+          phoneNumber: instance.phoneNumber || undefined,
+          status: instance.status,
+          integration: instance.integration,
+          createdAt: instance.createdAt,
+          updatedAt: instance.updatedAt,
+        },
+      })
+    } catch (error) {
+      return errorHandler(error as Error, req, res, () => {})
+    }
+  }
+)
+
+/**
  * POST /api/whatsapp/instances/create
  * Cria uma nova instância WhatsApp
  */
