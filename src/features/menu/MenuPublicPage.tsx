@@ -47,6 +47,7 @@ export default function MenuPublicPage() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const [menuSettings, setMenuSettings] = useState<any | null>(null)
   const [isLoadingMenu, setIsLoadingMenu] = useState(false)
+  const [operatingHours, setOperatingHours] = useState<OperatingHours[]>([])
   const categoryScrollRef = useRef<HTMLDivElement>(null)
 
   // Carrega dados do cliente do localStorage ao montar
@@ -159,23 +160,59 @@ export default function MenuPublicPage() {
     fetchMenuData()
   }, [tenant, tenantSlug])
 
+  // Busca horários de funcionamento do backend
+  useEffect(() => {
+    const fetchOperatingHours = async () => {
+      if (!tenantSlug) {
+        setOperatingHours([])
+        return
+      }
+
+      try {
+        const { getApiUrl } = await import('@/lib/api/config')
+        const apiUrl = getApiUrl()
+        const response = await fetch(`${apiUrl}/api/settings/operating-hours/public/${tenantSlug}`)
+        
+        if (response.ok) {
+          const data = await response.json()
+          if (data.hours && Array.isArray(data.hours)) {
+            // Converte os dados do backend para o formato esperado
+            const formattedHours: OperatingHours[] = data.hours.map((hour: any) => ({
+              day: hour.day,
+              enabled: hour.enabled ?? true,
+              startTime: hour.startTime || '00:00',
+              endTime: hour.endTime || '00:00',
+            }))
+            setOperatingHours(formattedHours)
+          } else {
+            setOperatingHours([])
+          }
+        } else {
+          console.error('[MenuPublicPage] Erro ao buscar horários:', response.status)
+          setOperatingHours([])
+        }
+      } catch (error) {
+        console.error('[MenuPublicPage] Erro ao buscar horários:', error)
+        setOperatingHours([])
+      }
+    }
+
+    fetchOperatingHours()
+  }, [tenantSlug])
+
   const storeStatus = useMemo(() => {
-    if (!tenant) return { isOpen: true }
-    const settings = getTenantData<{ operatingHours: OperatingHours[], timezone?: string }>(tenant.id, 'settings')
-    if (!settings?.operatingHours || settings.operatingHours.length === 0) {
+    if (!operatingHours || operatingHours.length === 0) {
       return { isOpen: true }
     }
-    return isStoreOpen(settings.operatingHours, settings.timezone || 'America/Sao_Paulo')
-  }, [tenant])
+    return isStoreOpen(operatingHours, 'America/Sao_Paulo')
+  }, [operatingHours])
 
   const closingTime = useMemo(() => {
-    if (!tenant) return null
-    const settings = getTenantData<{ operatingHours: OperatingHours[], timezone?: string }>(tenant.id, 'settings')
-    if (!settings?.operatingHours || settings.operatingHours.length === 0) {
+    if (!operatingHours || operatingHours.length === 0) {
       return null
     }
-    return getStoreClosingTime(settings.operatingHours, settings.timezone || 'America/Sao_Paulo')
-  }, [tenant])
+    return getStoreClosingTime(operatingHours, 'America/Sao_Paulo')
+  }, [operatingHours])
 
   const availableItems = useMemo(() => {
     return menuItems.filter((item) => item.available)

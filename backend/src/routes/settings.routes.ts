@@ -5,6 +5,33 @@ import { authenticate, tenantGuard, AuthRequest } from '../middleware/auth.js'
 
 const router = express.Router()
 
+// Rota pública: buscar horários de funcionamento por slug do tenant
+router.get('/operating-hours/public/:tenantSlug', async (req, res, next) => {
+  try {
+    // Primeiro busca o tenant pelo slug
+    const tenantResult = await query(
+      'SELECT id FROM tenants WHERE slug = $1 AND deleted_at IS NULL',
+      [req.params.tenantSlug]
+    )
+
+    if (tenantResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Tenant not found' })
+    }
+
+    const tenantId = tenantResult.rows[0].id
+
+    // Busca os horários de funcionamento
+    const result = await query(
+      'SELECT day, enabled, start_time as "startTime", end_time as "endTime" FROM operating_hours WHERE tenant_id = $1 ORDER BY day',
+      [tenantId]
+    )
+
+    res.json({ hours: result.rows })
+  } catch (error) {
+    next(error)
+  }
+})
+
 router.use(authenticate)
 router.use(tenantGuard)
 
