@@ -208,7 +208,15 @@ export function OrderDetailsModal({
               <span className="text-muted-foreground">Subtotal</span>
               <span className="font-medium">{formatCurrency(order.subtotal)}</span>
             </div>
-            <Separator />
+            {order.deliveryFee && order.deliveryFee > 0 && (
+              <>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Taxa de Entrega</span>
+                  <span className="font-medium">{formatCurrency(order.deliveryFee)}</span>
+                </div>
+                <Separator />
+              </>
+            )}
             <div className="flex items-center justify-between text-lg font-bold">
               <span>Total</span>
               <span className="text-primary">{formatCurrency(order.total)}</span>

@@ -129,10 +129,27 @@ export default function OrdersPage() {
         if (response.ok) {
           const data = await response.json()
           const normalizedOrders = (data.orders || []).map((order: any) => ({
-      ...order,
+            ...order,
+            id: order.id,
+            tenantId: order.tenant_id,
+            customerName: order.customer_name,
+            customerPhone: order.customer_phone,
+            customerEmail: order.customer_email,
+            subtotal: parseFloat(order.subtotal) || 0,
+            total: parseFloat(order.total) || 0,
+            status: order.status,
+            paymentMethod: order.payment_method,
+            deliveryType: order.delivery_type || 'pickup',
+            deliveryAddress: order.delivery_address,
+            deliveryFee: order.delivery_fee ? parseFloat(order.delivery_fee) : undefined,
+            notes: order.notes,
             source: order.source || 'digital',
             createdAt: order.created_at ? new Date(order.created_at) : (order.createdAt ? new Date(order.createdAt) : new Date()),
             updatedAt: order.updated_at ? new Date(order.updated_at) : (order.updatedAt ? new Date(order.updatedAt) : new Date()),
+            acceptedAt: order.accepted_at ? new Date(order.accepted_at) : undefined,
+            readyAt: order.ready_at ? new Date(order.ready_at) : undefined,
+            deliveredAt: order.delivered_at ? new Date(order.delivered_at) : undefined,
+            items: order.items || [],
           }))
           setOrders(normalizedOrders)
         } else {
