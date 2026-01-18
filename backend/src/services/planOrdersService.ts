@@ -34,7 +34,7 @@ interface PlanInfo {
  */
 export class PlanOrdersService {
   private plans: Map<PlanType, PlanInfo> = new Map([
-    ['basic', { id: 'basic', name: 'Plano Completo', price: 3.00, validityDays: 30 }], // Mínimo R$ 3,00 para PIX
+    ['basic', { id: 'basic', name: 'Plano Completo', price: 79.90, validityDays: 30 }],
     ['premium', { id: 'premium', name: 'Plano Premium', price: 149.90, validityDays: 30 }],
     ['enterprise', { id: 'enterprise', name: 'Plano Enterprise', price: 299.90, validityDays: 30 }],
   ])

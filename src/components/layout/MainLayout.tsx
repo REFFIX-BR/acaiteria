@@ -36,6 +36,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { useOrderNotifications } from '@/hooks/use-order-notifications'
 import type React from 'react'
 
 const navigation = [
@@ -61,6 +62,9 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [pendingOrdersCount, setPendingOrdersCount] = useState(0)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+
+  // Hook global para monitorar novos pedidos e tocar som em todas as abas
+  useOrderNotifications()
 
   // Atualiza contador de pedidos pendentes em tempo real
   useEffect(() => {

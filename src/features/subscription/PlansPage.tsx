@@ -16,7 +16,7 @@ const plans = [
   {
     id: 'basic' as PlanType,
     name: 'Plano Completo',
-    price: 3.00, // Mínimo R$ 3,00 para PIX (PagHiper)
+    price: 79.90,
     period: 'mês',
     description: 'Acesso completo a todas as funcionalidades',
     popular: true,
