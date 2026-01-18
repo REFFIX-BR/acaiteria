@@ -48,7 +48,7 @@ export async function fetchAddressByCEP(cep: string): Promise<AddressInfo | null
       throw new Error(`Erro ao buscar CEP: ${response.status}`)
     }
 
-    const data: ViaCEPResponse = await response.json()
+    const data = await response.json() as ViaCEPResponse
 
     // Verifica se retornou erro
     if (data.erro === true) {
