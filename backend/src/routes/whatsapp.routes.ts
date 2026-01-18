@@ -694,6 +694,8 @@ router.post(
         .then(async () => {
           // Atualizar status da campanha para 'sent' e métricas
           try {
+            // delivered será igual a sent - failed (já que não temos verificação de entrega em tempo real)
+            const delivered = sent - failed
             await query(
               `UPDATE campaigns 
                SET status = 'sent', 
@@ -702,9 +704,9 @@ router.post(
                    failed = failed + $3,
                    updated_at = NOW()
                WHERE id = $4 AND tenant_id = $5`,
-              [sent, sent, failed, campaignId, tenantId]
+              [sent, delivered, failed, campaignId, tenantId]
             )
-            console.log(`[WhatsApp Campaign] Campanha ${campaignId} atualizada: status=sent, sent=${sent}, failed=${failed}`)
+            console.log(`[WhatsApp Campaign] Campanha ${campaignId} atualizada: status=sent, sent=${sent}, delivered=${delivered}, failed=${failed}`)
           } catch (error) {
             console.error('[WhatsApp Campaign] Erro ao atualizar campanha:', error)
           }

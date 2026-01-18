@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useTenantStore } from '@/stores/tenantStore'
-import { getTenantData, setTenantData } from '@/lib/storage/storage'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -68,13 +67,13 @@ export function CampaignList({ refreshTrigger, onRefresh }: CampaignListProps) {
             startDate: campaign.start_date ? new Date(campaign.start_date) : (campaign.startDate ? new Date(campaign.startDate) : new Date()),
             endDate: campaign.end_date ? (campaign.end_date ? new Date(campaign.end_date) : undefined) : (campaign.endDate ? new Date(campaign.endDate) : undefined),
             createdAt: campaign.created_at ? new Date(campaign.created_at) : (campaign.createdAt ? new Date(campaign.createdAt) : new Date()),
-            // Garantir que metrics sempre exista com valores padrão
+            // Normalizar métricas: backend retorna sent/delivered/failed como colunas, frontend espera objeto metrics
             metrics: campaign.metrics || {
-              sent: 0,
-              delivered: 0,
-              failed: 0,
-              clicks: 0,
-              conversions: 0,
+              sent: campaign.sent || 0,
+              delivered: campaign.delivered || 0,
+              failed: campaign.failed || 0,
+              clicks: campaign.clicks || 0,
+              conversions: campaign.conversions || 0,
             },
           }))
           setCampaigns(normalizedCampaigns)
@@ -169,28 +168,56 @@ export function CampaignList({ refreshTrigger, onRefresh }: CampaignListProps) {
     )
   }
 
-  const handleToggleStatus = (campaign: Campaign) => {
+  const handleToggleStatus = async (campaign: Campaign) => {
     if (!currentTenant) return
 
     try {
-      const allCampaigns = getTenantData<Campaign[]>(currentTenant.id, 'campaigns') || []
-      const index = allCampaigns.findIndex((c) => c.id === campaign.id)
-      if (index !== -1) {
-        const newStatus = campaign.status === 'active' ? 'paused' : 'active'
-        allCampaigns[index] = {
-          ...campaign,
-          status: newStatus,
-        }
-        setTenantData(currentTenant.id, 'campaigns', allCampaigns)
-        
-        toast({
-          title: 'Sucesso',
-          description: `Campanha ${newStatus === 'active' ? 'ativada' : 'pausada'}`,
-        })
-        
-        // Atualiza a lista em tempo real
-        onRefresh?.()
+      const { getApiUrl } = await import('@/lib/api/config')
+      const { getAuthToken } = await import('@/lib/api/auth')
+      const apiUrl = getApiUrl()
+      const token = getAuthToken()
+
+      if (!token) {
+        throw new Error('Não autenticado')
       }
+
+      // Não permitir ativar campanhas que já foram enviadas
+      if (campaign.status === 'sent' || campaign.status === 'completed') {
+        toast({
+          title: 'Aviso',
+          description: 'Não é possível ativar campanhas que já foram enviadas',
+          variant: 'destructive',
+        })
+        return
+      }
+
+      const newStatus = campaign.status === 'active' ? 'paused' : 'active'
+
+      const response = await fetch(`${apiUrl}/api/campaigns/${campaign.id}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: newStatus }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Erro ao atualizar status da campanha')
+      }
+
+      // Atualizar lista local
+      setCampaigns(prev => prev.map(c => 
+        c.id === campaign.id ? { ...c, status: newStatus } : c
+      ))
+
+      toast({
+        title: 'Sucesso',
+        description: `Campanha ${newStatus === 'active' ? 'ativada' : 'pausada'}`,
+      })
+
+      // Atualiza a lista em tempo real
+      onRefresh?.()
     } catch (error) {
       console.error('Erro ao atualizar campanha:', error)
       toast({

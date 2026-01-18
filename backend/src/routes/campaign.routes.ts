@@ -11,7 +11,7 @@ router.use(tenantGuard)
 const createCampaignSchema = z.object({
   name: z.string().min(1),
   type: z.enum(['promotion', 'whatsapp']),
-  status: z.enum(['active', 'paused', 'completed']).default('active'),
+  status: z.enum(['active', 'paused', 'completed', 'sent']).default('active'),
   description: z.string().optional(),
   discount: z.number().optional(),
   startDate: z.string(),
