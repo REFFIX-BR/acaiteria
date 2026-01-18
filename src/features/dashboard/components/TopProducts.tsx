@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Trophy } from 'lucide-react'
 import { useTenantStore } from '@/stores/tenantStore'
 import { getTopProducts } from '@/lib/api/dashboard'
-import { useMemo } from 'react'
+import { useState, useEffect } from 'react'
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('pt-BR', {
@@ -13,10 +13,30 @@ function formatCurrency(value: number) {
 
 export function TopProducts() {
   const currentTenant = useTenantStore((state) => state.currentTenant)
+  const [topProducts, setTopProducts] = useState<Array<{ name: string; sales: number; revenue: number }>>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-  const topProducts = useMemo(() => {
-    if (!currentTenant) return []
-    return getTopProducts(currentTenant.id, 5)
+  useEffect(() => {
+    const loadProducts = async () => {
+      if (!currentTenant) {
+        setTopProducts([])
+        setIsLoading(false)
+        return
+      }
+
+      try {
+        setIsLoading(true)
+        const products = await getTopProducts(currentTenant.id, 5)
+        setTopProducts(products)
+      } catch (error) {
+        console.error('[TopProducts] Erro ao carregar produtos:', error)
+        setTopProducts([])
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadProducts()
   }, [currentTenant])
 
   if (!currentTenant) {
@@ -35,7 +55,11 @@ export function TopProducts() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {topProducts.length === 0 ? (
+        {isLoading ? (
+          <div className="text-center py-8 text-muted-foreground">
+            Carregando dados...
+          </div>
+        ) : topProducts.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             Nenhum produto vendido ainda
           </div>
@@ -74,4 +98,3 @@ export function TopProducts() {
     </Card>
   )
 }
-

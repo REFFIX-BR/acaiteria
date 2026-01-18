@@ -1,6 +1,5 @@
 import { useState, useRef, forwardRef, useImperativeHandle, useEffect } from 'react'
 import { useTenantStore } from '@/stores/tenantStore'
-import { saveTenant, getAllTenants } from '@/lib/storage/storage'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -139,49 +138,36 @@ export const LogoUploadForm = forwardRef<LogoUploadFormRef, LogoUploadFormProps>
         const logoUrl = logoPreview && !logoPreview.startsWith('data:') ? logoPreview : undefined
 
         // Salva no backend
-        try {
-          const { getApiUrl } = await import('@/lib/api/config')
-          const { getAuthToken } = await import('@/lib/api/auth')
-          const apiUrl = getApiUrl()
-          const token = getAuthToken()
+        const { getApiUrl } = await import('@/lib/api/config')
+        const { getAuthToken } = await import('@/lib/api/auth')
+        const apiUrl = getApiUrl()
+        const token = getAuthToken()
 
-          if (token) {
-            const response = await fetch(`${apiUrl}/api/tenants`, {
-              method: 'PUT',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
-              },
-              body: JSON.stringify({
-                logo: logoUrl,
-              }),
-            })
-
-            if (!response.ok) {
-              const errorData = await response.json().catch(() => ({}))
-              throw new Error(errorData.error || `Erro ao salvar logo no backend: ${response.status}`)
-            }
-          }
-        } catch (error) {
-          console.error('[LogoUploadForm] Erro ao salvar logo no backend:', error)
-          // Continua para salvar no localStorage mesmo se falhar no backend
+        if (!token) {
+          throw new Error('Token de autenticação não encontrado')
         }
 
-        // Salva no localStorage
-        const allTenants = getAllTenants()
-        const tenantIndex = allTenants.findIndex(t => t.id === currentTenant.id)
-        
-        if (tenantIndex === -1) {
-          throw new Error('Tenant não encontrado')
+        const response = await fetch(`${apiUrl}/api/tenants`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            logo: logoUrl,
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.error || `Erro ao salvar logo no backend: ${response.status}`)
         }
 
+        // Atualizar tenant no store (o backend já atualizou)
         const updatedTenant = {
-          ...allTenants[tenantIndex],
+          ...currentTenant,
           logo: logoUrl,
         }
-
-        allTenants[tenantIndex] = updatedTenant
-        saveTenant(updatedTenant)
         setTenant(updatedTenant)
         
         setHasChanges(false)

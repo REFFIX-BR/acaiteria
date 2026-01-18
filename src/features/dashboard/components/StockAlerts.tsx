@@ -2,17 +2,37 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { AlertTriangle } from 'lucide-react'
 import { useTenantStore } from '@/stores/tenantStore'
 import { getLowStockProducts } from '@/lib/api/dashboard'
-import { useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { useNavigate } from 'react-router-dom'
 
 export function StockAlerts() {
   const currentTenant = useTenantStore((state) => state.currentTenant)
   const navigate = useNavigate()
+  const [lowStockProducts, setLowStockProducts] = useState<Array<{ id: string; name: string; current_stock: number; min_stock: number }>>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-  const lowStockProducts = useMemo(() => {
-    if (!currentTenant) return []
-    return getLowStockProducts(currentTenant.id)
+  useEffect(() => {
+    const loadProducts = async () => {
+      if (!currentTenant) {
+        setLowStockProducts([])
+        setIsLoading(false)
+        return
+      }
+
+      try {
+        setIsLoading(true)
+        const products = await getLowStockProducts()
+        setLowStockProducts(products)
+      } catch (error) {
+        console.error('[StockAlerts] Erro ao carregar produtos:', error)
+        setLowStockProducts([])
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadProducts()
   }, [currentTenant])
 
   if (!currentTenant) {
@@ -31,7 +51,11 @@ export function StockAlerts() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {lowStockProducts.length === 0 ? (
+        {isLoading ? (
+          <div className="text-center py-8 text-muted-foreground">
+            Carregando dados...
+          </div>
+        ) : lowStockProducts.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <p>Todos os produtos estão com estoque adequado</p>
           </div>
@@ -45,7 +69,7 @@ export function StockAlerts() {
                 <div>
                   <div className="font-medium">{product.name}</div>
                   <div className="text-sm text-muted-foreground">
-                    Estoque: {product.currentStock} {product.unit} • Mínimo: {product.minStock} {product.unit}
+                    Estoque: {product.current_stock} • Mínimo: {product.min_stock}
                   </div>
                 </div>
                 <div className="text-destructive font-semibold text-sm">
@@ -71,4 +95,3 @@ export function StockAlerts() {
     </Card>
   )
 }
-

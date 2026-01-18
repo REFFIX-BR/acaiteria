@@ -1,8 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { TrendingUp, DollarSign, Calendar, Clock, ArrowUpRight } from 'lucide-react'
+import { TrendingUp, DollarSign, ArrowUpRight } from 'lucide-react'
 import { useTenantStore } from '@/stores/tenantStore'
-import { getSalesByPeriod, getTotalRevenue } from '@/lib/api/dashboard'
-import { useMemo } from 'react'
+import { getKPIs } from '@/lib/api/dashboard'
+import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import type { PeriodFilter } from './DashboardFilter'
 
@@ -21,17 +21,30 @@ interface KPICardsProps {
 
 export function KPICards({ period, startDate, endDate }: KPICardsProps) {
   const currentTenant = useTenantStore((state) => state.currentTenant)
+  const [kpis, setKpis] = useState<{ periodSales: number; totalRevenue: number } | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
-  const kpis = useMemo(() => {
-    if (!currentTenant) return null
+  useEffect(() => {
+    const loadKPIs = async () => {
+      if (!currentTenant) {
+        setKpis(null)
+        setIsLoading(false)
+        return
+      }
 
-    const periodSales = getSalesByPeriod(currentTenant.id, period, startDate, endDate)
-    const total = getTotalRevenue(currentTenant.id)
-
-    return {
-      period: periodSales,
-      total,
+      try {
+        setIsLoading(true)
+        const data = await getKPIs(period, startDate, endDate)
+        setKpis(data)
+      } catch (error) {
+        console.error('[KPICards] Erro ao carregar KPIs:', error)
+        setKpis({ periodSales: 0, totalRevenue: 0 })
+      } finally {
+        setIsLoading(false)
+      }
     }
+
+    loadKPIs()
   }, [currentTenant, period, startDate, endDate])
 
   if (!currentTenant || !kpis) {
@@ -58,7 +71,7 @@ export function KPICards({ period, startDate, endDate }: KPICardsProps) {
   const cards = [
     {
       title: 'Vendas do Período',
-      value: formatCurrency(kpis.period),
+      value: formatCurrency(kpis.periodSales),
       icon: TrendingUp,
       description: getPeriodDescription(),
       gradient: 'from-green-500 to-green-600',
@@ -67,7 +80,7 @@ export function KPICards({ period, startDate, endDate }: KPICardsProps) {
     },
     {
       title: 'Faturamento Total',
-      value: formatCurrency(kpis.total),
+      value: formatCurrency(kpis.totalRevenue),
       icon: DollarSign,
       description: 'Acumulado',
       gradient: 'from-orange-500 to-orange-600',
@@ -107,15 +120,23 @@ export function KPICards({ period, startDate, endDate }: KPICardsProps) {
               </div>
             </CardHeader>
             <CardContent className="relative z-10">
-              <div className="flex items-baseline gap-2 mb-1">
+              {isLoading ? (
                 <div className="text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
-                  {card.value}
+                  Carregando...
                 </div>
-                <ArrowUpRight className="h-4 w-4 text-green-500" />
-              </div>
-              <p className="text-xs text-muted-foreground font-medium">
-                {card.description}
-              </p>
+              ) : (
+                <>
+                  <div className="flex items-baseline gap-2 mb-1">
+                    <div className="text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
+                      {card.value}
+                    </div>
+                    <ArrowUpRight className="h-4 w-4 text-green-500" />
+                  </div>
+                  <p className="text-xs text-muted-foreground font-medium">
+                    {card.description}
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
         )
@@ -123,4 +144,3 @@ export function KPICards({ period, startDate, endDate }: KPICardsProps) {
     </div>
   )
 }
-

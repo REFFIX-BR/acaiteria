@@ -10,7 +10,7 @@ import {
 } from 'recharts'
 import { useTenantStore } from '@/stores/tenantStore'
 import { getSalesChartData } from '@/lib/api/dashboard'
-import { useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import type { PeriodFilter } from './DashboardFilter'
 
@@ -29,15 +29,34 @@ interface SalesChartProps {
 
 export function SalesChart({ period, startDate, endDate }: SalesChartProps) {
   const currentTenant = useTenantStore((state) => state.currentTenant)
+  const [data, setData] = useState<Array<{ date: string; Vendas: number }>>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-  const data = useMemo(() => {
-    if (!currentTenant) return []
-    
-    const rawData = getSalesChartData(currentTenant.id, period, startDate, endDate)
-    return rawData.map((item) => ({
-      date: format(new Date(item.date), 'dd/MM'),
-      Vendas: item.sales,
-    }))
+  useEffect(() => {
+    const loadData = async () => {
+      if (!currentTenant) {
+        setData([])
+        setIsLoading(false)
+        return
+      }
+
+      try {
+        setIsLoading(true)
+        const rawData = await getSalesChartData(currentTenant.id, period, startDate, endDate)
+        const formattedData = rawData.map((item) => ({
+          date: format(new Date(item.date), 'dd/MM'),
+          Vendas: item.sales,
+        }))
+        setData(formattedData)
+      } catch (error) {
+        console.error('[SalesChart] Erro ao carregar dados:', error)
+        setData([])
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadData()
   }, [currentTenant, period, startDate, endDate])
 
   const getChartTitle = () => {
@@ -70,7 +89,11 @@ export function SalesChart({ period, startDate, endDate }: SalesChartProps) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {data.length === 0 ? (
+        {isLoading ? (
+          <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+            Carregando dados...
+          </div>
+        ) : data.length === 0 ? (
           <div className="h-[300px] flex items-center justify-center text-muted-foreground">
             Nenhum dado de venda disponível
           </div>
@@ -106,4 +129,3 @@ export function SalesChart({ period, startDate, endDate }: SalesChartProps) {
     </Card>
   )
 }
-
