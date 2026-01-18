@@ -1,9 +1,11 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
 import { Toaster } from '@/components/ui/toaster'
 import { ThemeProvider } from '@/components/ThemeProvider'
 import { useTenantStore } from '@/stores/tenantStore'
 import { useAuthStore } from '@/stores/authStore'
 import { useTheme } from '@/hooks/use-theme'
+import { getAuthToken } from '@/lib/api/auth'
 
 // Auth
 import LoginPage from '@/features/auth/LoginPage'
@@ -31,9 +33,29 @@ import MainLayout from '@/components/layout/MainLayout'
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const currentUser = useAuthStore((state) => state.currentUser)
   const currentTenant = useTenantStore((state) => state.currentTenant)
+  const { loadTenant, isLoading } = useTenantStore()
+
+  // Carregar tenant do backend quando usuário está autenticado mas tenant não está carregado
+  useEffect(() => {
+    if (currentUser && !currentTenant && !isLoading) {
+      const token = getAuthToken()
+      if (token && currentUser.tenantId) {
+        loadTenant(currentUser.tenantId)
+      }
+    }
+  }, [currentUser, currentTenant, isLoading, loadTenant])
 
   if (!currentUser) {
     return <Navigate to="/login" replace />
+  }
+
+  // Aguardar carregamento do tenant
+  if (!currentTenant && isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-muted-foreground">Carregando...</p>
+      </div>
+    )
   }
 
   if (!currentTenant) {

@@ -1,9 +1,62 @@
 import express from 'express'
 import { z } from 'zod'
 import { query } from '../db/connection.js'
-import { authenticate, AuthRequest } from '../middleware/auth.js'
+import { authenticate, tenantGuard, AuthRequest } from '../middleware/auth.js'
+import { getTenantSubscription } from '../db/storage.js'
 
 const router = express.Router()
+
+// Buscar dados completos do tenant atual (autenticado)
+router.get('/me', authenticate, tenantGuard, async (req: AuthRequest, res, next) => {
+  try {
+    const tenantId = req.user!.tenantId
+
+    // Buscar dados do tenant
+    const tenantResult = await query(
+      `SELECT id, name, slug, logo, primary_color, secondary_color, created_at
+       FROM tenants 
+       WHERE id = $1 AND deleted_at IS NULL`,
+      [tenantId]
+    )
+
+    if (tenantResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Tenant not found' })
+    }
+
+    const tenant = tenantResult.rows[0]
+
+    // Buscar subscription do tenant
+    const subscription = await getTenantSubscription(tenantId)
+
+    // Formatar resposta
+    const response: any = {
+      id: tenant.id,
+      name: tenant.name,
+      slug: tenant.slug,
+      logo: tenant.logo,
+      primaryColor: tenant.primary_color,
+      secondaryColor: tenant.secondary_color,
+      createdAt: tenant.created_at,
+    }
+
+    if (subscription) {
+      response.subscription = {
+        id: subscription.id,
+        planType: subscription.planType,
+        trialStartDate: subscription.trialStartDate,
+        trialEndDate: subscription.trialEndDate,
+        subscriptionStartDate: subscription.subscriptionStartDate,
+        subscriptionEndDate: subscription.subscriptionEndDate,
+        isActive: subscription.isActive,
+        isTrial: subscription.isTrial,
+      }
+    }
+
+    res.json({ tenant: response })
+  } catch (error) {
+    next(error)
+  }
+})
 
 // Buscar tenant por slug (público)
 router.get('/slug/:slug', async (req, res, next) => {

@@ -6,9 +6,8 @@ import { z } from 'zod'
 import { useAuthStore } from '@/stores/authStore'
 import { useTenantStore } from '@/stores/tenantStore'
 import { authenticateUser, getUserByEmail, getAllUsers, hashPasswordForStorage } from '@/lib/auth/auth'
-import { getTenantById, saveTenant, setGlobalData } from '@/lib/storage/storage'
+import { setGlobalData } from '@/lib/storage/storage'
 import { getApiUrl } from '@/lib/api/config'
-import { createInitialSubscription } from '@/lib/subscription/subscription'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -72,23 +71,11 @@ export default function LoginPage() {
             console.log('[Login] Token JWT salvo com sucesso')
           }
           
-          // Se login no backend foi bem-sucedido, usar dados do backend
-          // Verificar se tenant existe localmente, se não, criar
-          let tenant = getTenantById(backendUser.tenantId)
-          if (!tenant) {
-            tenant = {
-              id: backendUser.tenantId,
-              name: backendUser.tenantName,
-              slug: backendUser.tenantSlug,
-              primaryColor: '#8b5cf6',
-              secondaryColor: '#ec4899',
-              createdAt: new Date(),
-              subscription: createInitialSubscription(new Date()),
-            }
-            saveTenant(tenant)
-          }
+          // Buscar tenant completo do backend (incluindo subscription)
+          const { loadTenant } = useTenantStore.getState()
+          await loadTenant(backendUser.tenantId)
           
-          // Verificar se usuário já existe localmente, se não, criar
+          // Verificar se usuário já existe localmente, se não, criar (apenas para fallback)
           let user = getUserByEmail(backendUser.email)
           
           if (!user) {
@@ -124,9 +111,8 @@ export default function LoginPage() {
           
           const userWithBackendId = user
           
-          // Definir usuário e tenant
+          // Definir usuário (tenant já foi carregado pelo loadTenant)
           setUser(userWithBackendId)
-          setTenant(tenant)
           
           toast({
             title: 'Bem-vindo!',
