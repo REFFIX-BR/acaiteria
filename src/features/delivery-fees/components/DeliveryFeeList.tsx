@@ -32,32 +32,33 @@ export function DeliveryFeeList({
     fee.neighborhood.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  const handleDelete = async (fee: DeliveryFee) => {
-    const confirmed = await confirm({
-      title: 'Excluir Taxa de Entrega',
-      description: `Tem certeza que deseja excluir a taxa de entrega para o bairro "${fee.neighborhood}"?`,
-      confirmText: 'Excluir',
-      cancelText: 'Cancelar',
-      variant: 'destructive',
-    })
-
-    if (!confirmed) return
-
-    try {
-      await deleteDeliveryFee(fee.id)
-      toast({
-        title: 'Sucesso',
-        description: 'Taxa de entrega excluída com sucesso',
-      })
-      onDelete()
-    } catch (error) {
-      console.error('Erro ao excluir taxa de entrega:', error)
-      toast({
-        title: 'Erro',
-        description: 'Não foi possível excluir a taxa de entrega',
+  const handleDelete = (fee: DeliveryFee) => {
+    confirm(
+      `Tem certeza que deseja excluir a taxa de entrega para o bairro "${fee.neighborhood}"?`,
+      async () => {
+        try {
+          await deleteDeliveryFee(fee.id)
+          toast({
+            title: 'Sucesso',
+            description: 'Taxa de entrega excluída com sucesso',
+          })
+          onDelete()
+        } catch (error) {
+          console.error('Erro ao excluir taxa de entrega:', error)
+          toast({
+            title: 'Erro',
+            description: 'Não foi possível excluir a taxa de entrega',
+            variant: 'destructive',
+          })
+        }
+      },
+      {
+        title: 'Excluir Taxa de Entrega',
+        confirmText: 'Excluir',
+        cancelText: 'Cancelar',
         variant: 'destructive',
-      })
-    }
+      }
+    )
   }
 
   if (isLoading) {
@@ -70,7 +71,7 @@ export function DeliveryFeeList({
 
   return (
     <>
-      <ConfirmDialogComponent />
+      {ConfirmDialogComponent}
 
       {/* Busca */}
       <div className="relative">
