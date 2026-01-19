@@ -25,8 +25,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { useAuthStore } from '@/stores/authStore'
-import { getTenantData } from '@/lib/storage/storage'
-import type { Order } from '@/types'
 import { getPlanInfo } from '@/lib/subscription/subscription'
 import { Crown, AlertCircle } from 'lucide-react'
 import {
@@ -37,6 +35,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useOrderNotifications } from '@/hooks/use-order-notifications'
+import { authenticatedFetch } from '@/lib/api/auth'
+import { getApiUrl } from '@/lib/api/config'
 import type React from 'react'
 
 const navigation = [
@@ -66,24 +66,36 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   // Hook global para monitorar novos pedidos e tocar som em todas as abas
   useOrderNotifications()
 
-  // Atualiza contador de pedidos pendentes em tempo real
+  // Atualiza contador de pedidos pendentes em tempo real do backend
   useEffect(() => {
-    if (!currentTenant) return
-
-    const updatePendingCount = () => {
-      const orders = getTenantData<Order[]>(currentTenant.id, 'orders') || []
-      const pending = orders.filter((o) => o.status === 'pending').length
-      setPendingOrdersCount(pending)
+    if (!currentTenant) {
+      setPendingOrdersCount(0)
+      return
     }
 
-    updatePendingCount()
+    const fetchPendingOrders = async () => {
+      try {
+        const apiUrl = getApiUrl()
+        const response = await authenticatedFetch(`${apiUrl}/api/orders`)
+
+        if (response.ok) {
+          const data = await response.json()
+          const orders = data.orders || []
+          const pending = orders.filter((order: any) => order.status === 'pending').length
+          setPendingOrdersCount(pending)
+        }
+      } catch (error) {
+        console.error('[MainLayout] Erro ao buscar pedidos pendentes:', error)
+      }
+    }
+
+    fetchPendingOrders()
     const interval = setInterval(() => {
-      setRefreshTrigger((prev) => prev + 1)
-      updatePendingCount()
+      fetchPendingOrders()
     }, 2000)
 
     return () => clearInterval(interval)
-  }, [currentTenant, refreshTrigger])
+  }, [currentTenant])
 
   const handleLogout = () => {
     logout()

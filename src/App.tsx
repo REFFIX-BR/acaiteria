@@ -206,7 +206,9 @@ function App() {
             element={
               <ProtectedRoute>
                 <MainLayout>
-                  <SettingsPage />
+                  <SubscriptionGuard>
+                    <SettingsPage />
+                  </SubscriptionGuard>
                 </MainLayout>
               </ProtectedRoute>
             }
