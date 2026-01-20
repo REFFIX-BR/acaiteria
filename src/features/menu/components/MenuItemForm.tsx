@@ -922,8 +922,8 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
                         className="max-w-[150px]"
                       />
                       <span className="text-sm text-muted-foreground">
-                        {watch('freeAdditions') && watch('freeAdditions') > 0
-                          ? `${watch('freeAdditions')} grátis`
+                        {(watch('freeAdditions') ?? 0) > 0
+                          ? `${watch('freeAdditions') ?? 0} grátis`
                           : 'Sem grátis'}
                       </span>
                     </div>
@@ -1038,8 +1038,8 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
                         className="max-w-[150px]"
                       />
                       <span className="text-sm text-muted-foreground">
-                        {watch('freeComplements') && watch('freeComplements') > 0
-                          ? `${watch('freeComplements')} grátis`
+                        {(watch('freeComplements') ?? 0) > 0
+                          ? `${watch('freeComplements') ?? 0} grátis`
                           : 'Sem grátis'}
                       </span>
                     </div>
@@ -1154,8 +1154,8 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
                         className="max-w-[150px]"
                       />
                       <span className="text-sm text-muted-foreground">
-                        {watch('freeFruits') && watch('freeFruits') > 0
-                          ? `${watch('freeFruits')} grátis`
+                        {(watch('freeFruits') ?? 0) > 0
+                          ? `${watch('freeFruits') ?? 0} grátis`
                           : 'Sem grátis'}
                       </span>
                     </div>
