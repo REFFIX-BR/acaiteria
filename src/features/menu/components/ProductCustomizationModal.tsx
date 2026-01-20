@@ -108,6 +108,21 @@ export function ProductCustomizationModal({
     return total
   }
 
+  const shouldShowExtraPrice = (
+    isSelected: boolean,
+    selectedIndex: number,
+    selectedCount: number,
+    freeLimit: number,
+    price: number
+  ) => {
+    if (price <= 0) return false
+    if (freeLimit <= 0) return true
+    if (isSelected) {
+      return selectedIndex >= freeLimit
+    }
+    return selectedCount >= freeLimit
+  }
+
   const toggleAddition = (addition: Addition) => {
     setSelectedAdditions((prev) => {
       const exists = prev.find((a) => a.id === addition.id)
@@ -378,6 +393,8 @@ export function ProductCustomizationModal({
                   <div className="space-y-3">
                     {item.additions.map((addition) => {
                       const isSelected = selectedAdditions.some((a) => a.id === addition.id)
+                      const selectedIndex = selectedAdditions.findIndex((a) => a.id === addition.id)
+                      const freeLimit = item.freeAdditions || 0
                       const isDisabled = !!(!isSelected && item.maxAdditions && selectedAdditions.length >= item.maxAdditions)
                       return (
                         <label
@@ -409,7 +426,13 @@ export function ProductCustomizationModal({
                               </p>
                             </div>
                           </div>
-                          {addition.price > 0 && (
+                          {shouldShowExtraPrice(
+                            isSelected,
+                            selectedIndex,
+                            selectedAdditions.length,
+                            freeLimit,
+                            addition.price
+                          ) && (
                             <p className={cn(
                               "text-sm font-bold",
                               isDisabled ? "text-gray-400" : ""
@@ -458,6 +481,8 @@ export function ProductCustomizationModal({
                   <div className="space-y-3">
                     {item.complements.map((complement) => {
                       const isSelected = selectedComplements.some((c) => c.id === complement.id)
+                      const selectedIndex = selectedComplements.findIndex((c) => c.id === complement.id)
+                      const freeLimit = item.freeComplements || 0
                       const isDisabled = !!(!isSelected && item.maxComplements && selectedComplements.length >= item.maxComplements)
                       return (
                         <label
@@ -489,7 +514,13 @@ export function ProductCustomizationModal({
                               </p>
                             </div>
                           </div>
-                          {complement.price > 0 && (
+                          {shouldShowExtraPrice(
+                            isSelected,
+                            selectedIndex,
+                            selectedComplements.length,
+                            freeLimit,
+                            complement.price
+                          ) && (
                             <p className={cn(
                               "text-sm font-bold",
                               isDisabled ? "text-gray-400" : ""
@@ -538,6 +569,8 @@ export function ProductCustomizationModal({
                   <div className="space-y-3">
                     {item.fruits.map((fruit) => {
                       const isSelected = selectedFruits.some((f) => f.id === fruit.id)
+                      const selectedIndex = selectedFruits.findIndex((f) => f.id === fruit.id)
+                      const freeLimit = item.freeFruits || 0
                       const isDisabled = !!(!isSelected && item.maxFruits && selectedFruits.length >= item.maxFruits)
                       return (
                         <label
@@ -569,7 +602,13 @@ export function ProductCustomizationModal({
                               </p>
                             </div>
                           </div>
-                          {fruit.price > 0 && (
+                          {shouldShowExtraPrice(
+                            isSelected,
+                            selectedIndex,
+                            selectedFruits.length,
+                            freeLimit,
+                            fruit.price
+                          ) && (
                             <p className={cn(
                               "text-sm font-bold",
                               isDisabled ? "text-gray-400" : ""
