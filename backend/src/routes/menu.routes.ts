@@ -157,11 +157,15 @@ const createItemSchema = z.object({
   description: z.string().min(1),
   basePrice: z.number().min(0),
   image: z.string().nullish(),
+  images: z.array(z.string()).optional(),
   category: z.string().min(1),
   available: z.boolean(),
   maxAdditions: z.number().nullish(),
   maxComplements: z.number().nullish(),
   maxFruits: z.number().nullish(),
+  freeAdditions: z.number().min(0).optional(),
+  freeComplements: z.number().min(0).optional(),
+  freeFruits: z.number().min(0).optional(),
   sizes: z.array(z.object({
     name: z.string(),
     price: z.number(),
@@ -183,23 +187,33 @@ const createItemSchema = z.object({
 router.post('/items', async (req: AuthRequest, res, next) => {
   try {
     const data = createItemSchema.parse(req.body)
+    const normalizedImages = data.images && data.images.length > 0
+      ? data.images
+      : data.image
+        ? [data.image]
+        : []
+    const primaryImage = normalizedImages[0] || null
 
     // Criar item
     const insertResult = await query(
-      `INSERT INTO menu_items (tenant_id, name, description, base_price, image, category, available, max_additions, max_complements, max_fruits, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
+      `INSERT INTO menu_items (tenant_id, name, description, base_price, image, images, category, available, max_additions, max_complements, max_fruits, free_additions, free_complements, free_fruits, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())
        RETURNING id`,
       [
         req.user!.tenantId,
         data.name,
         data.description,
         data.basePrice,
-        data.image || null,
+        primaryImage,
+        normalizedImages.length > 0 ? normalizedImages : null,
         data.category,
         data.available,
         data.maxAdditions || null,
         data.maxComplements || null,
         data.maxFruits || null,
+        data.freeAdditions ?? 0,
+        data.freeComplements ?? 0,
+        data.freeFruits ?? 0,
       ]
     )
 
@@ -317,9 +331,16 @@ router.put('/items/:id', async (req: AuthRequest, res, next) => {
         updates.push(`base_price = $${paramCount++}`)
         values.push(data.basePrice)
       }
-      if (data.image !== undefined) {
+      if (data.images !== undefined) {
+        updates.push(`images = $${paramCount++}`)
+        values.push(data.images && data.images.length > 0 ? data.images : null)
+        updates.push(`image = $${paramCount++}`)
+        values.push(data.images && data.images.length > 0 ? data.images[0] : null)
+      } else if (data.image !== undefined) {
         updates.push(`image = $${paramCount++}`)
         values.push(data.image)
+        updates.push(`images = $${paramCount++}`)
+        values.push(data.image ? [data.image] : null)
       }
       if (data.category) {
         updates.push(`category = $${paramCount++}`)
@@ -340,6 +361,18 @@ router.put('/items/:id', async (req: AuthRequest, res, next) => {
       if (data.maxFruits !== undefined) {
         updates.push(`max_fruits = $${paramCount++}`)
         values.push(data.maxFruits)
+      }
+      if (data.freeAdditions !== undefined) {
+        updates.push(`free_additions = $${paramCount++}`)
+        values.push(data.freeAdditions)
+      }
+      if (data.freeComplements !== undefined) {
+        updates.push(`free_complements = $${paramCount++}`)
+        values.push(data.freeComplements)
+      }
+      if (data.freeFruits !== undefined) {
+        updates.push(`free_fruits = $${paramCount++}`)
+        values.push(data.freeFruits)
       }
 
       updates.push(`updated_at = NOW()`)

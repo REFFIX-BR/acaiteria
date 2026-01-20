@@ -34,6 +34,7 @@ const menuItemSchema = z.object({
   description: z.string().min(1, 'Descrição é obrigatória'),
   basePrice: z.number().min(0, 'Preço deve ser maior ou igual a zero'),
   image: z.string().optional(),
+  images: z.array(z.string()).optional(),
   category: z.string().min(1, 'Categoria é obrigatória'),
   available: z.boolean(),
   maxAdditions: z.number().min(0).optional(),
@@ -67,6 +68,9 @@ const menuItemSchema = z.object({
     })
   ),
   maxFruits: z.number().min(0).optional(),
+  freeAdditions: z.number().min(0).optional(),
+  freeComplements: z.number().min(0).optional(),
+  freeFruits: z.number().min(0).optional(),
 }).refine((data) => {
   // Se não tem tamanhos, o preço base é obrigatório
   if (data.sizes.length === 0) {
@@ -104,8 +108,9 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
   const [open, setOpen] = useState(false)
   const [newCategoryDialogOpen, setNewCategoryDialogOpen] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState('')
-  const [imageFile, setImageFile] = useState<File | null>(null)
-  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [imageFiles, setImageFiles] = useState<File[]>([])
+  const [imagePreviews, setImagePreviews] = useState<string[]>([])
+  const [imageUrlInput, setImageUrlInput] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const {
@@ -124,11 +129,15 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
           description: menuItem.description,
           basePrice: menuItem.basePrice,
           image: menuItem.image || '',
+          images: menuItem.images || (menuItem.image ? [menuItem.image] : []),
           category: menuItem.category,
           available: menuItem.available,
           maxAdditions: menuItem.maxAdditions,
           maxComplements: menuItem.maxComplements,
           maxFruits: menuItem.maxFruits,
+          freeAdditions: menuItem.freeAdditions ?? 0,
+          freeComplements: menuItem.freeComplements ?? 0,
+          freeFruits: menuItem.freeFruits ?? 0,
           sizes: menuItem.sizes || [],
           additions: menuItem.additions || [],
           complements: menuItem.complements || [],
@@ -140,12 +149,20 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
           maxAdditions: undefined,
           maxComplements: undefined,
           maxFruits: undefined,
+        freeAdditions: 0,
+        freeComplements: 0,
+        freeFruits: 0,
+          images: [],
           sizes: [],
           additions: [],
           complements: [],
           fruits: [],
         },
   })
+
+  useEffect(() => {
+    register('images')
+  }, [register])
 
   const {
     fields: sizeFields,
@@ -259,17 +276,22 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
       setValue('description', menuItem.description)
       setValue('basePrice', menuItem.basePrice)
       setValue('image', menuItem.image || '')
+      setValue('images', menuItem.images || (menuItem.image ? [menuItem.image] : []))
       setValue('category', menuItem.category)
       setValue('available', menuItem.available)
       setValue('maxAdditions', menuItem.maxAdditions)
       setValue('maxComplements', menuItem.maxComplements)
       setValue('maxFruits', menuItem.maxFruits)
+      setValue('freeAdditions', menuItem.freeAdditions ?? 0)
+      setValue('freeComplements', menuItem.freeComplements ?? 0)
+      setValue('freeFruits', menuItem.freeFruits ?? 0)
       setValue('sizes', menuItem.sizes || [])
       setValue('additions', menuItem.additions || [])
       setValue('complements', menuItem.complements || [])
       setValue('fruits', menuItem.fruits || [])
-      setImagePreview(menuItem.image || null)
-      setImageFile(null)
+      setImagePreviews([])
+      setImageFiles([])
+      setImageUrlInput('')
     } else {
       reset({
         basePrice: 0,
@@ -277,13 +299,18 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
         maxAdditions: undefined,
         maxComplements: undefined,
         maxFruits: undefined,
+        freeAdditions: 0,
+        freeComplements: 0,
+        freeFruits: 0,
+        images: [],
         sizes: [],
         additions: [],
         complements: [],
         fruits: [],
       })
-      setImagePreview(null)
-      setImageFile(null)
+      setImagePreviews([])
+      setImageFiles([])
+      setImageUrlInput('')
     }
   }, [menuItem, setValue, reset])
 
@@ -308,37 +335,51 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
         throw new Error('Token de autenticação não encontrado. Faça login novamente.')
       }
 
-      // Fazer upload da imagem se houver arquivo selecionado
-      let imageUrl = data.image && data.image.trim() ? data.image : null
-      
-      if (imageFile && currentTenant) {
+      const existingImages = (data.images || [])
+        .map((url) => url.trim())
+        .filter(Boolean)
+
+      let uploadedImages: string[] = []
+
+      if (imageFiles.length > 0 && currentTenant) {
         try {
           const { uploadImage } = await import('@/lib/api/upload')
-          imageUrl = await uploadImage(imageFile, 'menu-item', {
-            tenantId: currentTenant.id,
-            tenantSlug: currentTenant.slug,
-          })
+          uploadedImages = await Promise.all(
+            imageFiles.map((file) =>
+              uploadImage(file, 'menu-item', {
+                tenantId: currentTenant.id,
+                tenantSlug: currentTenant.slug,
+              })
+            )
+          )
         } catch (error) {
-          console.error('Erro ao fazer upload da imagem:', error)
+          console.error('Erro ao fazer upload das imagens:', error)
           toast({
             title: 'Erro',
-            description: error instanceof Error ? error.message : 'Erro ao fazer upload da imagem',
+            description: error instanceof Error ? error.message : 'Erro ao fazer upload das imagens',
             variant: 'destructive',
           })
           return
         }
       }
 
+      const finalImages = Array.from(new Set([...existingImages, ...uploadedImages]))
+      const primaryImage = finalImages[0] || null
+
       const payload = {
         name: data.name,
         description: data.description,
         basePrice: data.basePrice,
-        image: imageUrl,
+        image: primaryImage,
+        images: finalImages,
         category: data.category,
         available: data.available,
         maxAdditions: data.maxAdditions !== undefined ? data.maxAdditions : null,
         maxComplements: data.maxComplements !== undefined ? data.maxComplements : null,
         maxFruits: data.maxFruits !== undefined ? data.maxFruits : null,
+        freeAdditions: Number.isFinite(data.freeAdditions) ? data.freeAdditions : 0,
+        freeComplements: Number.isFinite(data.freeComplements) ? data.freeComplements : 0,
+        freeFruits: Number.isFinite(data.freeFruits) ? data.freeFruits : 0,
         sizes: data.sizes || [],
         additions: data.additions || [],
         complements: data.complements || [],
@@ -377,12 +418,16 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
           name: backendItem.name,
           description: backendItem.description || '',
           basePrice: parseFloat(backendItem.base_price) || 0,
-          image: backendItem.image || '',
+          image: backendItem.image || (backendItem.images && backendItem.images[0]) || '',
+          images: backendItem.images || (backendItem.image ? [backendItem.image] : []),
           category: backendItem.category || '',
           available: backendItem.available ?? true,
           maxAdditions: backendItem.max_additions || undefined,
           maxComplements: backendItem.max_complements || undefined,
           maxFruits: backendItem.max_fruits || undefined,
+          freeAdditions: backendItem.free_additions ?? 0,
+          freeComplements: backendItem.free_complements ?? 0,
+          freeFruits: backendItem.free_fruits ?? 0,
           sizes: backendItem.sizes || [],
           additions: backendItem.additions || [],
           complements: backendItem.complements || [],
@@ -421,12 +466,16 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
           name: backendItem.name,
           description: backendItem.description || '',
           basePrice: parseFloat(backendItem.base_price) || 0,
-          image: backendItem.image || '',
+          image: backendItem.image || (backendItem.images && backendItem.images[0]) || '',
+          images: backendItem.images || (backendItem.image ? [backendItem.image] : []),
           category: backendItem.category || '',
           available: backendItem.available ?? true,
           maxAdditions: backendItem.max_additions || undefined,
           maxComplements: backendItem.max_complements || undefined,
           maxFruits: backendItem.max_fruits || undefined,
+          freeAdditions: backendItem.free_additions ?? 0,
+          freeComplements: backendItem.free_complements ?? 0,
+          freeFruits: backendItem.free_fruits ?? 0,
           sizes: backendItem.sizes || [],
           additions: backendItem.additions || [],
           complements: backendItem.complements || [],
@@ -445,8 +494,9 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
       })
 
       setOpen(false)
-      setImageFile(null)
-      setImagePreview(null)
+      setImageFiles([])
+      setImagePreviews([])
+      setImageUrlInput('')
       onSuccess?.()
       reset()
     } catch (error) {
@@ -475,6 +525,7 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
   )
 
   const basePrice = watch('basePrice') || 0
+  const imagesValue = watch('images') || []
 
   return (
     <>
@@ -589,43 +640,65 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
                 </div>
 
                 <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="image" className="flex items-center gap-2">
+                  <Label className="flex items-center gap-2">
                     <ImageIcon className="h-4 w-4" />
-                    Foto do Produto
+                    Fotos do Produto
                   </Label>
-                  
-                  {/* Preview da imagem */}
-                  {(imagePreview || watch('image')) && (
-                    <div className="relative w-32 h-32 border rounded-lg overflow-hidden mb-2">
-                      <img
-                        src={imagePreview || watch('image') || ''}
-                        alt="Preview"
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none'
-                        }}
-                      />
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="icon"
-                        className="absolute top-1 right-1 h-6 w-6"
-                        onClick={() => {
-                          setImageFile(null)
-                          setImagePreview(null)
-                          setValue('image', '')
-                          if (fileInputRef.current) {
-                            fileInputRef.current.value = ''
-                          }
-                        }}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
+
+                  {(imagesValue.length > 0 || imagePreviews.length > 0) && (
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+                      {imagesValue.map((url, index) => (
+                        <div key={`${url}-${index}`} className="relative w-full pt-[100%] border rounded-lg overflow-hidden">
+                          <img
+                            src={url}
+                            alt={`Foto ${index + 1}`}
+                            className="absolute inset-0 w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none'
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="icon"
+                            className="absolute top-1 right-1 h-6 w-6"
+                            onClick={() => {
+                              const updated = imagesValue.filter((_, i) => i !== index)
+                              setValue('images', updated)
+                            }}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                      {imagePreviews.map((preview, index) => (
+                        <div key={`${preview}-${index}`} className="relative w-full pt-[100%] border rounded-lg overflow-hidden">
+                          <img
+                            src={preview}
+                            alt={`Nova foto ${index + 1}`}
+                            className="absolute inset-0 w-full h-full object-cover"
+                          />
+                          <span className="absolute bottom-1 left-1 text-[10px] px-1.5 py-0.5 bg-black/70 text-white rounded">
+                            Novo
+                          </span>
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="icon"
+                            className="absolute top-1 right-1 h-6 w-6"
+                            onClick={() => {
+                              setImagePreviews((prev) => prev.filter((_, i) => i !== index))
+                              setImageFiles((prev) => prev.filter((_, i) => i !== index))
+                            }}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
                     </div>
                   )}
 
-                  {/* Upload de arquivo */}
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <Button
                       type="button"
                       variant="outline"
@@ -633,64 +706,92 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
                       className="flex-1"
                     >
                       <Upload className="h-4 w-4 mr-2" />
-                      {imageFile ? 'Trocar Imagem' : 'Fazer Upload'}
+                      Adicionar Fotos
                     </Button>
-                    <Input
-                      id="image-url"
-                      type="url"
-                      placeholder="Ou cole uma URL"
-                      {...register('image')}
-                      className="flex-1"
-                      onChange={(e) => {
-                        if (e.target.value && !imageFile) {
-                          setImagePreview(e.target.value)
-                        }
-                      }}
-                    />
+                    <div className="flex flex-1 gap-2">
+                      <Input
+                        id="image-url"
+                        type="url"
+                        placeholder="Cole uma URL da imagem"
+                        value={imageUrlInput}
+                        onChange={(e) => setImageUrlInput(e.target.value)}
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => {
+                          const url = imageUrlInput.trim()
+                          if (!url) return
+                          if (imagesValue.includes(url)) {
+                            toast({
+                              title: 'Aviso',
+                              description: 'Esta imagem já foi adicionada',
+                            })
+                            return
+                          }
+                          setValue('images', [...imagesValue, url])
+                          setImageUrlInput('')
+                        }}
+                      >
+                        Adicionar
+                      </Button>
+                    </div>
                   </div>
-                  
+
                   <input
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"
+                    multiple
                     className="hidden"
                     onChange={async (e) => {
-                      const file = e.target.files?.[0]
-                      if (!file) return
+                      const files = Array.from(e.target.files || [])
+                      if (files.length === 0) return
 
-                      // Valida tipo
-                      if (!file.type.startsWith('image/')) {
-                        toast({
-                          title: 'Erro',
-                          description: 'Por favor, selecione uma imagem válida',
-                          variant: 'destructive',
-                        })
-                        return
+                      const validFiles: File[] = []
+                      for (const file of files) {
+                        if (!file.type.startsWith('image/')) {
+                          toast({
+                            title: 'Erro',
+                            description: 'Por favor, selecione apenas imagens válidas',
+                            variant: 'destructive',
+                          })
+                          continue
+                        }
+
+                        if (file.size > 5 * 1024 * 1024) {
+                          toast({
+                            title: 'Erro',
+                            description: 'Cada imagem deve ter no máximo 5MB',
+                            variant: 'destructive',
+                          })
+                          continue
+                        }
+
+                        validFiles.push(file)
                       }
 
-                      // Valida tamanho
-                      if (file.size > 5 * 1024 * 1024) {
-                        toast({
-                          title: 'Erro',
-                          description: 'A imagem deve ter no máximo 5MB',
-                          variant: 'destructive',
-                        })
-                        return
-                      }
+                      if (validFiles.length === 0) return
 
-                      setImageFile(file)
-                      
-                      // Preview local
-                      const reader = new FileReader()
-                      reader.onload = (event) => {
-                        setImagePreview(event.target?.result as string)
+                      setImageFiles((prev) => [...prev, ...validFiles])
+
+                      validFiles.forEach((file) => {
+                        const reader = new FileReader()
+                        reader.onload = (event) => {
+                          const preview = event.target?.result as string
+                          setImagePreviews((prev) => [...prev, preview])
+                        }
+                        reader.readAsDataURL(file)
+                      })
+
+                      if (fileInputRef.current) {
+                        fileInputRef.current.value = ''
                       }
-                      reader.readAsDataURL(file)
                     }}
                   />
-                  
+
                   <p className="text-xs text-muted-foreground">
-                    Faça upload de uma imagem ou cole uma URL (opcional)
+                    Adicione várias fotos para o cliente deslizar no cardápio.
                   </p>
                 </div>
               </div>
@@ -807,6 +908,29 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
                         : 'Sem limite'}
                     </span>
                   </div>
+                  <div className="mt-3">
+                    <Label htmlFor="freeAdditions" className="text-sm font-medium mb-2 block">
+                      Quantidade de coberturas grátis (opcional)
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="freeAdditions"
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        {...register('freeAdditions', { valueAsNumber: true })}
+                        className="max-w-[150px]"
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        {watch('freeAdditions') && watch('freeAdditions') > 0
+                          ? `${watch('freeAdditions')} grátis`
+                          : 'Sem grátis'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Ex: 1 = a primeira cobertura é grátis, as demais cobram o valor adicional.
+                    </p>
+                  </div>
                   <p className="text-xs text-muted-foreground mt-1">
                     Deixe em branco para permitir seleção ilimitada. Ex: 1 = apenas 1 cobertura por açaí
                   </p>
@@ -900,6 +1024,29 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
                         : 'Sem limite'}
                     </span>
                   </div>
+                  <div className="mt-3">
+                    <Label htmlFor="freeComplements" className="text-sm font-medium mb-2 block">
+                      Quantidade de complementos grátis (opcional)
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="freeComplements"
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        {...register('freeComplements', { valueAsNumber: true })}
+                        className="max-w-[150px]"
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        {watch('freeComplements') && watch('freeComplements') > 0
+                          ? `${watch('freeComplements')} grátis`
+                          : 'Sem grátis'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Ex: 2 = dois complementos grátis, o terceiro em diante cobra.
+                    </p>
+                  </div>
                   <p className="text-xs text-muted-foreground mt-1">
                     Deixe em branco para permitir seleção ilimitada. Ex: 3 = máximo 3 complementos por açaí
                   </p>
@@ -992,6 +1139,29 @@ export function MenuItemForm({ menuItem, onSuccess, trigger }: MenuItemFormProps
                         ? `Máximo ${watch('maxFruits')} fruta${watch('maxFruits') !== 1 ? 's' : ''} por pedido`
                         : 'Sem limite'}
                     </span>
+                  </div>
+                  <div className="mt-3">
+                    <Label htmlFor="freeFruits" className="text-sm font-medium mb-2 block">
+                      Quantidade de frutas grátis (opcional)
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="freeFruits"
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        {...register('freeFruits', { valueAsNumber: true })}
+                        className="max-w-[150px]"
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        {watch('freeFruits') && watch('freeFruits') > 0
+                          ? `${watch('freeFruits')} grátis`
+                          : 'Sem grátis'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Ex: 1 = uma fruta grátis, as demais cobram o valor adicional.
+                    </p>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
                     Deixe em branco para permitir seleção ilimitada. Ex: 2 = máximo 2 frutas por açaí

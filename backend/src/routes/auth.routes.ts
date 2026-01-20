@@ -77,8 +77,7 @@ router.post('/login', async (req, res, next) => {
     console.log('[Auth] Gerando token JWT...')
     const token = jwt.sign(
       { userId: user.id, tenantId: user.tenant_id },
-      JWT_SECRET,
-      { expiresIn: '7d' }
+      JWT_SECRET
     )
     console.log('[Auth] Token gerado com sucesso')
 
@@ -164,8 +163,7 @@ router.post('/register', async (req, res, next) => {
 
     const token = jwt.sign(
       { userId: user.id, tenantId },
-      JWT_SECRET,
-      { expiresIn: '7d' }
+      JWT_SECRET
     )
 
     res.status(201).json({

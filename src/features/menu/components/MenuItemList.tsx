@@ -73,24 +73,32 @@ export function MenuItemList({ refreshTrigger, onRefresh }: MenuItemListProps) {
         if (response.ok) {
           const data = await response.json()
           if (data.items && Array.isArray(data.items)) {
-            const formattedItems: MenuItem[] = data.items.map((item: any) => ({
-              id: item.id,
-              name: item.name,
-              description: item.description || '',
-              basePrice: parseFloat(item.base_price) || 0,
-              image: item.image || '',
-              category: item.category || '',
-              available: item.available ?? true,
-              maxAdditions: item.max_additions || undefined,
-              maxComplements: item.max_complements || undefined,
-              maxFruits: item.max_fruits || undefined,
-              sizes: item.sizes || [],
-              additions: item.additions || [],
-              complements: item.complements || [],
-              fruits: item.fruits || [],
-              createdAt: new Date(item.created_at),
-              updatedAt: new Date(item.updated_at),
-            }))
+            const formattedItems: MenuItem[] = data.items.map((item: any) => {
+              const images = Array.isArray(item.images) ? item.images.filter(Boolean) : []
+              const primaryImage = item.image || images[0] || ''
+              return ({
+                id: item.id,
+                name: item.name,
+                description: item.description || '',
+                basePrice: parseFloat(item.base_price) || 0,
+                image: primaryImage,
+                images,
+                category: item.category || '',
+                available: item.available ?? true,
+                maxAdditions: item.max_additions || undefined,
+                maxComplements: item.max_complements || undefined,
+                maxFruits: item.max_fruits || undefined,
+                freeAdditions: item.free_additions ?? 0,
+                freeComplements: item.free_complements ?? 0,
+                freeFruits: item.free_fruits ?? 0,
+                sizes: item.sizes || [],
+                additions: item.additions || [],
+                complements: item.complements || [],
+                fruits: item.fruits || [],
+                createdAt: new Date(item.created_at),
+                updatedAt: new Date(item.updated_at),
+              })
+            })
             setMenuItems(formattedItems)
             // Atualiza localStorage como cache
             // Itens salvos no estado, não precisa localStorage
@@ -336,16 +344,16 @@ export function MenuItemList({ refreshTrigger, onRefresh }: MenuItemListProps) {
                 className={`p-4 border rounded-lg ${!item.available ? 'opacity-50' : ''}`}
               >
                 <div className="flex items-start gap-4">
-                  {item.image && (
+                  {(item.images && item.images.length > 0) || item.image ? (
                     <img
-                      src={item.image}
+                      src={(item.images && item.images.length > 0) ? item.images[0] : item.image}
                       alt={item.name}
                       className="w-20 h-20 object-cover rounded"
                       onError={(e) => {
                         e.currentTarget.style.display = 'none'
                       }}
                     />
-                  )}
+                  ) : null}
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="font-semibold">{item.name}</h3>

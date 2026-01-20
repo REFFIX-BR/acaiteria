@@ -46,6 +46,7 @@ interface CartSidebarProps {
   whatsAppNumber?: string
   customMessage?: string
   tenantId?: string
+  tenantSlug?: string
   onCreateOrder?: () => void
   tenantName?: string
 }
@@ -63,6 +64,7 @@ export function CartSidebar({
   whatsAppNumber = '',
   customMessage = 'Olá! Gostaria de fazer um pedido.',
   tenantId,
+  tenantSlug,
   onCreateOrder,
   tenantName = 'Restaurante',
 }: CartSidebarProps) {
@@ -129,14 +131,22 @@ export function CartSidebar({
     return 0
   }, [paymentMethod, needsChange, cashReceived, totalWithFee])
 
+  const calculateExtrasTotal = (items: Array<{ price: number }>, freeCount?: number) => {
+    const freeLimit = Math.max(0, freeCount || 0)
+    return items.reduce((total, current, index) => {
+      if (index < freeLimit) return total
+      return total + current.price
+    }, 0)
+  }
+
   const calculateItemTotal = (item: CartItem) => {
     // Se tem tamanho selecionado, usa o preço do tamanho
     // Se não tem tamanho, usa o preço base
     let itemTotal = item.size ? item.size.price : item.item.basePrice
-    item.additions.forEach((add) => (itemTotal += add.price))
-    item.complements.forEach((comp) => (itemTotal += comp.price))
+    itemTotal += calculateExtrasTotal(item.additions, item.item.freeAdditions)
+    itemTotal += calculateExtrasTotal(item.complements, item.item.freeComplements)
     if (item.fruits) {
-      item.fruits.forEach((fruit) => (itemTotal += fruit.price))
+      itemTotal += calculateExtrasTotal(item.fruits, item.item.freeFruits)
     }
     return itemTotal * item.quantity
   }
@@ -145,10 +155,10 @@ export function CartSidebar({
     // Se tem tamanho selecionado, usa o preço do tamanho
     // Se não tem tamanho, usa o preço base
     let itemTotal = item.size ? item.size.price : item.item.basePrice
-    item.additions.forEach((add) => (itemTotal += add.price))
-    item.complements.forEach((comp) => (itemTotal += comp.price))
+    itemTotal += calculateExtrasTotal(item.additions, item.item.freeAdditions)
+    itemTotal += calculateExtrasTotal(item.complements, item.item.freeComplements)
     if (item.fruits) {
-      item.fruits.forEach((fruit) => (itemTotal += fruit.price))
+      itemTotal += calculateExtrasTotal(item.fruits, item.item.freeFruits)
     }
     return itemTotal
   }
@@ -518,34 +528,43 @@ export function CartSidebar({
       const apiUrl = getApiUrl()
       console.log('[CartSidebar] Criando pedido no backend:', { customerName: name, customerPhone: phone, itemCount: orderItems.length })
       
-      const response = await authenticatedFetch(`${apiUrl}/api/orders`, {
-        method: 'POST',
-        body: JSON.stringify({
-          customerName: name,
-          customerPhone: phone,
-          items: orderItems.map(item => ({
-            menuItemId: item.menuItemId,
-            menuItemName: item.menuItemName,
-            size: item.size,
-            additions: item.additions,
-            complements: item.complements,
-            fruits: item.fruits,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            totalPrice: item.totalPrice,
-          })),
-          subtotal: total,
-          total: total + (deliveryType === 'delivery' ? deliveryFee : 0),
-          paymentMethod: orderPaymentMethod,
-          deliveryType,
-          deliveryAddress: fullAddress,
-          deliveryFee: deliveryType === 'delivery' ? deliveryFee : undefined,
-          notes: paymentMethod === 'cash' && needsChange && cashReceived
-            ? `Pagamento em dinheiro. Valor recebido: ${formatCurrency(parseFloat(cashReceived.replace(',', '.')) || 0)}. Troco: ${formatCurrency(change)}`
-            : undefined,
-          source: getOrderSourceFromUrl(),
-        }),
-      })
+      const orderPayload = {
+        customerName: name,
+        customerPhone: phone,
+        items: orderItems.map(item => ({
+          menuItemId: item.menuItemId,
+          menuItemName: item.menuItemName,
+          size: item.size,
+          additions: item.additions,
+          complements: item.complements,
+          fruits: item.fruits,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          totalPrice: item.totalPrice,
+        })),
+        subtotal: total,
+        total: total + (deliveryType === 'delivery' ? deliveryFee : 0),
+        paymentMethod: orderPaymentMethod,
+        deliveryType,
+        deliveryAddress: fullAddress,
+        deliveryFee: deliveryType === 'delivery' ? deliveryFee : undefined,
+        notes: paymentMethod === 'cash' && needsChange && cashReceived
+          ? `Pagamento em dinheiro. Valor recebido: ${formatCurrency(parseFloat(cashReceived.replace(',', '.')) || 0)}. Troco: ${formatCurrency(change)}`
+          : undefined,
+        source: getOrderSourceFromUrl(),
+      }
+
+      const orderUrl = tenantSlug ? `${apiUrl}/api/orders/public/${tenantSlug}` : `${apiUrl}/api/orders`
+      const response = tenantSlug
+        ? await fetch(orderUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(orderPayload),
+        })
+        : await authenticatedFetch(orderUrl, {
+          method: 'POST',
+          body: JSON.stringify(orderPayload),
+        })
 
       console.log('[CartSidebar] Resposta do backend:', { status: response.status, ok: response.ok })
 
@@ -1055,9 +1074,9 @@ function CartItemCard({ item, primaryColor, unitPrice, onRemove, onUpdateQuantit
     <div className="flex flex-col sm:flex-row gap-6 p-6 bg-white rounded-2xl border border-[#f3ede7] shadow-sm">
       {/* Image */}
       <div className="w-full sm:w-32 h-32 rounded-xl overflow-hidden shrink-0 bg-gray-100">
-        {item.item.image ? (
+        {(item.item.images && item.item.images.length > 0) || item.item.image ? (
           <img
-            src={item.item.image}
+            src={(item.item.images && item.item.images.length > 0) ? item.item.images[0] : item.item.image}
             alt={item.item.name}
             className="w-full h-full object-cover"
           />

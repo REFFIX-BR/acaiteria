@@ -134,6 +134,7 @@ export interface MenuItem {
   description: string
   basePrice: number
   image?: string
+  images?: string[]
   sizes: SizeOption[]
   additions: Addition[]
   complements: Complement[]
@@ -141,6 +142,9 @@ export interface MenuItem {
   maxAdditions?: number // Limite de coberturas (undefined = sem limite)
   maxComplements?: number // Limite de complementos (undefined = sem limite)
   maxFruits?: number // Limite de frutas (undefined = sem limite)
+  freeAdditions?: number // Quantidade grátis de coberturas
+  freeComplements?: number // Quantidade grátis de complementos
+  freeFruits?: number // Quantidade grátis de frutas
   available: boolean
   category: string
   createdAt: Date

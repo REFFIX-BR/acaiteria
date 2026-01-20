@@ -7,9 +7,6 @@ import { getWhatsAppInstanceManager } from '../lib/whatsapp/whatsappInstanceMana
 
 const router = express.Router()
 
-router.use(authenticate)
-router.use(tenantGuard)
-
 const createOrderSchema = z.object({
   customerName: z.string().min(1),
   customerPhone: z.string().min(1),
@@ -34,6 +31,85 @@ const createOrderSchema = z.object({
   notes: z.string().optional(),
   source: z.enum(['digital', 'counter']).default('digital'),
 })
+
+async function createOrderWithTenant(tenantId: string, data: z.infer<typeof createOrderSchema>) {
+  const orderResult = await query(
+    `INSERT INTO orders (tenant_id, customer_name, customer_phone, customer_email, subtotal, total, status, payment_method, delivery_type, delivery_address, delivery_fee, notes, source, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8, $9, $10, $11, $12, NOW(), NOW())
+     RETURNING id`,
+    [
+      tenantId,
+      data.customerName,
+      data.customerPhone,
+      data.customerEmail || null,
+      data.subtotal,
+      data.total,
+      data.paymentMethod || null,
+      data.deliveryType,
+      data.deliveryAddress || null,
+      data.deliveryFee || null,
+      data.notes || null,
+      data.source,
+    ]
+  )
+
+  const orderId = orderResult.rows[0].id
+
+  for (const item of data.items) {
+    await query(
+      `INSERT INTO order_items (order_id, menu_item_id, menu_item_name, size, additions, complements, fruits, quantity, unit_price, total_price)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        orderId,
+        item.menuItemId,
+        item.menuItemName,
+        item.size || null,
+        item.additions,
+        item.complements,
+        item.fruits,
+        item.quantity,
+        item.unitPrice,
+        item.totalPrice,
+      ]
+    )
+  }
+
+  await query(
+    `INSERT INTO customers (tenant_id, name, phone, email, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, NOW(), NOW())
+     ON CONFLICT (tenant_id, phone) DO UPDATE
+     SET name = EXCLUDED.name, email = COALESCE(EXCLUDED.email, customers.email), updated_at = NOW()`,
+    [tenantId, data.customerName, data.customerPhone, data.customerEmail || null]
+  )
+
+  return orderId
+}
+
+// Criar pedido público (QR Code / cardápio digital)
+router.post('/public/:tenantSlug', async (req, res, next) => {
+  try {
+    const data = createOrderSchema.parse(req.body)
+
+    const tenantResult = await query(
+      'SELECT id FROM tenants WHERE slug = $1 AND deleted_at IS NULL',
+      [req.params.tenantSlug]
+    )
+
+    if (tenantResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Tenant not found' })
+    }
+
+    const tenantId = tenantResult.rows[0].id
+    const orderId = await createOrderWithTenant(tenantId, data)
+
+    res.status(201).json({ id: orderId, message: 'Order created successfully' })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.use(authenticate)
+router.use(tenantGuard)
 
 // Listar pedidos
 router.get('/', async (req: AuthRequest, res, next) => {
@@ -93,59 +169,7 @@ router.get('/', async (req: AuthRequest, res, next) => {
 router.post('/', async (req: AuthRequest, res, next) => {
   try {
     const data = createOrderSchema.parse(req.body)
-
-    // Criar pedido
-    const orderResult = await query(
-      `INSERT INTO orders (tenant_id, customer_name, customer_phone, customer_email, subtotal, total, status, payment_method, delivery_type, delivery_address, delivery_fee, notes, source, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8, $9, $10, $11, $12, NOW(), NOW())
-       RETURNING id`,
-      [
-        req.user!.tenantId,
-        data.customerName,
-        data.customerPhone,
-        data.customerEmail || null,
-        data.subtotal,
-        data.total,
-        data.paymentMethod || null,
-        data.deliveryType,
-        data.deliveryAddress || null,
-        data.deliveryFee || null,
-        data.notes || null,
-        data.source,
-      ]
-    )
-
-    const orderId = orderResult.rows[0].id
-
-    // Criar itens do pedido
-    for (const item of data.items) {
-      await query(
-        `INSERT INTO order_items (order_id, menu_item_id, menu_item_name, size, additions, complements, fruits, quantity, unit_price, total_price)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-        [
-          orderId,
-          item.menuItemId,
-          item.menuItemName,
-          item.size || null,
-          item.additions,
-          item.complements,
-          item.fruits,
-          item.quantity,
-          item.unitPrice,
-          item.totalPrice,
-        ]
-      )
-    }
-
-    // Criar ou atualizar cliente
-    await query(
-      `INSERT INTO customers (tenant_id, name, phone, email, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, NOW(), NOW())
-       ON CONFLICT (tenant_id, phone) DO UPDATE
-       SET name = EXCLUDED.name, email = COALESCE(EXCLUDED.email, customers.email), updated_at = NOW()`,
-      [req.user!.tenantId, data.customerName, data.customerPhone, data.customerEmail || null]
-    )
-
+    const orderId = await createOrderWithTenant(req.user!.tenantId, data)
     res.status(201).json({ id: orderId, message: 'Order created successfully' })
   } catch (error) {
     next(error)

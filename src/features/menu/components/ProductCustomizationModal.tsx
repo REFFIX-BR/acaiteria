@@ -43,6 +43,11 @@ export function ProductCustomizationModal({
   const [selectedFruits, setSelectedFruits] = useState<Fruit[]>([])
   const [quantity, setQuantity] = useState(1)
   const [observations, setObservations] = useState('')
+  const images = item.images && item.images.length > 0
+    ? item.images
+    : item.image
+      ? [item.image]
+      : []
 
   // Reset state when item changes
   useEffect(() => {
@@ -56,13 +61,21 @@ export function ProductCustomizationModal({
     }
   }, [item.id, open])
 
+  const calculateExtrasTotal = (items: Array<{ price: number }>, freeCount?: number) => {
+    const freeLimit = Math.max(0, freeCount || 0)
+    return items.reduce((total, current, index) => {
+      if (index < freeLimit) return total
+      return total + current.price
+    }, 0)
+  }
+
   const calculateTotal = () => {
     // Se tem tamanhos e um tamanho foi selecionado, usa o preço do tamanho
     // Se não tem tamanhos, usa o preço base
     let total = selectedSize ? selectedSize.price : item.basePrice
-    selectedAdditions.forEach((add) => (total += add.price))
-    selectedComplements.forEach((comp) => (total += comp.price))
-    selectedFruits.forEach((fruit) => (total += fruit.price))
+    total += calculateExtrasTotal(selectedAdditions, item.freeAdditions)
+    total += calculateExtrasTotal(selectedComplements, item.freeComplements)
+    total += calculateExtrasTotal(selectedFruits, item.freeFruits)
     return total * quantity
   }
 
@@ -70,9 +83,9 @@ export function ProductCustomizationModal({
     // Se tem tamanhos e um tamanho foi selecionado, usa o preço do tamanho
     // Se não tem tamanhos, usa o preço base
     let total = selectedSize ? selectedSize.price : item.basePrice
-    selectedAdditions.forEach((add) => (total += add.price))
-    selectedComplements.forEach((comp) => (total += comp.price))
-    selectedFruits.forEach((fruit) => (total += fruit.price))
+    total += calculateExtrasTotal(selectedAdditions, item.freeAdditions)
+    total += calculateExtrasTotal(selectedComplements, item.freeComplements)
+    total += calculateExtrasTotal(selectedFruits, item.freeFruits)
     return total
   }
 
@@ -168,12 +181,20 @@ export function ProductCustomizationModal({
       <div className="flex flex-col lg:flex-row h-[calc(100vh-73px)]">
         {/* Left Side - Image */}
         <div className="lg:w-1/2 relative h-[50vh] lg:h-full overflow-hidden">
-          {item.image ? (
+          {images.length > 0 ? (
             <>
-              <div
-                className="absolute inset-0 bg-center bg-cover"
-                style={{ backgroundImage: `url(${item.image})` }}
-              />
+              <div className="absolute inset-0">
+                <div className="flex h-full w-full overflow-x-auto snap-x snap-mandatory scroll-smooth">
+                  {images.map((imageUrl, index) => (
+                    <div key={`${imageUrl}-${index}`} className="min-w-full h-full snap-center">
+                      <div
+                        className="h-full w-full bg-center bg-cover"
+                        style={{ backgroundImage: `url(${imageUrl})` }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
               <div className="absolute inset-0 bg-gradient-to-t from-[#1b140d]/60 via-transparent to-transparent" />
             </>
           ) : (
@@ -313,6 +334,11 @@ export function ProductCustomizationModal({
                       Coberturas
                     </h3>
                     <div className="flex items-center gap-2">
+                      {item.freeAdditions && item.freeAdditions > 0 && (
+                        <span className="text-[10px] text-green-700 uppercase font-bold bg-green-100 px-2 py-0.5 rounded">
+                          {item.freeAdditions} grátis
+                        </span>
+                      )}
                       {item.maxAdditions && (
                         <span className="text-[10px] text-[#9a734c] uppercase font-bold bg-[#9a734c]/10 px-2 py-0.5 rounded">
                           Máx. {item.maxAdditions}
@@ -388,6 +414,11 @@ export function ProductCustomizationModal({
                       Complementos
                     </h3>
                     <div className="flex items-center gap-2">
+                      {item.freeComplements && item.freeComplements > 0 && (
+                        <span className="text-[10px] text-green-700 uppercase font-bold bg-green-100 px-2 py-0.5 rounded">
+                          {item.freeComplements} grátis
+                        </span>
+                      )}
                       {item.maxComplements && (
                         <span className="text-[10px] text-[#9a734c] uppercase font-bold bg-[#9a734c]/10 px-2 py-0.5 rounded">
                           Máx. {item.maxComplements}
@@ -463,6 +494,11 @@ export function ProductCustomizationModal({
                       Frutas
                     </h3>
                     <div className="flex items-center gap-2">
+                      {item.freeFruits && item.freeFruits > 0 && (
+                        <span className="text-[10px] text-green-700 uppercase font-bold bg-green-100 px-2 py-0.5 rounded">
+                          {item.freeFruits} grátis
+                        </span>
+                      )}
                       {item.maxFruits && (
                         <span className="text-[10px] text-[#9a734c] uppercase font-bold bg-[#9a734c]/10 px-2 py-0.5 rounded">
                           Máx. {item.maxFruits}

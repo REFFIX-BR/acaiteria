@@ -123,24 +123,32 @@ export default function MenuPublicPage() {
           const menuData = await menuResponse.json()
           if (menuData.items && Array.isArray(menuData.items)) {
             // Converte os dados do backend para o formato esperado
-                const formattedItems: MenuItem[] = menuData.items.map((item: any) => ({
+            const formattedItems: MenuItem[] = menuData.items.map((item: any) => {
+              const images = Array.isArray(item.images) ? item.images.filter(Boolean) : []
+              const primaryImage = item.image || images[0] || ''
+              return ({
                   id: item.id,
                   name: item.name,
               description: item.description || '',
               basePrice: parseFloat(item.base_price) || 0,
-              image: item.image || '',
+              image: primaryImage,
+              images,
               category: item.category || '',
               available: item.available ?? true,
               maxAdditions: item.max_additions || undefined,
               maxComplements: item.max_complements || undefined,
               maxFruits: item.max_fruits || undefined,
+                freeAdditions: item.free_additions ?? 0,
+                freeComplements: item.free_complements ?? 0,
+                freeFruits: item.free_fruits ?? 0,
               sizes: item.sizes || [],
               additions: item.additions || [],
               complements: item.complements || [],
               fruits: item.fruits || [],
               createdAt: new Date(item.created_at),
               updatedAt: new Date(item.updated_at),
-            }))
+            })
+            })
             setMenuItems(formattedItems)
           } else {
             setMenuItems([])
@@ -241,11 +249,19 @@ export default function MenuPublicPage() {
     return filtered
   }, [availableItems, searchTerm, selectedCategory])
 
+  const calculateExtrasTotal = (items: Array<{ price: number }>, freeCount?: number) => {
+    const freeLimit = Math.max(0, freeCount || 0)
+    return items.reduce((sum, current, index) => {
+      if (index < freeLimit) return sum
+      return sum + current.price
+    }, 0)
+  }
+
   const calculateItemPrice = (item: MenuItem, size?: SizeOption, additions: Addition[] = [], complements: Complement[] = [], fruits: Fruit[] = []) => {
     let total = size ? size.price : item.basePrice
-    additions.forEach((add) => (total += add.price))
-    complements.forEach((comp) => (total += comp.price))
-    fruits.forEach((fruit) => (total += fruit.price))
+    total += calculateExtrasTotal(additions, item.freeAdditions)
+    total += calculateExtrasTotal(complements, item.freeComplements)
+    total += calculateExtrasTotal(fruits, item.freeFruits)
     return total
   }
 
@@ -650,6 +666,7 @@ export default function MenuPublicPage() {
         whatsAppNumber={menuSettings?.whatsAppNumber}
         customMessage={menuSettings?.customMessage}
         tenantId={tenant?.id}
+        tenantSlug={tenantSlug}
         tenantName={tenant?.name}
         onCreateOrder={() => {
           setSelectedItems(new Map())
@@ -670,6 +687,11 @@ interface ProductCardProps {
 
 function ProductCard({ item, primaryColor, menuSettings, onCustomize, onAddToCart }: ProductCardProps) {
   const [imageError, setImageError] = useState(false)
+  const images = item.images && item.images.length > 0
+    ? item.images
+    : item.image
+      ? [item.image]
+      : []
 
   const hasOptions = item.sizes.length > 0 || item.additions.length > 0 || item.complements.length > 0 || (item.fruits && item.fruits.length > 0)
   const minPrice = item.sizes.length > 0 
@@ -680,15 +702,21 @@ function ProductCard({ item, primaryColor, menuSettings, onCustomize, onAddToCar
     <div className="group bg-white rounded-2xl overflow-hidden border border-gray-200 hover:border-gray-300 hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col">
       {/* Imagem do Produto */}
       <div className="relative h-56 w-full overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200">
-        {item.image && !imageError ? (
-          <>
-            <div
-              className="absolute inset-0 bg-center bg-cover transform group-hover:scale-110 transition-transform duration-700 ease-out"
-              style={{ backgroundImage: `url(${item.image})` }}
-              onError={() => setImageError(true)}
-            />
+        {images.length > 0 && !imageError ? (
+          <div className="absolute inset-0">
+            <div className="flex h-full w-full overflow-x-auto snap-x snap-mandatory scroll-smooth">
+              {images.map((imageUrl, index) => (
+                <div key={`${imageUrl}-${index}`} className="min-w-full h-full snap-center">
+                  <div
+                    className="h-full w-full bg-center bg-cover transform group-hover:scale-110 transition-transform duration-700 ease-out"
+                    style={{ backgroundImage: `url(${imageUrl})` }}
+                    onError={() => setImageError(true)}
+                  />
+                </div>
+              ))}
+            </div>
             <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-          </>
+          </div>
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
             <ChefHat className="h-20 w-20 text-gray-300" />

@@ -172,11 +172,15 @@ CREATE TABLE menu_items (
     description TEXT,
     base_price DECIMAL(10, 2) NOT NULL,
     image TEXT,
+    images TEXT[],
     category VARCHAR(100) NOT NULL,
     available BOOLEAN NOT NULL DEFAULT true,
     max_additions INTEGER, -- Limite de coberturas (NULL = sem limite)
     max_complements INTEGER, -- Limite de complementos (NULL = sem limite)
     max_fruits INTEGER, -- Limite de frutas (NULL = sem limite)
+    free_additions INTEGER NOT NULL DEFAULT 0,
+    free_complements INTEGER NOT NULL DEFAULT 0,
+    free_fruits INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMP WITH TIME ZONE
