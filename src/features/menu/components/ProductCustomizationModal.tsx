@@ -43,6 +43,8 @@ export function ProductCustomizationModal({
   const [selectedFruits, setSelectedFruits] = useState<Fruit[]>([])
   const [quantity, setQuantity] = useState(1)
   const [observations, setObservations] = useState('')
+  const carouselRef = useRef<HTMLDivElement>(null)
+  const [currentIndex, setCurrentIndex] = useState(0)
   const images = item.images && item.images.length > 0
     ? item.images
     : item.image
@@ -58,8 +60,25 @@ export function ProductCustomizationModal({
       setSelectedFruits([])
       setQuantity(1)
       setObservations('')
+      setCurrentIndex(0)
     }
   }, [item.id, open])
+
+  useEffect(() => {
+    if (!open || images.length <= 1) return
+
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % images.length)
+    }, 3000)
+
+    return () => clearInterval(interval)
+  }, [open, images.length])
+
+  useEffect(() => {
+    if (!carouselRef.current || images.length <= 1) return
+    const width = carouselRef.current.clientWidth
+    carouselRef.current.scrollTo({ left: width * currentIndex, behavior: 'smooth' })
+  }, [currentIndex, images.length])
 
   const calculateExtrasTotal = (items: Array<{ price: number }>, freeCount?: number) => {
     const freeLimit = Math.max(0, freeCount || 0)
@@ -184,7 +203,7 @@ export function ProductCustomizationModal({
           {images.length > 0 ? (
             <>
               <div className="absolute inset-0">
-                <div className="flex h-full w-full overflow-x-auto snap-x snap-mandatory scroll-smooth">
+                <div ref={carouselRef} className="flex h-full w-full overflow-x-auto snap-x snap-mandatory scroll-smooth">
                   {images.map((imageUrl, index) => (
                     <div key={`${imageUrl}-${index}`} className="min-w-full h-full snap-center">
                       <div

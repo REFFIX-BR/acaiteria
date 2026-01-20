@@ -687,6 +687,8 @@ interface ProductCardProps {
 
 function ProductCard({ item, primaryColor, menuSettings, onCustomize, onAddToCart }: ProductCardProps) {
   const [imageError, setImageError] = useState(false)
+  const carouselRef = useRef<HTMLDivElement>(null)
+  const [currentIndex, setCurrentIndex] = useState(0)
   const images = item.images && item.images.length > 0
     ? item.images
     : item.image
@@ -698,13 +700,29 @@ function ProductCard({ item, primaryColor, menuSettings, onCustomize, onAddToCar
     ? Math.min(...item.sizes.map(s => s.price))
     : item.basePrice
 
+  useEffect(() => {
+    if (images.length <= 1) return
+
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % images.length)
+    }, 3000)
+
+    return () => clearInterval(interval)
+  }, [images.length])
+
+  useEffect(() => {
+    if (!carouselRef.current || images.length <= 1) return
+    const width = carouselRef.current.clientWidth
+    carouselRef.current.scrollTo({ left: width * currentIndex, behavior: 'smooth' })
+  }, [currentIndex, images.length])
+
   return (
     <div className="group bg-white rounded-2xl overflow-hidden border border-gray-200 hover:border-gray-300 hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col">
       {/* Imagem do Produto */}
       <div className="relative h-56 w-full overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200">
         {images.length > 0 && !imageError ? (
           <div className="absolute inset-0">
-            <div className="flex h-full w-full overflow-x-auto snap-x snap-mandatory scroll-smooth">
+            <div ref={carouselRef} className="flex h-full w-full overflow-x-auto snap-x snap-mandatory scroll-smooth">
               {images.map((imageUrl, index) => (
                 <div key={`${imageUrl}-${index}`} className="min-w-full h-full snap-center">
                   <div
