@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { KPICards } from './components/KPICards'
 import { SalesChart } from './components/SalesChart'
 import { TopProducts } from './components/TopProducts'
-import { StockAlerts } from './components/StockAlerts'
 import { FinancialSummary } from './components/FinancialSummary'
 import { DashboardFilter, type PeriodFilter } from './components/DashboardFilter'
 import { Sparkles, TrendingUp } from 'lucide-react'
@@ -60,10 +59,9 @@ export default function DashboardPage() {
         <FinancialSummary period={period} startDate={startDate} endDate={endDate} />
       </div>
 
-      {/* Products and Alerts Row */}
+      {/* Products Row */}
       <div className="grid gap-6 md:grid-cols-2">
         <TopProducts />
-        <StockAlerts />
       </div>
     </div>
   )

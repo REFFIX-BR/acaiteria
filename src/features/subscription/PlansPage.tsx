@@ -25,7 +25,6 @@ const plans = [
       'Gestão de pedidos em tempo real',
       'Dashboard com métricas e analytics',
       'Relatórios de vendas detalhados',
-      'Controle de estoque completo',
       'Fluxo de caixa integrado',
       'Cardápio público personalizado',
       'QR Code para pedidos no balcão',

@@ -15,7 +15,6 @@ import OnboardingPage from '@/features/auth/OnboardingPage'
 // Dashboard
 import DashboardPage from '@/features/dashboard/DashboardPage'
 import CashflowPage from '@/features/cashflow/CashflowPage'
-import InventoryPage from '@/features/inventory/InventoryPage'
 import MenuEditorPage from '@/features/menu/MenuEditorPage'
 import MenuPublicPage from '@/features/menu/MenuPublicPage'
 import MenuSettingsPage from '@/features/menu/MenuSettingsPage'
@@ -100,18 +99,6 @@ function App() {
                 <MainLayout>
                   <SubscriptionGuard>
                     <CashflowPage />
-                  </SubscriptionGuard>
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/inventory"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <SubscriptionGuard>
-                    <InventoryPage />
                   </SubscriptionGuard>
                 </MainLayout>
               </ProtectedRoute>

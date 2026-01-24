@@ -3,7 +3,6 @@ import { useTenantStore } from '@/stores/tenantStore'
 import {
   LayoutDashboard,
   TrendingUp,
-  Package,
   Utensils,
   Megaphone,
   MessageCircle,
@@ -44,7 +43,6 @@ const navigation = [
   { name: 'Pedidos', href: '/orders', icon: ShoppingBag, color: 'from-purple-500 to-purple-600' },
   { name: 'Cardápio Balcão', href: '/counter-menu', icon: Store, color: 'from-indigo-500 to-indigo-600' },
   { name: 'Fluxo de Caixa', href: '/cashflow', icon: TrendingUp, color: 'from-green-500 to-green-600' },
-  { name: 'Estoque', href: '/inventory', icon: Package, color: 'from-orange-500 to-orange-600' },
   { name: 'Cardápio', href: '/menu', icon: Utensils, color: 'from-indigo-500 to-indigo-600' },
   { name: 'Config. Cardápio', href: '/menu-settings', icon: Eye, color: 'from-purple-500 to-purple-600' },
   { name: 'Marketing', href: '/marketing', icon: Megaphone, color: 'from-red-500 to-red-600' },
