@@ -103,6 +103,7 @@ export function useOrderNotifications() {
             icon: '/favicon.ico',
             tag: 'new-order',
             requireInteraction: false,
+            silent: true,
           })
         }
         
