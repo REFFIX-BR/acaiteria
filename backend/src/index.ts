@@ -155,8 +155,9 @@ setInterval(async () => {
        RETURNING id`
     )
 
-    if (result.rowCount > 0) {
-      console.log(`[AutoCancel] ${result.rowCount} pedido(s) cancelado(s) por timeout`)
+    const cancelledCount = result.rowCount ?? 0
+    if (cancelledCount > 0) {
+      console.log(`[AutoCancel] ${cancelledCount} pedido(s) cancelado(s) por timeout`)
     }
   } catch (error) {
     console.error('[AutoCancel] Erro ao cancelar pedidos pendentes:', error)
