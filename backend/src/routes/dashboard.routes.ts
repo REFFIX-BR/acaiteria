@@ -202,14 +202,13 @@ router.get('/top-products', async (req: AuthRequest, res, next) => {
     const result = await query(
       `SELECT 
         oi.menu_item_id,
-        COALESCE(mi.name, oi.menu_item_name) as menu_item_name,
+        oi.menu_item_name,
         SUM(oi.quantity) as total_quantity,
         SUM(oi.total_price) as total_revenue
        FROM order_items oi
        JOIN orders o ON oi.order_id = o.id
-       LEFT JOIN menu_items mi ON oi.menu_item_id = mi.id
        WHERE o.tenant_id = $1 AND o.status = 'delivered' AND o.deleted_at IS NULL
-       GROUP BY oi.menu_item_id, COALESCE(mi.name, oi.menu_item_name)
+       GROUP BY oi.menu_item_id, oi.menu_item_name
        ORDER BY total_revenue DESC
        LIMIT 5`,
       [req.user!.tenantId]

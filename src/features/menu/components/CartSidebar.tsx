@@ -529,29 +529,29 @@ export function CartSidebar({
       console.log('[CartSidebar] Criando pedido no backend:', { customerName: name, customerPhone: phone, itemCount: orderItems.length })
       
       const orderPayload = {
-        customerName: name,
-        customerPhone: phone,
-        items: orderItems.map(item => ({
-          menuItemId: item.menuItemId,
-          menuItemName: item.menuItemName,
-          size: item.size,
-          additions: item.additions,
-          complements: item.complements,
-          fruits: item.fruits,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          totalPrice: item.totalPrice,
-        })),
-        subtotal: total,
-        total: total + (deliveryType === 'delivery' ? deliveryFee : 0),
-        paymentMethod: orderPaymentMethod,
-        deliveryType,
-        deliveryAddress: fullAddress,
-        deliveryFee: deliveryType === 'delivery' ? deliveryFee : undefined,
-        notes: paymentMethod === 'cash' && needsChange && cashReceived
-          ? `Pagamento em dinheiro. Valor recebido: ${formatCurrency(parseFloat(cashReceived.replace(',', '.')) || 0)}. Troco: ${formatCurrency(change)}`
-          : undefined,
-        source: getOrderSourceFromUrl(),
+          customerName: name,
+          customerPhone: phone,
+          items: orderItems.map(item => ({
+            menuItemId: item.menuItemId,
+            menuItemName: item.menuItemName,
+            size: item.size,
+            additions: item.additions,
+            complements: item.complements,
+            fruits: item.fruits,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            totalPrice: item.totalPrice,
+          })),
+          subtotal: total,
+          total: total + (deliveryType === 'delivery' ? deliveryFee : 0),
+          paymentMethod: orderPaymentMethod,
+          deliveryType,
+          deliveryAddress: fullAddress,
+          deliveryFee: deliveryType === 'delivery' ? deliveryFee : undefined,
+          notes: paymentMethod === 'cash' && needsChange && cashReceived
+            ? `Pagamento em dinheiro. Valor recebido: ${formatCurrency(parseFloat(cashReceived.replace(',', '.')) || 0)}. Troco: ${formatCurrency(change)}`
+            : undefined,
+          source: getOrderSourceFromUrl(),
       }
 
       const orderUrl = tenantSlug ? `${apiUrl}/api/orders/public/${tenantSlug}` : `${apiUrl}/api/orders`
@@ -564,7 +564,7 @@ export function CartSidebar({
         : await authenticatedFetch(orderUrl, {
           method: 'POST',
           body: JSON.stringify(orderPayload),
-        })
+      })
 
       console.log('[CartSidebar] Resposta do backend:', { status: response.status, ok: response.ok })
 
