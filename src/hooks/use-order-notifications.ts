@@ -14,6 +14,10 @@ export function useOrderNotifications() {
   const { toast } = useToast()
   const [lastPendingCount, setLastPendingCount] = useState(0)
   const isInitialized = useRef(false)
+  const ringIntervalRef = useRef<number | null>(null)
+  const ringTimeoutRef = useRef<number | null>(null)
+  const isRingingRef = useRef(false)
+  const ringAudioRef = useRef<HTMLAudioElement | null>(null)
 
   // Função para tocar som de notificação
   const playNotificationSound = useCallback(() => {
@@ -58,6 +62,45 @@ export function useOrderNotifications() {
     }
   }, [])
 
+  const stopRingtone = useCallback(() => {
+    if (ringIntervalRef.current) {
+      clearInterval(ringIntervalRef.current)
+      ringIntervalRef.current = null
+    }
+    if (ringTimeoutRef.current) {
+      clearTimeout(ringTimeoutRef.current)
+      ringTimeoutRef.current = null
+    }
+    if (ringAudioRef.current) {
+      ringAudioRef.current.pause()
+      ringAudioRef.current.currentTime = 0
+    }
+    isRingingRef.current = false
+  }, [])
+
+  const startRingtone = useCallback(() => {
+    if (isRingingRef.current) return
+    isRingingRef.current = true
+
+    if (ringAudioRef.current) {
+      ringAudioRef.current.play().catch(() => {
+        playNotificationSound()
+        ringIntervalRef.current = window.setInterval(() => {
+          playNotificationSound()
+        }, 2000)
+      })
+    } else {
+      playNotificationSound()
+      ringIntervalRef.current = window.setInterval(() => {
+        playNotificationSound()
+      }, 2000)
+    }
+
+    ringTimeoutRef.current = window.setTimeout(() => {
+      stopRingtone()
+    }, 10 * 60 * 1000)
+  }, [playNotificationSound, stopRingtone])
+
   // Busca pedidos pendentes do backend
   const fetchPendingOrders = useCallback(async (): Promise<number> => {
     if (!currentTenant) return 0
@@ -100,8 +143,8 @@ export function useOrderNotifications() {
       if (pendingCount > lastPendingCount && lastPendingCount >= 0) {
         const newOrdersCount = pendingCount - lastPendingCount
         
-        // Toca som de notificação
-        playNotificationSound()
+        // Inicia toque contínuo por até 10 minutos
+        startRingtone()
         
         // Mostra notificação do navegador se permitido
         if ('Notification' in window && Notification.permission === 'granted') {
@@ -123,15 +166,49 @@ export function useOrderNotifications() {
       if (pendingCount !== lastPendingCount) {
         setLastPendingCount(pendingCount)
       }
+
+      // Se não há mais pedidos pendentes, parar o toque
+      if (pendingCount === 0) {
+        stopRingtone()
+      }
     }, 2000)
 
     return () => clearInterval(interval)
-  }, [currentTenant, lastPendingCount, toast, fetchPendingOrders, playNotificationSound])
+  }, [currentTenant, lastPendingCount, toast, fetchPendingOrders, playNotificationSound, startRingtone, stopRingtone])
 
   // Solicita permissão de notificação quando o hook é montado
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission()
+    }
+  }, [])
+
+  // Prepara áudio real do toque
+  useEffect(() => {
+    const audio = new Audio('/sounds/order-ring.mp3')
+    audio.loop = true
+    audio.preload = 'auto'
+    audio.volume = 0.7
+    ringAudioRef.current = audio
+
+    return () => {
+      audio.pause()
+      ringAudioRef.current = null
+    }
+  }, [])
+
+  // Limpeza ao desmontar
+  useEffect(() => {
+    return () => {
+      if (ringIntervalRef.current) {
+        clearInterval(ringIntervalRef.current)
+        ringIntervalRef.current = null
+      }
+      if (ringTimeoutRef.current) {
+        clearTimeout(ringTimeoutRef.current)
+        ringTimeoutRef.current = null
+      }
+      isRingingRef.current = false
     }
   }, [])
 }

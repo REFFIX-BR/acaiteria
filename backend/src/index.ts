@@ -19,6 +19,7 @@ import paghiperRoutes from './routes/paghiper.routes.js'
 import whatsappRoutes from './routes/whatsapp.routes.js'
 import { uploadRoutes } from './routes/upload.routes.js'
 import { deliveryFeeRoutes } from './routes/delivery-fee.routes.js'
+import { query } from './db/connection.js'
 
 dotenv.config()
 
@@ -138,6 +139,29 @@ app.use('/api/upload', uploadRoutes)
 // Rotas de Taxa de Entrega
 console.log('📋 Registrando rota /api/delivery-fees')
 app.use('/api/delivery-fees', deliveryFeeRoutes)
+
+// Auto-cancelar pedidos pendentes após 10 minutos
+const AUTO_CANCEL_INTERVAL_MS = 60 * 1000
+const AUTO_CANCEL_AFTER_MINUTES = 10
+
+setInterval(async () => {
+  try {
+    const result = await query(
+      `UPDATE orders
+       SET status = 'cancelled', updated_at = NOW()
+       WHERE status = 'pending'
+         AND deleted_at IS NULL
+         AND created_at < NOW() - INTERVAL '${AUTO_CANCEL_AFTER_MINUTES} minutes'
+       RETURNING id`
+    )
+
+    if (result.rowCount > 0) {
+      console.log(`[AutoCancel] ${result.rowCount} pedido(s) cancelado(s) por timeout`)
+    }
+  } catch (error) {
+    console.error('[AutoCancel] Erro ao cancelar pedidos pendentes:', error)
+  }
+}, AUTO_CANCEL_INTERVAL_MS)
 
 // Debug: Log de todas as rotas registradas
 console.log('📋 Rotas registradas:')
