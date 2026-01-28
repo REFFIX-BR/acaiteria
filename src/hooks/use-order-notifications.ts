@@ -18,6 +18,9 @@ export function useOrderNotifications() {
   const ringTimeoutRef = useRef<number | null>(null)
   const isRingingRef = useRef(false)
   const ringAudioRef = useRef<HTMLAudioElement | null>(null)
+  const audioUnlockedRef = useRef(false)
+  const pendingRingRef = useRef(false)
+  const broadcastRef = useRef<BroadcastChannel | null>(null)
 
   // Função para tocar som de notificação
   const playNotificationSound = useCallback(() => {
@@ -82,13 +85,12 @@ export function useOrderNotifications() {
     if (isRingingRef.current) return
     isRingingRef.current = true
 
-    if (ringAudioRef.current) {
+    if (ringAudioRef.current && audioUnlockedRef.current) {
       ringAudioRef.current.play().catch(() => {
-        playNotificationSound()
-        ringIntervalRef.current = window.setInterval(() => {
-          playNotificationSound()
-        }, 2000)
+        pendingRingRef.current = true
       })
+    } else if (ringAudioRef.current) {
+      pendingRingRef.current = true
     } else {
       playNotificationSound()
       ringIntervalRef.current = window.setInterval(() => {
@@ -145,6 +147,7 @@ export function useOrderNotifications() {
         
         // Inicia toque contínuo por até 10 minutos
         startRingtone()
+        broadcastRef.current?.postMessage({ type: 'NEW_ORDER' })
         
         // Mostra notificação do navegador se permitido
         if ('Notification' in window && Notification.permission === 'granted') {
@@ -196,6 +199,49 @@ export function useOrderNotifications() {
       ringAudioRef.current = null
     }
   }, [])
+
+  // Desbloqueia áudio com interação do usuário (requisito do navegador)
+  useEffect(() => {
+    const unlock = () => {
+      if (!ringAudioRef.current || audioUnlockedRef.current) return
+      ringAudioRef.current.play().then(() => {
+        ringAudioRef.current?.pause()
+        ringAudioRef.current && (ringAudioRef.current.currentTime = 0)
+        audioUnlockedRef.current = true
+        if (pendingRingRef.current) {
+          pendingRingRef.current = false
+          startRingtone()
+        }
+      }).catch(() => {
+        // precisa de interação do usuário para liberar áudio
+      })
+    }
+
+    window.addEventListener('click', unlock)
+    window.addEventListener('keydown', unlock)
+    window.addEventListener('touchstart', unlock)
+
+    return () => {
+      window.removeEventListener('click', unlock)
+      window.removeEventListener('keydown', unlock)
+      window.removeEventListener('touchstart', unlock)
+    }
+  }, [startRingtone])
+
+  // Sincroniza toque entre abas
+  useEffect(() => {
+    const channel = new BroadcastChannel('order-notifications')
+    broadcastRef.current = channel
+    channel.onmessage = (event) => {
+      if (event.data?.type === 'NEW_ORDER') {
+        startRingtone()
+      }
+    }
+    return () => {
+      channel.close()
+      broadcastRef.current = null
+    }
+  }, [startRingtone])
 
   // Limpeza ao desmontar
   useEffect(() => {
