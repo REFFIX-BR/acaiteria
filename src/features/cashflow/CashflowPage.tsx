@@ -4,6 +4,7 @@ import { TransactionList } from './components/TransactionList'
 import { CashflowChart } from './components/CashflowChart'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useTenantStore } from '@/stores/tenantStore'
+import { parseLocalDate } from '@/lib/utils'
 import type { Transaction } from '@/types'
 import { DollarSign, TrendingUp, TrendingDown } from 'lucide-react'
 
@@ -48,7 +49,7 @@ export default function CashflowPage() {
           const data = await response.json()
           const normalizedTransactions = (data.transactions || []).map((t: any) => ({
             ...t,
-            date: t.date ? new Date(t.date) : new Date(),
+            date: t.date ? parseLocalDate(t.date) : new Date(),
             createdAt: t.created_at ? new Date(t.created_at) : (t.createdAt ? new Date(t.createdAt) : new Date()),
           }))
           setTransactions(normalizedTransactions)

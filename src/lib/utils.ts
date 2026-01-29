@@ -7,6 +7,17 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * Converte uma string de data "YYYY-MM-DD" (apenas dia) em Date no fuso local.
+ * Evita que "2026-01-29" seja interpretado como meia-noite UTC (que no Brasil vira 28/01).
+ */
+export function parseLocalDate(dateOnly: string): Date {
+  if (!dateOnly) return new Date()
+  const s = typeof dateOnly === 'string' ? dateOnly.trim() : String(dateOnly)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s + 'T12:00:00')
+  return new Date(s)
+}
+
+/**
  * Converte nome do dia em português para índice do dia da semana (0 = Domingo, 1 = Segunda, ...)
  */
 function getDayOfWeekIndex(dayName: string): number {

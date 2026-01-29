@@ -21,6 +21,7 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { Trash2, ArrowUpCircle, ArrowDownCircle } from 'lucide-react'
 import { format } from 'date-fns'
+import { parseLocalDate } from '@/lib/utils'
 import type { Transaction } from '@/types'
 import { transactionCategories } from '../types'
 import { useConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -92,7 +93,7 @@ export function TransactionList({ refreshTrigger, onDelete }: TransactionListPro
           const data = await response.json()
           const normalizedTransactions = (data.transactions || []).map((t: any) => ({
             ...t,
-            date: t.date ? new Date(t.date) : new Date(),
+            date: t.date ? parseLocalDate(t.date) : new Date(),
             createdAt: t.created_at ? new Date(t.created_at) : (t.createdAt ? new Date(t.createdAt) : new Date()),
           }))
           

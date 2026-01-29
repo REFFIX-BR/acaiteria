@@ -12,6 +12,7 @@ import {
 import { useTenantStore } from '@/stores/tenantStore'
 import { useMemo, useEffect, useState } from 'react'
 import { format, subDays, startOfDay, endOfDay } from 'date-fns'
+import { parseLocalDate } from '@/lib/utils'
 import type { Transaction } from '@/types'
 
 function formatCurrency(value: number) {
@@ -58,7 +59,7 @@ export function CashflowChart({ refreshTrigger }: CashflowChartProps) {
           const data = await response.json()
           const normalizedTransactions = (data.transactions || []).map((t: any) => ({
             ...t,
-            date: t.date ? new Date(t.date) : new Date(),
+            date: t.date ? parseLocalDate(t.date) : new Date(),
             createdAt: t.created_at ? new Date(t.created_at) : (t.createdAt ? new Date(t.createdAt) : new Date()),
           }))
           setTransactions(normalizedTransactions)
@@ -89,8 +90,8 @@ export function CashflowChart({ refreshTrigger }: CashflowChartProps) {
         .filter(
           (t) =>
             t.type === 'income' &&
-            new Date(t.date) >= dayStart &&
-            new Date(t.date) <= dayEnd
+            t.date >= dayStart &&
+            t.date <= dayEnd
         )
         .reduce((sum, t) => sum + Number(t.amount), 0)
 
@@ -98,8 +99,8 @@ export function CashflowChart({ refreshTrigger }: CashflowChartProps) {
         .filter(
           (t) =>
             t.type === 'expense' &&
-            new Date(t.date) >= dayStart &&
-            new Date(t.date) <= dayEnd
+            t.date >= dayStart &&
+            t.date <= dayEnd
         )
         .reduce((sum, t) => sum + Number(t.amount), 0)
 
