@@ -2,6 +2,14 @@ import { getApiUrl } from './config'
 import { getAuthToken } from './auth'
 import type { PeriodFilter } from '@/features/dashboard/components/DashboardFilter'
 
+function getTodayRangeLocal(): { start: Date; end: Date } {
+  const now = new Date()
+  return {
+    start: new Date(now.getFullYear(), now.getMonth(), now.getDate()),
+    end: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999),
+  }
+}
+
 /**
  * Calcula vendas do período e faturamento total
  */
@@ -18,16 +26,17 @@ export async function getKPIs(
       return { periodSales: 0, totalRevenue: 0 }
     }
 
-    const params = new URLSearchParams({
-      period,
-    })
+    const params = new URLSearchParams({ period })
 
-    if (startDate) {
-      params.append('startDate', startDate.toISOString())
+    let start = startDate
+    let end = endDate
+    if (period === 'today' && !start && !end) {
+      const today = getTodayRangeLocal()
+      start = today.start
+      end = today.end
     }
-    if (endDate) {
-      params.append('endDate', endDate.toISOString())
-    }
+    if (start) params.append('startDate', start.toISOString())
+    if (end) params.append('endDate', end.toISOString())
 
     const response = await fetch(`${apiUrl}/api/dashboard/kpis?${params.toString()}`, {
       headers: {
@@ -144,13 +153,17 @@ export async function getFinancialSummary(
       return { income: 0, expenses: 0, profit: 0 }
     }
 
+    let start = startDate
+    let end = endDate
+    if (period === 'today' && !start && !end) {
+      const today = getTodayRangeLocal()
+      start = today.start
+      end = today.end
+    }
+
     const params = new URLSearchParams()
-    if (startDate) {
-      params.append('startDate', startDate.toISOString())
-    }
-    if (endDate) {
-      params.append('endDate', endDate.toISOString())
-    }
+    if (start) params.append('startDate', start.toISOString())
+    if (end) params.append('endDate', end.toISOString())
 
     const response = await fetch(`${apiUrl}/api/dashboard/financial-summary?${params.toString()}`, {
       headers: {
@@ -188,13 +201,17 @@ export async function getSalesChartData(
       return []
     }
 
+    let start = startDate
+    let end = endDate
+    if (period === 'today' && !start && !end) {
+      const today = getTodayRangeLocal()
+      start = today.start
+      end = today.end
+    }
+
     const params = new URLSearchParams()
-    if (startDate) {
-      params.append('startDate', startDate.toISOString())
-    }
-    if (endDate) {
-      params.append('endDate', endDate.toISOString())
-    }
+    if (start) params.append('startDate', start.toISOString())
+    if (end) params.append('endDate', end.toISOString())
 
     const response = await fetch(`${apiUrl}/api/dashboard/sales-chart?${params.toString()}`, {
       headers: {

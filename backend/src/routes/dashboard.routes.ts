@@ -15,12 +15,15 @@ router.get('/kpis', async (req: AuthRequest, res, next) => {
     console.log('[Dashboard KPIs] Tenant ID:', tenantId, 'User ID:', req.user!.id)
 
     // Calcular vendas do período (incluindo transações e pedidos entregues)
+    // Quando o front envia startDate/endDate (ex.: "hoje" no fuso do usuário), usamos esses valores
     let periodStart: Date | null = null
     let periodEnd: Date | null = null
 
-    if (period === 'custom' && startDate && endDate) {
+    if (startDate && endDate) {
       periodStart = new Date(startDate as string)
       periodEnd = new Date(endDate as string)
+    } else if (period === 'custom') {
+      // custom sem datas: não filtra
     } else {
       const now = new Date()
       switch (period) {
@@ -86,13 +89,23 @@ router.get('/kpis', async (req: AuthRequest, res, next) => {
     let periodSales = 0
 
     if (periodStart && periodEnd) {
-      // Transações de receita no período
+      // Para transações usamos apenas a parte DATE (YYYY-MM-DD) para evitar problema de fuso
+      const startDateStr = periodStart.toISOString().split('T')[0]
+      const endDateStr = periodEnd.toISOString().split('T')[0]
+      // "Hoje" enviado pelo front pode ter endDate no dia seguinte (UTC); usamos só o dia de início
+      const sameDay = period === 'today' || startDateStr === endDateStr
+
       const transactionsResult = await query(
-        `SELECT COALESCE(SUM(amount), 0) as total
-         FROM transactions
-         WHERE tenant_id = $1 AND type = 'income' AND deleted_at IS NULL
-         AND date >= $2 AND date <= $3`,
-        [tenantId, periodStart, periodEnd]
+        sameDay
+          ? `SELECT COALESCE(SUM(amount), 0) as total
+             FROM transactions
+             WHERE tenant_id = $1 AND type = 'income' AND deleted_at IS NULL
+             AND date = $2`
+          : `SELECT COALESCE(SUM(amount), 0) as total
+             FROM transactions
+             WHERE tenant_id = $1 AND type = 'income' AND deleted_at IS NULL
+             AND date >= $2 AND date <= $3`,
+        sameDay ? [tenantId, startDateStr] : [tenantId, startDateStr, endDateStr]
       )
       periodSales += parseFloat(transactionsResult.rows[0]?.total || '0')
 
@@ -138,27 +151,35 @@ router.get('/financial-summary', async (req: AuthRequest, res, next) => {
     const tenantId = req.user!.tenantId
     console.log('[Dashboard Financial Summary] Tenant ID:', tenantId, 'User ID:', req.user!.id)
 
-    let sql = `
+    let transactionsSql = `
       SELECT 
         COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as total_income,
         COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as total_expenses
       FROM transactions
       WHERE tenant_id = $1 AND deleted_at IS NULL
     `
-
     const params: any[] = [tenantId]
 
-    if (startDate) {
-      sql += ` AND date >= $${params.length + 1}`
-      params.push(startDate)
+    if (startDate && endDate) {
+      const startDateStr = new Date(startDate as string).toISOString().split('T')[0]
+      const endDateStr = new Date(endDate as string).toISOString().split('T')[0]
+      if (startDateStr === endDateStr || endDateStr > startDateStr) {
+        // Mesmo dia ou "hoje" (end em UTC = dia seguinte): filtra só o dia de início
+        transactionsSql += ` AND date = $${params.length + 1}`
+        params.push(startDateStr)
+      } else {
+        transactionsSql += ` AND date >= $${params.length + 1} AND date <= $${params.length + 2}`
+        params.push(startDateStr, endDateStr)
+      }
+    } else if (startDate) {
+      transactionsSql += ` AND date >= $${params.length + 1}`
+      params.push(new Date(startDate as string).toISOString().split('T')[0])
+    } else if (endDate) {
+      transactionsSql += ` AND date <= $${params.length + 1}`
+      params.push(new Date(endDate as string).toISOString().split('T')[0])
     }
 
-    if (endDate) {
-      sql += ` AND date <= $${params.length + 1}`
-      params.push(endDate)
-    }
-
-    const result = await query(sql, params)
+    const result = await query(transactionsSql, params)
     const income = parseFloat(result.rows[0]?.total_income || '0')
     const expenses = parseFloat(result.rows[0]?.total_expenses || '0')
 
@@ -269,7 +290,7 @@ router.get('/sales-chart', async (req: AuthRequest, res, next) => {
 
     const ordersResult = await query(sql, params)
     
-    // Adicionar transações de receita
+    // Adicionar transações de receita (usar parte DATE para evitar fuso)
     let transactionsSql = `
       SELECT 
         DATE(date) as date,
@@ -279,14 +300,22 @@ router.get('/sales-chart', async (req: AuthRequest, res, next) => {
     `
     const transactionsParams: any[] = [tenantId]
 
-    if (startDate) {
+    if (startDate && endDate) {
+      const startDateStr = new Date(startDate as string).toISOString().split('T')[0]
+      const endDateStr = new Date(endDate as string).toISOString().split('T')[0]
+      if (startDateStr === endDateStr || endDateStr > startDateStr) {
+        transactionsSql += ` AND date = $${transactionsParams.length + 1}`
+        transactionsParams.push(startDateStr)
+      } else {
+        transactionsSql += ` AND date >= $${transactionsParams.length + 1} AND date <= $${transactionsParams.length + 2}`
+        transactionsParams.push(startDateStr, endDateStr)
+      }
+    } else if (startDate) {
       transactionsSql += ` AND date >= $${transactionsParams.length + 1}`
-      transactionsParams.push(startDate)
-    }
-
-    if (endDate) {
+      transactionsParams.push(new Date(startDate as string).toISOString().split('T')[0])
+    } else if (endDate) {
       transactionsSql += ` AND date <= $${transactionsParams.length + 1}`
-      transactionsParams.push(endDate)
+      transactionsParams.push(new Date(endDate as string).toISOString().split('T')[0])
     }
 
     transactionsSql += ` GROUP BY DATE(date) ORDER BY date`

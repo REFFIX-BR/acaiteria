@@ -4,11 +4,12 @@ import { SalesChart } from './components/SalesChart'
 import { TopProducts } from './components/TopProducts'
 import { FinancialSummary } from './components/FinancialSummary'
 import { DashboardFilter, type PeriodFilter } from './components/DashboardFilter'
+import { DaySummary } from './components/DaySummary'
 import { Sparkles, TrendingUp } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 
 export default function DashboardPage() {
-  const [period, setPeriod] = useState<PeriodFilter>('month')
+  const [period, setPeriod] = useState<PeriodFilter>('today')
   const [startDate, setStartDate] = useState<Date | undefined>(undefined)
   const [endDate, setEndDate] = useState<Date | undefined>(undefined)
 
@@ -49,6 +50,9 @@ export default function DashboardPage() {
           </Card>
         </div>
       </div>
+
+      {/* Resumo do dia - sempre visível para o dono ver como foi o dia */}
+      <DaySummary />
 
       {/* KPI Cards */}
       <KPICards period={period} startDate={startDate} endDate={endDate} />
