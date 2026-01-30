@@ -7,13 +7,16 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Converte uma string de data "YYYY-MM-DD" (apenas dia) em Date no fuso local.
- * Evita que "2026-01-29" seja interpretado como meia-noite UTC (que no Brasil vira 28/01).
+ * Converte uma string de data (YYYY-MM-DD ou ISO com hora) em Date no fuso local.
+ * Evita que "2026-01-29" ou "2026-01-29T00:00:00.000Z" seja interpretado como meia-noite UTC
+ * (que no Brasil vira 28/01). O backend serializa DATE como ISO, então precisamos extrair
+ * só o dia e interpretar como meio-dia local.
  */
 export function parseLocalDate(dateOnly: string): Date {
   if (!dateOnly) return new Date()
   const s = typeof dateOnly === 'string' ? dateOnly.trim() : String(dateOnly)
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s + 'T12:00:00')
+  const datePart = s.match(/^(\d{4}-\d{2}-\d{2})/)?.[1]
+  if (datePart) return new Date(datePart + 'T12:00:00')
   return new Date(s)
 }
 
