@@ -1,24 +1,9 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { TrendingUp, TrendingDown, DollarSign, Eye, EyeOff } from 'lucide-react'
 import { useTenantStore } from '@/stores/tenantStore'
 import { getFinancialSummary } from '@/lib/api/dashboard'
-import {
-  getFinancialSummaryPasswordStatus,
-  setFinancialSummaryPassword,
-  verifyFinancialSummaryPassword,
-} from '@/lib/api/settings'
-import { useToast } from '@/hooks/use-toast'
+import { useDashboardFinancial } from '@/features/dashboard/context/DashboardFinancialContext'
 import { useState, useEffect } from 'react'
 import type { PeriodFilter } from './DashboardFilter'
 
@@ -37,18 +22,14 @@ interface FinancialSummaryProps {
 
 export function FinancialSummary({ period, startDate, endDate }: FinancialSummaryProps) {
   const currentTenant = useTenantStore((state) => state.currentTenant)
-  const { toast } = useToast()
+  const financial = useDashboardFinancial()
+  const hasPassword = financial?.hasPassword ?? null
+  const unlocked = financial?.unlocked ?? false
+  const setUnlocked = financial?.setUnlocked ?? (() => {})
+  const openSetModal = financial?.openSetModal ?? (() => {})
+  const openVerifyModal = financial?.openVerifyModal ?? (() => {})
   const [summary, setSummary] = useState<{ income: number; expenses: number; profit: number } | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [hasPassword, setHasPassword] = useState<boolean | null>(null)
-  const [unlocked, setUnlocked] = useState(false)
-  const [showSetModal, setShowSetModal] = useState(false)
-  const [showVerifyModal, setShowVerifyModal] = useState(false)
-  const [setNewPassword, setSetNewPassword] = useState('')
-  const [setConfirmPassword, setSetConfirmPassword] = useState('')
-  const [verifyPassword, setVerifyPassword] = useState('')
-  const [setSubmitting, setSetSubmitting] = useState(false)
-  const [verifySubmitting, setVerifySubmitting] = useState(false)
 
   useEffect(() => {
     const loadSummary = async () => {
@@ -71,23 +52,6 @@ export function FinancialSummary({ period, startDate, endDate }: FinancialSummar
     loadSummary()
   }, [currentTenant, period, startDate, endDate])
 
-  useEffect(() => {
-    const loadStatus = async () => {
-      if (!currentTenant) {
-        setHasPassword(null)
-        return
-      }
-      try {
-        const { hasPassword: hp } = await getFinancialSummaryPasswordStatus()
-        setHasPassword(hp)
-        if (!hp) setUnlocked(false)
-      } catch {
-        setHasPassword(false)
-      }
-    }
-    loadStatus()
-  }, [currentTenant])
-
   const handleEyeClick = () => {
     if (hasPassword === null) return
     if (unlocked) {
@@ -95,54 +59,10 @@ export function FinancialSummary({ period, startDate, endDate }: FinancialSummar
       return
     }
     if (!hasPassword) {
-      setShowSetModal(true)
+      openSetModal()
       return
     }
-    setVerifyPassword('')
-    setShowVerifyModal(true)
-  }
-
-  const handleSetPassword = async () => {
-    if (!setNewPassword.trim() || setNewPassword !== setConfirmPassword) {
-      toast({ title: 'Erro', description: 'Preencha e confirme a senha.', variant: 'destructive' })
-      return
-    }
-    setSetSubmitting(true)
-    try {
-      const result = await setFinancialSummaryPassword(setNewPassword, setConfirmPassword)
-      if (result.success) {
-        setHasPassword(true)
-        setUnlocked(true)
-        setShowSetModal(false)
-        setSetNewPassword('')
-        setSetConfirmPassword('')
-        toast({ title: 'Senha definida', description: 'Resumo financeiro protegido. Use o ícone do olho para visualizar.' })
-      } else {
-        toast({ title: 'Erro', description: result.error || 'Não foi possível definir a senha.', variant: 'destructive' })
-      }
-    } finally {
-      setSetSubmitting(false)
-    }
-  }
-
-  const handleVerifyPassword = async () => {
-    if (!verifyPassword.trim()) {
-      toast({ title: 'Erro', description: 'Digite a senha.', variant: 'destructive' })
-      return
-    }
-    setVerifySubmitting(true)
-    try {
-      const result = await verifyFinancialSummaryPassword(verifyPassword)
-      if (result.valid) {
-        setUnlocked(true)
-        setShowVerifyModal(false)
-        setVerifyPassword('')
-      } else {
-        toast({ title: 'Senha incorreta', description: 'Tente novamente.', variant: 'destructive' })
-      }
-    } finally {
-      setVerifySubmitting(false)
-    }
+    openVerifyModal()
   }
 
   if (!currentTenant || !summary) {
@@ -254,79 +174,6 @@ export function FinancialSummary({ period, startDate, endDate }: FinancialSummar
           )}
         </CardContent>
       </Card>
-
-      <Dialog open={showSetModal} onOpenChange={setShowSetModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Definir senha do resumo financeiro</DialogTitle>
-            <DialogDescription>
-              Quem não souber esta senha não poderá ver os valores de entradas, saídas e lucro. Defina uma senha para proteger.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="new-password">Nova senha</Label>
-              <Input
-                id="new-password"
-                type="password"
-                placeholder="Mínimo 4 caracteres"
-                value={setNewPassword}
-                onChange={(e) => setSetNewPassword(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirm-password">Confirmar senha</Label>
-              <Input
-                id="confirm-password"
-                type="password"
-                placeholder="Repita a senha"
-                value={setConfirmPassword}
-                onChange={(e) => setSetConfirmPassword(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setShowSetModal(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSetPassword} disabled={setSubmitting}>
-              {setSubmitting ? 'Salvando...' : 'Definir senha'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={showVerifyModal} onOpenChange={setShowVerifyModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Visualizar resumo financeiro</DialogTitle>
-            <DialogDescription>
-              Digite a senha configurada pelo administrador para ver os valores.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="verify-password">Senha</Label>
-              <Input
-                id="verify-password"
-                type="password"
-                placeholder="Digite a senha"
-                value={verifyPassword}
-                onChange={(e) => setVerifyPassword(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleVerifyPassword()}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setShowVerifyModal(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleVerifyPassword} disabled={verifySubmitting}>
-              {verifySubmitting ? 'Verificando...' : 'Visualizar'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   )
 }

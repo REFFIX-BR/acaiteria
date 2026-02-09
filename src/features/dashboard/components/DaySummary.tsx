@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Sun, TrendingUp, DollarSign } from 'lucide-react'
 import { useTenantStore } from '@/stores/tenantStore'
+import { useFinancialLocked } from '@/features/dashboard/context/DashboardFinancialContext'
 import { useState, useEffect } from 'react'
 import { getKPIs } from '@/lib/api/dashboard'
 import { getFinancialSummary } from '@/lib/api/dashboard'
@@ -25,6 +26,7 @@ function getTodayRangeLocal() {
 
 export function DaySummary() {
   const currentTenant = useTenantStore((state) => state.currentTenant)
+  const financialLocked = useFinancialLocked()
   const [sales, setSales] = useState<number | null>(null)
   const [summary, setSummary] = useState<{ income: number; expenses: number; profit: number } | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -84,6 +86,27 @@ export function DaySummary() {
           <div className="grid grid-cols-2 gap-4">
             <div className="h-16 rounded-lg bg-muted animate-pulse" />
             <div className="h-16 rounded-lg bg-muted animate-pulse" />
+          </div>
+        ) : financialLocked ? (
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-background/60 border">
+              <div className="p-2 rounded-lg bg-green-500/10">
+                <TrendingUp className="h-5 w-5 text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground font-medium">Faturamento hoje</p>
+                <p className="text-xl font-bold text-muted-foreground/70">R$ •••••••</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-background/60 border">
+              <div className="p-2 rounded-lg bg-green-500/10">
+                <DollarSign className="h-5 w-5 text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground font-medium">Lucro hoje</p>
+                <p className="text-xl font-bold text-muted-foreground/70">R$ •••••••</p>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-4">

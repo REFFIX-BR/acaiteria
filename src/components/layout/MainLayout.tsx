@@ -36,6 +36,7 @@ import {
 import { useOrderNotifications } from '@/hooks/use-order-notifications'
 import { authenticatedFetch } from '@/lib/api/auth'
 import { getApiUrl } from '@/lib/api/config'
+import { DashboardFinancialProvider } from '@/features/dashboard/context/DashboardFinancialContext'
 import type React from 'react'
 
 const navigation = [
@@ -304,7 +305,9 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
         {/* Page Content */}
         <main className="p-4 sm:p-6 lg:p-8 animate-fade-in">
-          {children}
+          <DashboardFinancialProvider>
+            {children}
+          </DashboardFinancialProvider>
         </main>
       </div>
     </div>

@@ -13,6 +13,7 @@ import { useTenantStore } from '@/stores/tenantStore'
 import { useMemo, useEffect, useState } from 'react'
 import { format, subDays, startOfDay, endOfDay } from 'date-fns'
 import { parseLocalDate } from '@/lib/utils'
+import { useFinancialLocked } from '@/features/dashboard/context/DashboardFinancialContext'
 import type { Transaction } from '@/types'
 
 function formatCurrency(value: number) {
@@ -28,6 +29,7 @@ interface CashflowChartProps {
 
 export function CashflowChart({ refreshTrigger }: CashflowChartProps) {
   const currentTenant = useTenantStore((state) => state.currentTenant)
+  const financialLocked = useFinancialLocked()
   const [transactions, setTransactions] = useState<Transaction[]>([])
 
   // Buscar transações do backend
@@ -128,7 +130,12 @@ export function CashflowChart({ refreshTrigger }: CashflowChartProps) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {data.length === 0 || data.every(d => d.Entradas === 0 && d.Saídas === 0) ? (
+        {financialLocked ? (
+          <div className="h-[300px] flex flex-col items-center justify-center gap-2 text-muted-foreground">
+            <p>Os valores do gráfico estão protegidos por senha.</p>
+            <p className="text-sm">Use o botão &quot;Desbloquear valores&quot; acima para visualizar.</p>
+          </div>
+        ) : data.length === 0 || data.every(d => d.Entradas === 0 && d.Saídas === 0) ? (
           <div className="h-[300px] flex items-center justify-center text-muted-foreground">
             Nenhum dado disponível
           </div>

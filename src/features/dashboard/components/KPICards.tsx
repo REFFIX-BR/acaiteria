@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TrendingUp, DollarSign, ArrowUpRight } from 'lucide-react'
 import { useTenantStore } from '@/stores/tenantStore'
+import { useFinancialLocked } from '@/features/dashboard/context/DashboardFinancialContext'
 import { getKPIs } from '@/lib/api/dashboard'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
@@ -21,6 +22,7 @@ interface KPICardsProps {
 
 export function KPICards({ period, startDate, endDate }: KPICardsProps) {
   const currentTenant = useTenantStore((state) => state.currentTenant)
+  const financialLocked = useFinancialLocked()
   const [kpis, setKpis] = useState<{ periodSales: number; totalRevenue: number } | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -71,7 +73,7 @@ export function KPICards({ period, startDate, endDate }: KPICardsProps) {
   const cards = [
     {
       title: 'Vendas do Período',
-      value: formatCurrency(kpis.periodSales),
+      value: financialLocked ? 'R$ •••••••' : formatCurrency(kpis.periodSales),
       icon: TrendingUp,
       description: getPeriodDescription(),
       gradient: 'from-green-500 to-green-600',
@@ -80,7 +82,7 @@ export function KPICards({ period, startDate, endDate }: KPICardsProps) {
     },
     {
       title: 'Faturamento Total',
-      value: formatCurrency(kpis.totalRevenue),
+      value: financialLocked ? 'R$ •••••••' : formatCurrency(kpis.totalRevenue),
       icon: DollarSign,
       description: 'Acumulado',
       gradient: 'from-orange-500 to-orange-600',

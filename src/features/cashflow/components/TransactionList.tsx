@@ -22,6 +22,7 @@ import { useToast } from '@/hooks/use-toast'
 import { Trash2, ArrowUpCircle, ArrowDownCircle } from 'lucide-react'
 import { format } from 'date-fns'
 import { parseLocalDate } from '@/lib/utils'
+import { useFinancialLocked } from '@/features/dashboard/context/DashboardFinancialContext'
 import type { Transaction } from '@/types'
 import { transactionCategories } from '../types'
 import { useConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -41,6 +42,7 @@ interface TransactionListProps {
 
 export function TransactionList({ refreshTrigger, onDelete }: TransactionListProps) {
   const currentTenant = useTenantStore((state) => state.currentTenant)
+  const financialLocked = useFinancialLocked()
   const { toast } = useToast()
   const { confirm, ConfirmDialogComponent } = useConfirmDialog()
   const [typeFilter, setTypeFilter] = useState<'all' | 'income' | 'expense'>('all')
@@ -285,8 +287,9 @@ export function TransactionList({ refreshTrigger, onDelete }: TransactionListPro
                           : 'text-red-600 dark:text-red-400'
                       }`}
                     >
-                      {transaction.type === 'income' ? '+' : '-'}
-                      {formatCurrency(transaction.amount)}
+                      {financialLocked
+                        ? '••••••'
+                        : `${transaction.type === 'income' ? '+' : '-'}${formatCurrency(transaction.amount)}`}
                     </TableCell>
                     <TableCell>
                       <Button
