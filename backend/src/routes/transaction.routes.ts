@@ -14,6 +14,7 @@ const createTransactionSchema = z.object({
   amount: z.number().min(0),
   description: z.string().optional(),
   date: z.string(),
+  time: z.string().optional(), // HH:mm ou HH:mm:ss - horário da operação
 })
 
 // Listar transações
@@ -49,7 +50,7 @@ router.get('/', async (req: AuthRequest, res, next) => {
       params.push(endDate)
     }
 
-    sql += ` ORDER BY date DESC, created_at DESC`
+    sql += ` ORDER BY date DESC, time DESC, created_at DESC`
 
     const result = await query(sql, params)
     res.json({ transactions: result.rows })
@@ -63,9 +64,11 @@ router.post('/', async (req: AuthRequest, res, next) => {
   try {
     const data = createTransactionSchema.parse(req.body)
 
+    const timeValue = data.time && /^\d{1,2}:\d{2}(:\d{2})?$/.test(data.time) ? data.time : '00:00'
+
     const result = await query(
-      `INSERT INTO transactions (tenant_id, type, category, amount, description, date, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+      `INSERT INTO transactions (tenant_id, type, category, amount, description, date, time, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
        RETURNING id`,
       [
         req.user!.tenantId,
@@ -74,6 +77,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
         data.amount,
         data.description || null,
         data.date,
+        timeValue.length === 5 ? timeValue + ':00' : timeValue,
       ]
     )
 

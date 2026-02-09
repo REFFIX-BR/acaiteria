@@ -33,6 +33,7 @@ const transactionSchema = z.object({
   amount: z.number().positive('Valor deve ser maior que zero'),
   description: z.string().min(1, 'Descrição é obrigatória'),
   date: z.string(),
+  time: z.string().min(1, 'Horário é obrigatório'),
 })
 
 type TransactionFormData = z.infer<typeof transactionSchema>
@@ -59,6 +60,7 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
     defaultValues: {
       type: 'income',
       date: [new Date().getFullYear(), String(new Date().getMonth() + 1).padStart(2, '0'), String(new Date().getDate()).padStart(2, '0')].join('-'),
+      time: new Date().toTimeString().slice(0, 5),
     },
   })
 
@@ -97,6 +99,7 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
           amount: data.amount,
           description: data.description,
           date: data.date,
+          time: data.time,
         }),
       })
 
@@ -123,8 +126,17 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
     }
   }
 
+  const setDefaultsWhenOpen = (isOpen: boolean) => {
+    setOpen(isOpen)
+    if (isOpen) {
+      const now = new Date()
+      setValue('date', [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-'))
+      setValue('time', now.toTimeString().slice(0, 5))
+    }
+  }
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={setDefaultsWhenOpen}>
       <DialogTrigger asChild>
         <Button>
           <Plus className="h-4 w-4 mr-2" />
@@ -211,16 +223,29 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="date">Data</Label>
-            <Input
-              id="date"
-              type="date"
-              {...register('date')}
-            />
-            {errors.date && (
-              <p className="text-sm text-destructive">{errors.date.message}</p>
-            )}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="date">Data</Label>
+              <Input
+                id="date"
+                type="date"
+                {...register('date')}
+              />
+              {errors.date && (
+                <p className="text-sm text-destructive">{errors.date.message}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="time">Horário</Label>
+              <Input
+                id="time"
+                type="time"
+                {...register('time')}
+              />
+              {errors.time && (
+                <p className="text-sm text-destructive">{errors.time.message}</p>
+              )}
+            </div>
           </div>
 
           <DialogFooter>

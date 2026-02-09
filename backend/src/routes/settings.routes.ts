@@ -1,5 +1,6 @@
 import express from 'express'
 import { z } from 'zod'
+import bcrypt from 'bcryptjs'
 import { query } from '../db/connection.js'
 import { authenticate, tenantGuard, AuthRequest } from '../middleware/auth.js'
 
@@ -146,6 +147,67 @@ router.post('/operating-hours', async (req: AuthRequest, res, next) => {
     }
 
     res.json({ message: 'Operating hours saved successfully' })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// --- Senha do Resumo Financeiro (proteger visibilidade no dashboard) ---
+
+// Verifica se o tenant tem senha configurada para o resumo financeiro
+router.get('/financial-summary-password-status', async (req: AuthRequest, res, next) => {
+  try {
+    const result = await query(
+      'SELECT financial_summary_password_hash FROM dashboard_settings WHERE tenant_id = $1',
+      [req.user!.tenantId]
+    )
+    const hasPassword = result.rows.length > 0 && !!result.rows[0].financial_summary_password_hash
+    res.json({ hasPassword })
+  } catch (error) {
+    next(error)
+  }
+})
+
+const setPasswordSchema = z.object({
+  action: z.literal('set'),
+  newPassword: z.string().min(4, 'Senha deve ter no mínimo 4 caracteres'),
+  confirmPassword: z.string(),
+}).refine((d) => d.newPassword === d.confirmPassword, { message: 'As senhas não coincidem', path: ['confirmPassword'] })
+
+const verifyPasswordSchema = z.object({
+  action: z.literal('verify'),
+  password: z.string().min(1, 'Digite a senha'),
+})
+
+router.post('/financial-summary-password', async (req: AuthRequest, res, next) => {
+  try {
+    const body = req.body as { action: string }
+    if (body.action === 'set') {
+      const data = setPasswordSchema.parse(req.body)
+      const hash = await bcrypt.hash(data.newPassword, 10)
+      await query(
+        `INSERT INTO dashboard_settings (tenant_id, financial_summary_password_hash, updated_at)
+         VALUES ($1, $2, NOW())
+         ON CONFLICT (tenant_id) DO UPDATE
+         SET financial_summary_password_hash = EXCLUDED.financial_summary_password_hash,
+             updated_at = NOW()`,
+        [req.user!.tenantId, hash]
+      )
+      return res.json({ success: true, message: 'Senha definida com sucesso' })
+    }
+    if (body.action === 'verify') {
+      const data = verifyPasswordSchema.parse(req.body)
+      const result = await query(
+        'SELECT financial_summary_password_hash FROM dashboard_settings WHERE tenant_id = $1',
+        [req.user!.tenantId]
+      )
+      if (result.rows.length === 0 || !result.rows[0].financial_summary_password_hash) {
+        return res.status(400).json({ error: 'Nenhuma senha configurada', valid: false })
+      }
+      const valid = await bcrypt.compare(data.password, result.rows[0].financial_summary_password_hash)
+      return res.json({ valid })
+    }
+    return res.status(400).json({ error: 'Ação inválida' })
   } catch (error) {
     next(error)
   }

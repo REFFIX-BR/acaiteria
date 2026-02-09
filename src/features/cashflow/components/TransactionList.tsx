@@ -94,6 +94,7 @@ export function TransactionList({ refreshTrigger, onDelete }: TransactionListPro
           const normalizedTransactions = (data.transactions || []).map((t: any) => ({
             ...t,
             date: t.date ? parseLocalDate(t.date) : new Date(),
+            time: t.time != null ? String(t.time).slice(0, 5) : '00:00',
             createdAt: t.created_at ? new Date(t.created_at) : (t.createdAt ? new Date(t.createdAt) : new Date()),
           }))
           
@@ -248,7 +249,7 @@ export function TransactionList({ refreshTrigger, onDelete }: TransactionListPro
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Data</TableHead>
+                  <TableHead>Data e horário</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead>Categoria</TableHead>
                   <TableHead>Descrição</TableHead>
@@ -260,7 +261,7 @@ export function TransactionList({ refreshTrigger, onDelete }: TransactionListPro
                 {transactions.map((transaction) => (
                   <TableRow key={transaction.id}>
                     <TableCell>
-                      {format(new Date(transaction.date), 'dd/MM/yyyy')}
+                      {format(transaction.date, 'dd/MM/yyyy')} {transaction.time ? transaction.time.slice(0, 5) : '00:00'}
                     </TableCell>
                     <TableCell>
                       {transaction.type === 'income' ? (

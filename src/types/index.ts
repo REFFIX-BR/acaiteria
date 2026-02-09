@@ -100,6 +100,8 @@ export interface Transaction {
   amount: number
   description: string
   date: Date
+  /** Horário da operação (HH:mm ou HH:mm:ss) */
+  time?: string
   createdAt: Date
 }
 
