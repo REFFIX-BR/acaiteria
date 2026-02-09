@@ -8,7 +8,7 @@ import { useTenantStore } from '@/stores/tenantStore'
 import { useFinancialLocked, useDashboardFinancial } from '@/features/dashboard/context/DashboardFinancialContext'
 import { parseLocalDate } from '@/lib/utils'
 import type { Transaction } from '@/types'
-import { DollarSign, TrendingUp, TrendingDown, Eye } from 'lucide-react'
+import { DollarSign, TrendingUp, TrendingDown, Eye, EyeOff } from 'lucide-react'
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('pt-BR', {
@@ -100,6 +100,8 @@ export default function CashflowPage() {
     }
   }
 
+  const canLock = financial?.hasPassword && !financialLocked
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -119,6 +121,17 @@ export default function CashflowPage() {
             >
               <Eye className="h-4 w-4" />
               Desbloquear valores
+            </Button>
+          )}
+          {canLock && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => financial?.setUnlocked(false)}
+              className="gap-2"
+            >
+              <EyeOff className="h-4 w-4" />
+              Bloquear valores
             </Button>
           )}
           <TransactionForm onSuccess={handleTransactionSuccess} />
