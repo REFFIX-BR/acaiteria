@@ -109,7 +109,7 @@ export function FinancialSummary({ period, startDate, endDate }: FinancialSummar
     }
     setSetSubmitting(true)
     try {
-      const result = await setFinancialSummaryPassword(setNewPassword, setSetConfirmPassword)
+      const result = await setFinancialSummaryPassword(setNewPassword, setConfirmPassword)
       if (result.success) {
         setHasPassword(true)
         setUnlocked(true)
