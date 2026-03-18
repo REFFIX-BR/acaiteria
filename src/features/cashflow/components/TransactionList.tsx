@@ -103,8 +103,11 @@ export function TransactionList({ refreshTrigger, onDelete }: TransactionListPro
           // Aplicar filtro de busca localmente (não suportado pelo backend ainda)
           let filtered = normalizedTransactions
           if (debouncedSearchTerm) {
+            const searchLower = debouncedSearchTerm.toLowerCase()
             filtered = filtered.filter((t: Transaction) =>
-              t.description?.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
+              t.description?.toLowerCase().includes(searchLower) ||
+              t.item_name?.toLowerCase().includes(searchLower) ||
+              t.item_category?.toLowerCase().includes(searchLower)
             )
           }
           
@@ -279,7 +282,18 @@ export function TransactionList({ refreshTrigger, onDelete }: TransactionListPro
                       )}
                     </TableCell>
                     <TableCell>{transaction.category}</TableCell>
-                    <TableCell>{transaction.description}</TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <div>{transaction.description}</div>
+                        {transaction.item_name && (
+                          <div className="text-xs text-muted-foreground">
+                            Item: {transaction.item_category ? `${transaction.item_category} - ` : ''}
+                            {transaction.item_name}
+                            {transaction.item_quantity ? ` (x${transaction.item_quantity})` : ''}
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell
                       className={`text-right font-medium ${
                         transaction.type === 'income'

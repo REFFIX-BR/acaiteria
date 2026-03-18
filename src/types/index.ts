@@ -102,6 +102,12 @@ export interface Transaction {
   date: Date
   /** Horário da operação (HH:mm ou HH:mm:ss) */
   time?: string
+  /** Categoria do item vendido (quando aplicável) */
+  item_category?: string
+  /** Nome do item vendido (quando aplicável) */
+  item_name?: string
+  /** Quantidade vendida (quando aplicável) */
+  item_quantity?: number
   createdAt: Date
 }
 

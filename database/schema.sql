@@ -107,6 +107,10 @@ CREATE TABLE transactions (
     amount DECIMAL(10, 2) NOT NULL,
     description TEXT,
     date DATE NOT NULL,
+    time TIME NOT NULL DEFAULT '00:00',
+    item_category VARCHAR(100),
+    item_name VARCHAR(255),
+    item_quantity INTEGER CHECK (item_quantity IS NULL OR item_quantity > 0),
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMP WITH TIME ZONE
@@ -114,6 +118,7 @@ CREATE TABLE transactions (
 
 CREATE INDEX idx_transactions_tenant_id ON transactions(tenant_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_transactions_date ON transactions(tenant_id, date DESC) WHERE deleted_at IS NULL;
+CREATE INDEX idx_transactions_date_time ON transactions(tenant_id, date DESC, time DESC) WHERE deleted_at IS NULL;
 CREATE INDEX idx_transactions_type ON transactions(tenant_id, type, date DESC) WHERE deleted_at IS NULL;
 CREATE INDEX idx_transactions_category ON transactions(tenant_id, category) WHERE deleted_at IS NULL;
 

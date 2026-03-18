@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
 import { Plus } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
 import { transactionCategories } from '../types'
 import type { Transaction } from '@/types'
 
@@ -34,6 +35,10 @@ const transactionSchema = z.object({
   description: z.string().min(1, 'Descrição é obrigatória'),
   date: z.string(),
   time: z.string().min(1, 'Horário é obrigatório'),
+  isItemSale: z.boolean().default(false),
+  itemCategory: z.string().optional(),
+  itemName: z.string().optional(),
+  itemQuantity: z.number().int().positive().optional(),
 })
 
 type TransactionFormData = z.infer<typeof transactionSchema>
@@ -46,7 +51,7 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
   const currentTenant = useTenantStore((state) => state.currentTenant)
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
-  const [transactionType, setTransactionType] = useState<'income' | 'expense'>('income')
+  const [menuItems, setMenuItems] = useState<Array<{ id: string; name: string; category: string }>>([])
 
   const {
     register,
@@ -61,16 +66,68 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
       type: 'income',
       date: [new Date().getFullYear(), String(new Date().getMonth() + 1).padStart(2, '0'), String(new Date().getDate()).padStart(2, '0')].join('-'),
       time: new Date().toTimeString().slice(0, 5),
+      isItemSale: false,
+      itemQuantity: 1,
     },
   })
 
   const selectedType = watch('type')
+  const isItemSale = watch('isItemSale')
+  const selectedItemCategory = watch('itemCategory')
+
+  const itemCategories = useMemo(
+    () => Array.from(new Set(menuItems.map((i) => i.category))).sort((a, b) => a.localeCompare(b)),
+    [menuItems]
+  )
+  const itemsByCategory = useMemo(
+    () => menuItems.filter((i) => i.category === selectedItemCategory),
+    [menuItems, selectedItemCategory]
+  )
+
+  useEffect(() => {
+    if (!open || !currentTenant) return
+    const loadMenuItems = async () => {
+      try {
+        const { getApiUrl } = await import('@/lib/api/config')
+        const { getAuthToken } = await import('@/lib/api/auth')
+        const apiUrl = getApiUrl()
+        const token = getAuthToken()
+        if (!token) return
+
+        const response = await fetch(`${apiUrl}/api/menu/items`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+        if (!response.ok) return
+        const data = await response.json()
+        const normalized = (data.items || []).map((item: any) => ({
+          id: String(item.id),
+          name: String(item.name || ''),
+          category: String(item.category || 'Sem categoria'),
+        }))
+        setMenuItems(normalized)
+      } catch (error) {
+        console.error('[TransactionForm] Erro ao carregar itens do cardápio:', error)
+      }
+    }
+    loadMenuItems()
+  }, [open, currentTenant])
 
   const onSubmit = async (data: TransactionFormData) => {
     if (!currentTenant) {
       toast({
         title: 'Erro',
         description: 'Tenant não encontrado',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (data.isItemSale && (!data.itemCategory || !data.itemName || !data.itemQuantity)) {
+      toast({
+        title: 'Campos obrigatórios',
+        description: 'Para item vendido, preencha categoria do item, item e quantidade.',
         variant: 'destructive',
       })
       return
@@ -100,6 +157,9 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
           description: data.description,
           date: data.date,
           time: data.time,
+          itemCategory: data.isItemSale ? data.itemCategory : undefined,
+          itemName: data.isItemSale ? data.itemName : undefined,
+          itemQuantity: data.isItemSale ? data.itemQuantity : undefined,
         }),
       })
 
@@ -132,6 +192,10 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
       const now = new Date()
       setValue('date', [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-'))
       setValue('time', now.toTimeString().slice(0, 5))
+      setValue('isItemSale', false)
+      setValue('itemCategory', undefined)
+      setValue('itemName', undefined)
+      setValue('itemQuantity', 1)
     }
   }
 
@@ -157,7 +221,6 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
               value={selectedType}
               onValueChange={(value: 'income' | 'expense') => {
                 setValue('type', value)
-                setTransactionType(value)
                 setValue('category', '')
               }}
             >
@@ -220,6 +283,87 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
             />
             {errors.description && (
               <p className="text-sm text-destructive">{errors.description.message}</p>
+            )}
+          </div>
+
+          <div className="rounded-md border p-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label htmlFor="isItemSale">Cadastrar item vendido</Label>
+                <p className="text-xs text-muted-foreground">
+                  Marque para informar categoria, item e quantidade vendida.
+                </p>
+              </div>
+              <Switch
+                id="isItemSale"
+                checked={!!isItemSale}
+                onCheckedChange={(checked) => {
+                  setValue('isItemSale', checked)
+                  if (!checked) {
+                    setValue('itemCategory', undefined)
+                    setValue('itemName', undefined)
+                    setValue('itemQuantity', 1)
+                  }
+                }}
+              />
+              <input type="hidden" {...register('isItemSale')} />
+            </div>
+
+            {isItemSale && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="itemCategory">Categoria do item</Label>
+                    <Select
+                      onValueChange={(value) => {
+                        setValue('itemCategory', value)
+                        setValue('itemName', undefined)
+                      }}
+                    >
+                      <SelectTrigger id="itemCategory">
+                        <SelectValue placeholder="Selecione a categoria" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {itemCategories.map((cat) => (
+                          <SelectItem key={cat} value={cat}>
+                            {cat}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <input type="hidden" {...register('itemCategory')} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="itemName">Item</Label>
+                    <Select
+                      onValueChange={(value) => setValue('itemName', value)}
+                    >
+                      <SelectTrigger id="itemName">
+                        <SelectValue placeholder="Selecione o item" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {itemsByCategory.map((item) => (
+                          <SelectItem key={item.id} value={item.name}>
+                            {item.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <input type="hidden" {...register('itemName')} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="itemQuantity">Quantidade vendida</Label>
+                  <Input
+                    id="itemQuantity"
+                    type="number"
+                    min={1}
+                    step={1}
+                    placeholder="1"
+                    {...register('itemQuantity', { valueAsNumber: true })}
+                  />
+                </div>
+              </>
             )}
           </div>
 
